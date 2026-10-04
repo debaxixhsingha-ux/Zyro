@@ -27,7 +27,7 @@ function applyLimits(){const out=tokensOut();
  if(out&&$("mode").value==="Thinking")$("mode").value="Fast"}
 function getFeedback(){try{return JSON.parse(localStorage.getItem(FEEDBACK_KEY)||"[]")}catch(_){return[]}}
 function addFeedback(msgId,action){const fb=getFeedback();fb.push({id:msgId,action,time:Date.now()});try{localStorage.setItem(FEEDBACK_KEY,JSON.stringify(fb))}catch(_){}}
-const MODES={Fast:"Quick short answer, minimal thinking.",Auto:"Balanced speed and depth.",Thinking:"Deep analysis, long detailed answer."};
+const MODES={Fast:"Quick short answer, minimal thinking.",Auto:"Balanced speed and depth.",Thinking:"Deep analysis, long detailed answer.","On-device":"Runs free on your phone. No limits, short answers."};
 const SOON=["Add image","Connect GitHub","Voice input"];
 const STAGES=["Thinking","Analyzing","Planning"];
 let skip=false,ctrl=null,hist=[],busy=false,sample=null;
@@ -96,6 +96,7 @@ function startChip(chip){let i=0,tm;const n=++sid;
  const iv=setInterval(()=>{i=(i+1)%STAGES.length;setL(STAGES[i])},1400);
  return{write(){if(chip.dataset.w)return;chip.dataset.w=1;clearInterval(iv);setL("Writing")},
  done(){clearInterval(iv);clearTimeout(tm);label.classList.remove("shimmer");label.style.opacity=1;label.textContent="Done";chip.classList.add("done");setTimeout(()=>chip.classList.add("fade-out"),900);setTimeout(()=>chip.remove(),1500)},
+ msg(x){clearInterval(iv);clearTimeout(tm);label.style.opacity=1;label.textContent=x},
  stop(){clearInterval(iv);clearTimeout(tm);chip.remove()}}}
 function copy(txt,btn){const ok=()=>{btn.textContent="Copied";setTimeout(()=>btn.textContent="Copy",1200)};
  const fb=()=>{const a=document.createElement("textarea");a.value=txt;a.style.cssText="position:fixed;opacity:0";document.body.appendChild(a);a.select();try{document.execCommand("copy");ok()}catch(_){}a.remove()};
@@ -173,6 +174,40 @@ function typer(body,cheap){let target="",shown=0,tm=0,fin=false,res=null;
   finish(x){target=x;fin=true;return new Promise(r=>{res=r;if(!tm)tm=setTimeout(tick,0)})},
   kill(){clearTimeout(tm);tm=0}}}
 const api=h=>h.slice(-20).map(m=>({role:m.role,content:m.content}));
+const LOCAL_PREF=["Qwen2.5-1.5B-Instruct-q4f16_1-MLC","Qwen2.5-0.5B-Instruct-q4f16_1-MLC","Llama-3.2-1B-Instruct-q4f16_1-MLC"];
+let eng=null,engP=null,stopLocal=null;
+const canLocal=()=>!!navigator.gpu;
+const localReady=()=>{try{return localStorage.getItem("zyro_local_ok")==="1"}catch(_){return false}};
+async function loadLocal(onProg){
+ if(eng)return eng;
+ if(!engP)engP=(async()=>{
+  const wl=await import("https://esm.run/@mlc-ai/web-llm@0.2.78");
+  const ids=wl.prebuiltAppConfig.model_list.map(m=>m.model_id);
+  const cand=LOCAL_PREF.filter(x=>ids.includes(x));
+  const extra=ids.filter(i=>/(0\.5B|1B|1\.5B)-Instruct-q4f16_1-MLC$/i.test(i)&&cand.indexOf(i)<0);
+  let lastE=null;
+  for(const id of cand.concat(extra)){
+   try{eng=await wl.CreateMLCEngine(id,{initProgressCallback:p=>{if(onProg)onProg(p)}});try{localStorage.setItem("zyro_local_ok","1")}catch(_){}return eng}
+   catch(e){lastE=e}}
+  throw lastE||new Error("No on-device model available")})();
+ try{return await engP}catch(e){engP=null;throw e}}
+const SYS_LOCAL=()=>"You are Zyro, a helpful assistant. Answer clearly and briefly. Put code in fenced blocks with a language tag. Write math in LaTeX with $...$."+(getCI()?" "+getCI().slice(0,400):"");
+const localMsgs=full=>[{role:"system",content:SYS_LOCAL()},...api(hist).slice(-4).map(m=>({role:m.role,content:m.content.slice(0,1200)})),{role:"user",content:full.slice(0,5000)}];
+const progText=p=>"Loading model "+Math.round(((p&&p.progress)||0)*100)+"%";
+async function localStream(messages,onText,signal,onProg){
+ let e;
+ try{e=await Promise.race([loadLocal(onProg),new Promise((_,no)=>{if(signal.aborted)no({name:"AbortError"});signal.addEventListener("abort",()=>no({name:"AbortError"}))})])}
+ catch(x){if(x&&x.name==="AbortError")return"";throw x}
+ let full="";
+ stopLocal=()=>{try{e.interruptGenerate()}catch(_){}};
+ try{const chunks=await e.chat.completions.create({messages,stream:true,temperature:0.5,max_tokens:700});
+  for await(const ch of chunks){if(signal.aborted){stopLocal();break}
+   const d=ch.choices&&ch.choices[0]&&ch.choices[0].delta&&ch.choices[0].delta.content;if(d){full+=d;onText(full)}}}
+ finally{stopLocal=null}
+ return full}
+async function offerLocal(e){
+ if(localReady()){toast("Gemini is busy, using the on-device model");return true}
+ return confirm("Gemini is unavailable right now ("+(e.code==="nokey"?"no key":"limit reached")+"). Run the free on-device model instead? It downloads about 1 GB once, then works offline.")}
 function send(text){const files=pending.slice();if(busy||(!text.trim()&&!files.length))return;
  const out=tokensOut();
  if(out&&files.length){toast("Tokens are out — uploads are off until tomorrow");pending=[];renderAtts();return}
@@ -181,7 +216,7 @@ function send(text){const files=pending.slice();if(busy||(!text.trim()&&!files.l
  if(out&&/\b(make|build|create|design|generate|develop)\b/i.test(show)){
   $("hero").style.display="none";addU(show);
   const d=addA();d.lastChild.remove();
-  setH(d.firstChild,md("I'm sorry, your tokens are out for today ⚡\n\nEverything refills tomorrow at the same time. Until then, quick chats in Fast mode still work — but building, uploads and Thinking mode are paused."));
+  setH(d.firstChild,md("I'm sorry, your tokens are out for today ⚡\n\nEverything refills tomorrow at the same time. Until then, quick chats in Fast mode still work, and the **On-device** mode is free and unlimited — but building, uploads and Thinking mode are paused."));
   return}
  const full=show+files.map(f=>"\n\n--- "+f.name+" ---\n"+f.text).join("");
  pending=[];renderAtts();return run(show,full,files.map(f=>f.name))}
@@ -196,7 +231,12 @@ async function run(show,full,names){if(busy)return;busy=true;skip=false;ctrl=new
  const onThought=th=>{if(!thinkEl){thinkEl=document.createElement("details");thinkEl.className="think";thinkEl.innerHTML='<summary>Thinking…</summary><div class="think-body"></div>';d.insertBefore(thinkEl,body)}
   thinkEl.querySelector(".think-body").textContent=th};
 const tw=typer(body,cheap);try{let out;const emit=x=>{c.write();tw.set(x);paintBar(baseUsed+Math.round(x.length/4),0)};
-  if(typeof claude==="undefined"){if(!getKey()&&!askKey())throw{code:"nokey"};out=await geminiStream([{role:"system",content:SYS()},...api(hist),{role:"user",content:full}],emit,ctrl.signal,cheap,onThought)}
+  if(typeof claude==="undefined"){
+   const viaLocal=()=>localStream(localMsgs(full),x=>{c.write();tw.set(x)},ctrl.signal,p=>c.msg(progText(p)));
+   if($("mode").value==="On-device"){if(!canLocal())throw{code:"nogpu"};out=await viaLocal()}
+   else{let got=false;const emit2=x=>{got=true;emit(x)};
+    try{if(!getKey()&&!askKey())throw{code:"nokey"};out=await geminiStream([{role:"system",content:SYS()},...api(hist),{role:"user",content:full}],emit2,ctrl.signal,cheap,onThought)}
+    catch(e){if(!got&&e&&(e.code==="rate"||e.code==="http"||e.code==="nokey")&&canLocal()&&await offerLocal(e))out=await viaLocal();else throw e}}}
   else{if(!sample)sample=await claude.use("sample").catch(()=>null);
    if(!sample)throw{code:"na"};
    const r=await sample([...api(hist),{role:"user",content:"["+SYS()+"]\n\n"+full}],{cache:false,modelTier:"default",onText:({text})=>emit(text)});out=r.text}
@@ -209,9 +249,9 @@ const tw=typer(body,cheap);try{let out;const emit=x=>{c.write();tw.set(x);paintB
   cur.ts=Date.now();
   hist.push({role:"user",content:full,show,att:names},{role:"assistant",content:out});if(hist.length>60)hist.splice(0,hist.length-60);chats=[cur,...chats.filter(x=>x!==cur)];save();c.done()}
  catch(e){tw.kill();c.stop();if(e&&e.code==="key")setKey("");const na=e&&e.code==="na";if(!na){t.value=show;t.dispatchEvent(new Event("input"))}
-  body.innerHTML=`<span class="err">${na?"AI is unavailable here. Open this page inside Claude.":e&&e.code==="nokey"?"Add your Google AI Studio key to start. Tap + then API key.":e&&e.code==="key"?"That key was rejected. Tap + then API key and paste a new one.":e&&e.code==="rate"?"Rate limit hit on every model. Wait a minute, then retry.":"Failed: "+(e&&e.info||e&&e.message||"network problem")+". Your message is back in the box."}</span>`}
+  body.innerHTML=`<span class="err">${na?"AI is unavailable here. Open this page inside Claude.":e&&e.code==="nogpu"?"On-device mode needs a recent Chrome on Android (WebGPU). Switch the mode to Fast or Auto.":e&&e.code==="nokey"?"Add your Google AI Studio key to start. Tap + then API key.":e&&e.code==="key"?"That key was rejected. Tap + then API key and paste a new one.":e&&e.code==="rate"?"Rate limit hit on every model. Wait a minute, then retry.":"Failed: "+(e&&e.info||e&&e.message||"network problem")+". Your message is back in the box."}</span>`}
  busy=false;ctrl=null;setGo(0);syncPill();down()}
-$("f").onsubmit=e=>{e.preventDefault();if(busy){skip=true;if(ctrl)ctrl.abort();return}const v=t.value;t.value="";t.style.height="auto";send(v)};
+$("f").onsubmit=e=>{e.preventDefault();if(busy){skip=true;if(ctrl)ctrl.abort();if(stopLocal)stopLocal();return}const v=t.value;t.value="";t.style.height="auto";send(v)};
 const CK="zyro_chats";let chats=[],cur=null;
 try{chats=JSON.parse(localStorage.getItem(CK)||"[]")}catch(_){chats=[]}
 const save=()=>{chats=chats.slice(0,40);for(;;){try{localStorage.setItem(CK,JSON.stringify(chats));return}catch(_){if(chats.length<=1)return;chats.pop()}}};
@@ -269,4 +309,3 @@ $("burger").onclick=openD;$("scrim").onclick=closeD;$("closeD").onclick=closeD;$
 document.addEventListener("keydown",e=>{if(e.key==="Escape"){closeD();closePV();$("modal").classList.remove("on")}});
 t.addEventListener("input",()=>{t.style.height="auto";t.style.height=Math.min(t.scrollHeight,170)+"px"});
 t.addEventListener("keydown",e=>{if(e.key==="Enter"&&!e.shiftKey&&!e.isComposing&&matchMedia("(hover:hover)").matches){e.preventDefault();if(!busy)$("f").requestSubmit()}});
-
