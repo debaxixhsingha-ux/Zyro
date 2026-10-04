@@ -110,11 +110,11 @@ log.addEventListener("click",e=>{
 const SYS=()=>`You are Zyro, a friendly expert AI assistant for ANY topic: coding, AI/ML, B.Tech subjects, writing, ideas, studies, plans, daily advice, fun. Mode: ${$("mode").value}. ${MODES[$("mode").value]} IMPORTANT: if the user's message is only a greeting (hi, hey, hello, yo, good morning, how are you, etc.), reply with exactly ONE short friendly sentence introducing yourself as Zyro — never list features, subjects or abilities. Put all code in fenced blocks with a language tag. Write math in LaTeX using $...$ inline and $$...$$ for display. For any web page or UI request, give one complete self-contained HTML file with inline CSS and JS in a single html code block. For product, fashion, food or storefront websites, use real photos (https://images.unsplash.com/ image URLs or https://picsum.photos/seed/name/600/800) inside clean cards with names and prices — never represent products with abstract 3D shapes or colored boxes.${getCI()?" The user's custom instructions: "+getCI().slice(0,1500):""}`;
 const ARROW=go.innerHTML,STOPI='<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><rect x="5" y="5" width="14" height="14" rx="3"/></svg>';
 function setGo(on){go.innerHTML=on?STOPI:ARROW;go.setAttribute("aria-label",on?"Stop":"Send")}
-const RETRY=[404,429,500,502,503,504];
+const RETRY=[400,404,429,500,502,503,504];
 async function geminiStream(messages,onText,signal,cheap,onThought){
  const mode=$("mode").value;
  const fast=cheap||mode==="Fast";
- const LIST=fast?["gemini-2.5-flash-lite","gemini-3-flash-preview","gemini-3-pro-preview"]:["gemini-3-flash-preview","gemini-2.5-flash-lite","gemini-3-pro-preview","gemini-2.5-flash"];
+ const LIST=fast?["gemini-2.5-flash","gemini-2.0-flash"]:["gemini-2.5-flash","gemini-2.5-pro","gemini-2.0-flash"];
  let pref="";try{pref=localStorage.getItem("zyro_model")||""}catch(_){}
  let start=LIST.indexOf(pref);if(start<0)start=0;
  const sysMsg=messages.find(m=>m.role==="system"),turns=messages.filter(m=>m.role!=="system");
