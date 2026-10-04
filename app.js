@@ -191,3 +191,33 @@ $("burger").onclick=openD;$("scrim").onclick=closeD;$("closeD").onclick=closeD;$
 document.addEventListener("keydown",e=>{if(e.key==="Escape"){closeD();closePV();$("modal").classList.remove("on")}});
 t.addEventListener("input",()=>{t.style.height="auto";t.style.height=Math.min(t.scrollHeight,170)+"px"});
 t.addEventListener("keydown",e=>{if(e.key==="Enter"&&!e.shiftKey&&!e.isComposing&&matchMedia("(hover:hover)").matches){e.preventDefault();if(!busy)$("f").requestSubmit()}});
+/* ===== PATCH v4: model auto-fallback for new Google accounts ===== */
+async function geminiStream(messages,onText,signal){
+ const LIST=["gemini-3-flash-preview","gemini-2.5-flash-lite","gemini-3-pro-preview","gemini-2.5-flash"];
+ let pref="";try{pref=localStorage.getItem("zyro_model")||""}catch(_){}
+ let start=LIST.indexOf(pref);if(start<0)start=0;
+ const mode=$("mode").value;
+ for(let k=0;k<LIST.length;k++){
+  const model=LIST[(start+k)%LIST.length];
+  const is3=model.indexOf("gemini-3")===0;
+  const gc={maxOutputTokens:mode==="Thinking"?8192:mode==="Fast"?2048:4096,
+   thinkingConfig:is3?{thinkingLevel:mode==="Thinking"?"HIGH":mode==="Fast"?"MINIMAL":"MEDIUM"}:{thinkingBudget:mode==="Thinking"?10000:mode==="Fast"?0:2048}};
+  if(!is3)gc.temperature=mode==="Thinking"?0.7:mode==="Fast"?0.3:0.5;
+  const url="https://generativelanguage.googleapis.com/v1beta/models/"+model+":streamGenerateContent?alt=sse&key="+getKey();
+  const body={contents:messages.map(m=>({role:m.role==="assistant"?"model":"user",parts:[{text:m.content}]})),generationConfig:gc,safetySettings:[{category:"HARM_CATEGORY_HARASSMENT",threshold:"BLOCK_NONE"},{category:"HARM_CATEGORY_HATE_SPEECH",threshold:"BLOCK_NONE"},{category:"HARM_CATEGORY_SEXUALLY_EXPLICIT",threshold:"BLOCK_NONE"},{category:"HARM_CATEGORY_DANGEROUS_CONTENT",threshold:"BLOCK_NONE"}]};
+  let r;
+  try{r=await fetch(url,{method:"POST",signal,headers:{"Content-Type":"application/json"},body:JSON.stringify(body)})}
+  catch(e){if(e&&e.name==="AbortError")return"";throw e}
+  if(r.status===404){try{await r.text()}catch(_){}continue}
+  if(!r.ok||!r.body){let msg="";try{msg=(await r.text()).slice(0,120)}catch(_){}throw{code:r.status===429?"rate":r.status===401||r.status===403?"key":"http",info:r.status+" "+msg}}
+  try{localStorage.setItem("zyro_model",model)}catch(_){}
+  let full="",used=0;const rd=r.body.getReader(),dec=new TextDecoder();let buf="";
+  for(;;){const{done,value}=await rd.read();if(done)break;buf+=dec.decode(value,{stream:true});
+   const lines=buf.split("\n");buf=lines.pop();
+   for(const ln of lines){if(!ln.startsWith("data:"))continue;const d=ln.slice(5).trim();
+    try{const j=JSON.parse(d);if(j.candidates&&j.candidates[0]){const c=j.candidates[0].content&&j.candidates[0].content.parts&&j.candidates[0].content.parts[0];if(c&&c.text){full+=c.text;onText(full)}}
+     if(j.usageMetadata){used=j.usageMetadata.totalTokenCount||used}}catch(_){}}}
+  if(used>0)addTokens(used,mode);
+  return full}
+ throw{code:"http",info:"404 on all models — open AI Studio and tell me which models it shows"};
+}
