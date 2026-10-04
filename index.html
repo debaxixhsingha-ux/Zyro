@@ -17,6 +17,7 @@
 html{height:100%}
 body{margin:0;height:100vh;height:100dvh;background:var(--bg);color:var(--ink);font:15.5px/1.65 'Space Grotesk',system-ui,sans-serif;display:flex;flex-direction:column}
 button{font:inherit;color:inherit;cursor:pointer}
+button:disabled{opacity:.4;cursor:not-allowed}
 header{display:flex;justify-content:space-between;align-items:center;padding:12px 18px}
 .icon{background:none;border:0;width:36px;height:36px;border-radius:10px;color:var(--dim);display:grid;place-items:center}
 .icon:hover{background:var(--hover)}
@@ -98,10 +99,11 @@ pre{margin:0;padding:14px;overflow-x:auto;font:13px/1.55 'JetBrains Mono',monosp
 .seg button{flex:1;border:0;background:none;border-radius:11px;padding:8px 6px;font-size:14px;color:var(--dim)}
 .seg button.on{background:var(--ink);color:var(--bg)}
 .token-section{margin:6px 0 4px;padding-top:10px;border-top:1px solid var(--line)}
-.token-bar{background:var(--box);border:1px solid var(--line);border-radius:10px;padding:8px 10px;margin:6px 0}
-.token-info{display:flex;justify-content:space-between;font-size:12px;margin-bottom:5px;color:var(--dim)}
+.token-bar{background:var(--box);border:1px solid var(--line);border-radius:10px;padding:10px;margin:6px 0}
+.token-info{display:flex;justify-content:space-between;font-size:12px;margin-bottom:6px;color:var(--dim)}
 .token-progress{height:6px;background:var(--line);border-radius:3px;overflow:hidden}
 .token-fill{height:100%;background:var(--acc);transition:width .3s}
+.tn{font-size:11px;color:var(--dim);margin-top:6px}
 .body hr{border:0;border-top:1px solid var(--line);margin:14px 0}
 .err{color:#e5484d}
 footer{padding:6px 18px 12px}
@@ -135,10 +137,12 @@ select option{color:#000}
 <div class="dh"><button class="newc" id="newc">+ New chat</button><button class="icon" id="closeD" aria-label="Close">✕</button></div>
 <div class="list" id="list"></div>
 <div class="token-section">
-<div class="tl">Tokens · refills daily</div>
-<div class="token-bar"><div class="token-info"><span>⚡ Fast (25%)</span><span id="tFast"></span></div><div class="token-progress"><div class="token-fill" id="fFast"></div></div></div>
-<div class="token-bar"><div class="token-info"><span>◑ Auto (15%)</span><span id="tAuto"></span></div><div class="token-progress"><div class="token-fill" id="fAuto"></div></div></div>
-<div class="token-bar"><div class="token-info"><span>🧠 Thinking (60%)</span><span id="tThink"></span></div><div class="token-progress"><div class="token-fill" id="fThink"></div></div></div>
+<div class="tl">Today's tokens</div>
+<div class="token-bar">
+<div class="token-info"><span id="tPct">0% of 100% used</span><span id="tLast"></span></div>
+<div class="token-progress"><div class="token-fill" id="fTotal" style="width:0%"></div></div>
+<div class="tn" id="tNote">Refills daily · Thinking burns fastest · short chats are cheap</div>
+</div>
 </div>
 <div class="theme"><div class="tl">Appearance</div><div class="seg"><button type="button" data-th="light">☀ Daylight</button><button type="button" data-th="dark">☾ Midnight</button></div></div>
 <div class="df">Chats are saved only on this device</div>
@@ -158,6 +162,6 @@ select option{color:#000}
 <div class="pv" id="pv"><div class="pvh"><span>Preview</span><button class="icon" id="pvx" aria-label="Close">✕</button></div><iframe id="pvf" sandbox="allow-scripts" title="Preview"></iframe></div>
 <div class="modal" id="modal"><div class="mb"><h3>Custom instructions</h3><p>Tell Zyro how to answer. Saved only on this device.</p><textarea id="ci" placeholder="e.g. Keep answers short. Explain like I am a beginner."></textarea><div class="mr"><button id="ciCancel" type="button">Cancel</button><button id="ciSave" type="button">Save</button></div></div></div>
 <div class="toast" id="toast"></div>
-<script src="app.js?v=5"></script>
+<script src="app.js?v=6"></script>
 </body>
 </html>
