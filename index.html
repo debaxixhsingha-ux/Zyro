@@ -13,20 +13,17 @@
 @media(prefers-color-scheme:light){:root:not([data-theme="dark"]){--bg:#faf9f5;--ink:#1f1e1d;--dim:#6b6860;--box:#fff;--line:#e6e2d6;--hover:#f1eee4;--code:#f4f1e8;--hk:#cf222e;--hs:#0a3069;--hc:#6e7781;--hn:#0550ae;--ht:#953800}}
 :root[data-theme="light"]{--bg:#faf9f5;--ink:#1f1e1d;--dim:#6b6860;--box:#fff;--line:#e6e2d6;--hover:#f1eee4;--code:#f4f1e8;--hk:#cf222e;--hs:#0a3069;--hc:#6e7781;--hn:#0550ae;--ht:#953800}
 :root[data-theme="dark"]{--bg:#0a0a0a;--ink:#ececec;--dim:#8b8b8b;--box:#161616;--line:#262626;--hover:#202020;--code:#101010}
-*{box-sizing:border-box}html,body{height:100%;margin:0}
-body{background:var(--bg);color:var(--ink);font:15.5px/1.65 'Space Grotesk',system-ui,sans-serif;display:flex;flex-direction:column}
+*{box-sizing:border-box}
+html{height:100%}
+body{margin:0;height:100vh;height:100dvh;background:var(--bg);color:var(--ink);font:15.5px/1.65 'Space Grotesk',system-ui,sans-serif;display:flex;flex-direction:column}
 button{font:inherit;color:inherit;cursor:pointer}
 header{display:flex;justify-content:space-between;align-items:center;padding:12px 18px}
 .icon{background:none;border:0;width:36px;height:36px;border-radius:10px;color:var(--dim);display:grid;place-items:center}
 .icon:hover{background:var(--hover)}
-main{flex:1;overflow-y:auto;display:flex;flex-direction:column}
+main{flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column}
 .wrap{width:100%;max-width:720px;margin:0 auto;padding:0 18px;flex:1;display:flex;flex-direction:column}
 .hero{margin:auto 0;padding:6vh 0;text-align:center}
-.hero h1{font:500 clamp(34px,9vw,52px)/1.12 'Space Grotesk',sans-serif;margin:0 0 8px;letter-spacing:-1.5px}
-.hero p{margin:0 0 26px;color:var(--dim)}
-.sug{display:flex;flex-wrap:wrap;gap:8px;justify-content:center}
-.sug button{border:1px solid var(--line);background:none;border-radius:20px;padding:8px 14px;font-size:14px;color:var(--dim)}
-.sug button:hover{background:var(--hover);color:var(--ink)}
+.hero h1{font:500 clamp(34px,9vw,52px)/1.12 'Space Grotesk',sans-serif;margin:0;letter-spacing:-1.5px}
 #log{padding-bottom:24px}
 .u{margin:20px 0 6px;display:flex;justify-content:flex-end}
 .u>div{background:var(--box);border:1px solid var(--line);padding:10px 16px;border-radius:18px;max-width:88%;white-space:pre-wrap;word-break:break-word}
@@ -72,9 +69,10 @@ pre{margin:0;padding:14px;overflow-x:auto;font:13px/1.55 'JetBrains Mono',monosp
 .empty-l{color:var(--dim);font-size:14px;padding:10px 12px}
 .df{font-size:12px;color:var(--dim);padding:8px 4px 0}
 .acts{margin-top:6px;display:flex;gap:8px;align-items:center}
-.acts button{background:none;border:1px solid var(--line);border-radius:14px;padding:4px 12px;color:var(--dim);font-size:13px}
+.acts button{background:none;border:1px solid var(--line);border-radius:14px;padding:4px 10px;color:var(--dim);font-size:13px;display:inline-flex;align-items:center;gap:4px}
 .acts button:hover{background:var(--hover);color:var(--ink)}
 .acts button.active{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.acts svg{display:block}
 .ch span button{margin-left:4px}
 .pv{position:fixed;inset:0;background:var(--bg);z-index:30;display:none;flex-direction:column;padding-top:env(safe-area-inset-top,0px)}
 .pv.on{display:flex}
@@ -146,20 +144,20 @@ select option{color:#000}
 <div class="df">Chats are saved only on this device</div>
 </aside>
 <main id="main"><div class="wrap">
-<div class="hero" id="hero"><h1>What are we building?</h1><p>Zyro, your code assistant.</p><div class="sug" id="sug"></div></div>
+<div class="hero" id="hero"><h1>What are we building?</h1></div>
 <div id="log"></div></div></main>
 <footer><form id="f" class="box">
 <div class="menu" id="menu"></div>
-<div class="atts" id="atts"></div><textarea id="t" rows="1" placeholder="Ask Zyro to write, fix or explain code"></textarea>
+<div class="atts" id="atts"></div><textarea id="t" rows="1" placeholder="Ask Zyro anything…"></textarea>
 <div class="row"><button type="button" class="icon" id="plus" aria-label="Add"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button>
 <select id="mode" aria-label="Mode"></select>
 <button id="go" type="submit" aria-label="Send"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button></div></form>
 <input type="file" id="file" hidden multiple accept=".pdf,.txt,.md,.py,.js,.ts,.jsx,.tsx,.html,.css,.json,.java,.c,.cpp,.h,.cs,.go,.rs,.php,.rb,.kt,.swift,.sql,.sh,.yml,.yaml,.xml,.csv,.ipynb,.ino,.tex,.r,.m">
-<div class="note">Zyro can make mistakes. Check important code.</div></footer>
+<div class="note">Zyro can make mistakes. Check important info.</div></footer>
 <button class="jump" id="jump">↓ New messages</button>
 <div class="pv" id="pv"><div class="pvh"><span>Preview</span><button class="icon" id="pvx" aria-label="Close">✕</button></div><iframe id="pvf" sandbox="allow-scripts" title="Preview"></iframe></div>
-<div class="modal" id="modal"><div class="mb"><h3>Custom instructions</h3><p>Tell Zyro how to answer. Saved only on this device.</p><textarea id="ci" placeholder="e.g. Use React + Tailwind. Keep answers short. Explain like I am a beginner."></textarea><div class="mr"><button id="ciCancel" type="button">Cancel</button><button id="ciSave" type="button">Save</button></div></div></div>
+<div class="modal" id="modal"><div class="mb"><h3>Custom instructions</h3><p>Tell Zyro how to answer. Saved only on this device.</p><textarea id="ci" placeholder="e.g. Keep answers short. Explain like I am a beginner."></textarea><div class="mr"><button id="ciCancel" type="button">Cancel</button><button id="ciSave" type="button">Save</button></div></div></div>
 <div class="toast" id="toast"></div>
-<script src="app.js?v=3"></script>
+<script src="app.js?v=5"></script>
 </body>
 </html>
