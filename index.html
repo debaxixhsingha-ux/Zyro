@@ -132,8 +132,8 @@ select option{color:#000}
 .menu button{width:100%;display:flex;justify-content:space-between;align-items:center;background:none;border:0;padding:9px 10px;border-radius:10px;color:var(--dim);font-size:14px;text-align:left}
 .menu button:hover{background:var(--hover)}
 .menu em{font:500 10.5px 'Space Grotesk';font-style:normal;border:1px solid var(--line);padding:1px 7px;border-radius:10px}
-.jump{position:fixed;left:50%;transform:translateX(-50%);bottom:120px;background:var(--ink);color:var(--bg);border:0;border-radius:999px;padding:6px 14px;font-size:12.5px;display:none;z-index:15;box-shadow:0 4px 16px #0006}
-.jump.on{display:block}
+.jump{position:fixed;right:20px;bottom:110px;background:var(--box);border:1px solid var(--line);color:var(--ink);border-radius:50%;width:40px;height:40px;font-size:20px;display:none;z-index:15;box-shadow:0 4px 12px #0004;align-items:center;justify-content:center}
+.jump.on{display:flex}
 .toast{position:fixed;left:50%;bottom:110px;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:8px 14px;border-radius:20px;font-size:13px;opacity:0;pointer-events:none;transition:opacity .25s}
 .toast.on{opacity:1}
 .note{text-align:center;font-size:11.5px;color:var(--dim);margin-top:7px}
@@ -169,10 +169,10 @@ select option{color:#000}
 <button id="go" type="submit" aria-label="Send"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button></div></form>
 <input type="file" id="file" hidden multiple accept=".pdf,.txt,.md,.py,.js,.ts,.jsx,.tsx,.html,.css,.json,.java,.c,.cpp,.h,.cs,.go,.rs,.php,.rb,.kt,.swift,.sql,.sh,.yml,.yaml,.xml,.csv,.ipynb,.ino,.tex,.r,.m">
 <div class="note">Zyro can make mistakes. Check important info.</div></footer>
-<button class="jump" id="jump">↓ New messages</button>
+<button class="jump" id="jump" aria-label="Scroll to bottom">↓</button>
 <div class="pv" id="pv"><div class="pvh"><span>Preview</span><button class="icon" id="pvx" aria-label="Close">✕</button></div><iframe id="pvf" sandbox="allow-scripts" title="Preview"></iframe></div>
 <div class="modal" id="modal"><div class="mb"><h3>Custom instructions</h3><p>Tell Zyro how to answer. Saved only on this device.</p><textarea id="ci" placeholder="e.g. Keep answers short. Explain like I am a beginner."></textarea><div class="mr"><button id="ciCancel" type="button">Cancel</button><button id="ciSave" type="button">Save</button></div></div></div>
 <div class="toast" id="toast"></div>
-<script src="app.js?v=7"></script>
+<script src="app.js?v=8"></script>
 </body>
 </html>
