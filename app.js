@@ -30,7 +30,7 @@ function addFeedback(msgId,action){const fb=getFeedback();fb.push({id:msgId,acti
 const MODES={Fast:"Quick short answer, minimal thinking.",Auto:"Balanced speed and depth.",Thinking:"Deep analysis, long detailed answer.","On-device":"Runs free on your phone. No limits, short answers."};
 const SOON=["Add image","Connect GitHub","Voice input"];
 const STAGES=["Thinking","Analyzing","Planning"];
-let skip=false,ctrl=null,hist=[],busy=false,sample=null;
+let skip=false,ctrl=null,hist=[],busy=false,sample=null,streaming=false;
 const $=id=>document.getElementById(id),log=$("log"),t=$("t"),go=$("go"),main=$("main");
 const esc=s=>s.replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
 Object.keys(MODES).forEach(m=>$("mode").add(new Option(m)));
@@ -69,7 +69,7 @@ function hl(c,l){if(c.length>20000)return esc(c);const k=HASH.test(l)?"h":/^sql$
  while((m=re.exec(c))){if(m[0]==="")break;o+=esc(c.slice(last,m.index));last=re.lastIndex;const t=m[0],q=m[1]?"c":m[2]?"s":m[3]?"n":KW.has(t)?"k":/^[A-Z][a-z]/.test(t)?"t":"";
   o+=q?'<span class="h'+q+'">'+esc(t)+"</span>":esc(t)}
  return o+esc(c.slice(last))}
-function typeset(root){if(!window.katex)return;root.querySelectorAll(".mx:not([data-k])").forEach(el=>{try{el.innerHTML=katex.renderToString(el.dataset.tex,{displayMode:el.dataset.d==="1",throwOnError:false});el.dataset.k=1}catch(_){}})}
+function typeset(root){if(!window.katex||streaming)return;root.querySelectorAll(".mx:not([data-k])").forEach(el=>{try{el.innerHTML=katex.renderToString(el.dataset.tex,{displayMode:el.dataset.d==="1",throwOnError:false});el.dataset.k=1}catch(_){}})}
 function setH(el,h){el.innerHTML=h;typeset(el)}
 function typesetAll(){typeset(document)}
 function md(src){let h="";src.split(/```/).forEach((p,i)=>{if(i%2){const nl=p.indexOf("\n"),l=nl>-1?p.slice(0,nl).trim():"",c=nl>-1?p.slice(nl+1):p;
@@ -154,12 +154,13 @@ async function geminiStream(messages,onText,signal,cheap,onThought){
   return full}
  throw lastErr||{code:"http",info:"No model responded"};
 }
-function typer(body,cheap){let target="",shown=0,tm=0,fin=false,res=null;
+function typer(body,cheap){let target="",shown=0,tm=0,fin=false,res=null,lastDraw=0;
  const fast=cheap||$("mode").value==="Fast";
- const draw=()=>{setH(body,withCaret(md(target.slice(0,shown))));down()};
+ const draw=force=>{const now=performance.now();if(!force&&now-lastDraw<180)return;lastDraw=now;
+  setH(body,withCaret(md(target.slice(0,shown))));down()};
  function tick(){tm=0;const back=target.length-shown;
   if(back<=0){if(fin&&res)res();return}
-  if(skip){shown=target.length;draw();if(fin&&res)res();return}
+  if(skip){shown=target.length;draw(true);if(fin&&res)res();return}
   let n;
   if(fast)n=Math.max(6,Math.ceil(back/6));
   else n=back>400?Math.ceil(back/12):back>120?4:back>30?2:1;
@@ -221,7 +222,7 @@ function send(text){const files=pending.slice();if(busy||(!text.trim()&&!files.l
  const full=show+files.map(f=>"\n\n--- "+f.name+" ---\n"+f.text).join("");
  pending=[];renderAtts();return run(show,full,files.map(f=>f.name))}
 function actsHTML(noRegen){return '<button type="button" data-like title="Helpful">'+THUMB_UP+'</button><button type="button" data-dislike title="Not helpful">'+THUMB_DOWN+'</button>'+(noRegen?'':'<button type="button" data-regen>\u21bb Regenerate</button>')}
-async function run(show,full,names){if(busy)return;busy=true;skip=false;ctrl=new AbortController();setGo(1);log.querySelectorAll("[data-regen]").forEach(x=>x.remove());
+async function run(show,full,names){if(busy)return;busy=true;skip=false;streaming=true;ctrl=new AbortController();setGo(1);log.querySelectorAll("[data-regen]").forEach(x=>x.remove());
  $("hero").style.display="none";addU(show,names);
  const t0=Date.now();
  const cheap=full.trim().length<60||tokensOut();
@@ -240,7 +241,7 @@ const tw=typer(body,cheap);try{let out;const emit=x=>{c.write();tw.set(x);paintB
   else{if(!sample)sample=await claude.use("sample").catch(()=>null);
    if(!sample)throw{code:"na"};
    const r=await sample([...api(hist),{role:"user",content:"["+SYS()+"]\n\n"+full}],{cache:false,modelTier:"default",onText:({text})=>emit(text)});out=r.text}
-  out=out||(skip?"(stopped)":"(empty response)");await tw.finish(out);setH(body,md(out));
+  out=out||(skip?"(stopped)":"(empty response)");streaming=false;await tw.finish(out);setH(body,md(out));
   const secs=((Date.now()-t0)/1000).toFixed(1);
   if(thinkEl)thinkEl.querySelector("summary").textContent="Thought for "+secs+"s";
   const acts=document.createElement("div");acts.className="acts";acts.innerHTML=actsHTML(false);d.appendChild(acts);
@@ -248,7 +249,7 @@ const tw=typer(body,cheap);try{let out;const emit=x=>{c.write();tw.set(x);paintB
   if(!cur){cur={id:Date.now().toString(36),title:(show||names[0]).replace(/\s+/g," ").slice(0,40),msgs:hist,ts:Date.now()};chats.unshift(cur)}
   cur.ts=Date.now();
   hist.push({role:"user",content:full,show,att:names},{role:"assistant",content:out});if(hist.length>60)hist.splice(0,hist.length-60);chats=[cur,...chats.filter(x=>x!==cur)];save();c.done()}
- catch(e){tw.kill();c.stop();if(e&&e.code==="key")setKey("");const na=e&&e.code==="na";if(!na){t.value=show;t.dispatchEvent(new Event("input"))}
+ catch(e){streaming=false;tw.kill();c.stop();if(e&&e.code==="key")setKey("");const na=e&&e.code==="na";if(!na){t.value=show;t.dispatchEvent(new Event("input"))}
   body.innerHTML=`<span class="err">${na?"AI is unavailable here. Open this page inside Claude.":e&&e.code==="nogpu"?"On-device mode needs a recent Chrome on Android (WebGPU). Switch the mode to Fast or Auto.":e&&e.code==="nokey"?"Add your Google AI Studio key to start. Tap + then API key.":e&&e.code==="key"?"That key was rejected. Tap + then API key and paste a new one.":e&&e.code==="rate"?"Rate limit hit on every model. Wait a minute, then retry.":"Failed: "+(e&&e.info||e&&e.message||"network problem")+". Your message is back in the box."}</span>`}
  busy=false;ctrl=null;setGo(0);syncPill();down()}
 $("f").onsubmit=e=>{e.preventDefault();if(busy){skip=true;if(ctrl)ctrl.abort();if(stopLocal)stopLocal();return}const v=t.value;t.value="";t.style.height="auto";send(v)};
