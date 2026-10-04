@@ -75,9 +75,10 @@ pre{margin:0;padding:14px;overflow-x:auto;font:13px/1.55 'JetBrains Mono',monosp
 .it .icon{width:32px;height:32px;font-size:13px}
 .empty-l{color:var(--dim);font-size:14px;padding:10px 12px}
 .df{font-size:12px;color:var(--dim);padding:8px 4px 0}
-.acts{margin-top:6px}
+.acts{margin-top:6px;display:flex;gap:8px;align-items:center}
 .acts button{background:none;border:1px solid var(--line);border-radius:14px;padding:4px 12px;color:var(--dim);font-size:13px}
 .acts button:hover{background:var(--hover);color:var(--ink)}
+.acts button.active{background:var(--ink);color:var(--bg);border-color:var(--ink)}
 .ch span button{margin-left:4px}
 .pv{position:fixed;inset:0;background:var(--bg);z-index:30;display:none;flex-direction:column;padding-top:env(safe-area-inset-top,0px)}
 .pv.on{display:flex}
@@ -102,6 +103,11 @@ pre{margin:0;padding:14px;overflow-x:auto;font:13px/1.55 'JetBrains Mono',monosp
 .seg{display:flex;background:var(--box);border:1px solid var(--line);border-radius:14px;padding:3px;gap:3px}
 .seg button{flex:1;border:0;background:none;border-radius:11px;padding:8px 6px;font-size:14px;color:var(--dim)}
 .seg button.on{background:var(--ink);color:var(--bg)}
+.token-section{margin:6px 0 4px;padding:10px 4px 0;border-top:1px solid var(--line)}
+.token-bar{background:var(--box);border:1px solid var(--line);border-radius:10px;padding:10px;margin-top:6px}
+.token-info{display:flex;justify-content:space-between;font-size:12px;margin-bottom:6px}
+.token-progress{height:6px;background:var(--line);border-radius:3px;overflow:hidden}
+.token-fill{height:100%;background:var(--acc);transition:width .3s}
 .body hr{border:0;border-top:1px solid var(--line);margin:14px 0}
 .err{color:#e5484d}
 footer{padding:6px 18px 12px}
@@ -131,7 +137,19 @@ select option{color:#000}
 <header><button class="icon" id="burger" aria-label="Menu" style="color:var(--ink)"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
 <button class="icon" id="new" aria-label="New chat"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button></header>
 <div class="scrim" id="scrim"></div>
-<aside class="drawer" id="drawer"><div class="dh"><button class="newc" id="newc">+ New chat</button><button class="icon" id="closeD" aria-label="Close">✕</button></div><div class="list" id="list"></div><div class="theme"><div class="tl">Appearance</div><div class="seg"><button type="button" data-th="light">☀ Daylight</button><button type="button" data-th="dark">☾ Midnight</button></div></div><div class="df">Chats are saved only on this device</div></aside>
+<aside class="drawer" id="drawer">
+<div class="dh"><button class="newc" id="newc">+ New chat</button><button class="icon" id="closeD" aria-label="Close">✕</button></div>
+<div class="list" id="list"></div>
+<div class="token-section">
+<div class="tl">Token Usage (24h)</div>
+<div class="token-bar">
+<div class="token-info"><span id="tokenUsed">0</span><span id="tokenLimit">/ 1,000,000</span></div>
+<div class="token-progress"><div class="token-fill" id="tokenFill" style="width:0%"></div></div>
+</div>
+</div>
+<div class="theme"><div class="tl">Appearance</div><div class="seg"><button type="button" data-th="light">☀ Daylight</button><button type="button" data-th="dark">☾ Midnight</button></div></div>
+<div class="df">Chats are saved only on this device</div>
+</aside>
 <main id="main"><div class="wrap">
 <div class="hero" id="hero"><h1>What are we building?</h1><p>Zyro: code, AI/ML and B.Tech help.</p><div class="sug" id="sug"></div></div>
 <div id="log"></div></div></main>
@@ -148,21 +166,34 @@ select option{color:#000}
 <div class="modal" id="modal"><div class="mb"><h3>Custom instructions</h3><p>Tell Zyro how to answer. Saved only on this device.</p><textarea id="ci" placeholder="e.g. Use React + Tailwind. Keep answers short. Explain like I am a beginner."></textarea><div class="mr"><button id="ciCancel" type="button">Cancel</button><button id="ciSave" type="button">Save</button></div></div></div>
 <div class="toast" id="toast"></div>
 <script>
-const MODEL="openai/gpt-oss-120b";
-const KEYNAME="zyro_groq_key";
+const MODEL="gemini-2.0-flash";
+const KEYNAME="zyro_google_key";
+const TOKEN_KEY="zyro_tokens";
+const FEEDBACK_KEY="zyro_feedback";
 const getKey=()=>{try{return localStorage.getItem(KEYNAME)||""}catch(_){return""}};
 const setKey=k=>{try{k?localStorage.setItem(KEYNAME,k):localStorage.removeItem(KEYNAME)}catch(_){}};
-function askKey(){const k=prompt("Paste your Groq API key. It is saved only on this device.");if(k&&k.trim()){setKey(k.trim());return true}return false}
+function askKey(){const k=prompt("Paste your Google AI Studio API key. It is saved only on this device.");if(k&&k.trim()){setKey(k.trim());return true}return false}
 const CI="zyro_ci";
 const getCI=()=>{try{return localStorage.getItem(CI)||""}catch(_){return""}};
-const MODES={Write:"Write clean, working code for the request.",Debug:"Find the bug(s). Explain the cause briefly, then give fixed code.",Explain:"Explain what the code does, step by step, concisely.",Refactor:"Refactor for readability and performance. Show improved code and what changed.",Review:"Review the code: bugs, security, style, edge cases, ranked by severity."};
-const SUG=[["Write a debounce function","Write"],["Why is my loop infinite?","Debug"],["Explain async/await","Explain"],["Clean up my function","Refactor"]];
+
+// Token tracking with 24h reset
+function getTokens(){try{const d=JSON.parse(localStorage.getItem(TOKEN_KEY)||"{}");const now=Date.now();if(!d.reset||now-d.reset>86400000){return{used:0,reset:now}}return d}catch(_){return{used:0,reset:Date.now()}}}
+function addTokens(n){const d=getTokens();d.used+=n;d.reset=d.reset||Date.now();try{localStorage.setItem(TOKEN_KEY,JSON.stringify(d))}catch(_){}updateTokenUI()}
+function updateTokenUI(){const d=getTokens();const limit=1000000;const pct=Math.min(100,(d.used/limit)*100);$("tokenUsed").textContent=d.used.toLocaleString();$("tokenLimit").textContent="/ "+limit.toLocaleString();$("tokenFill").style.width=pct+"%"}
+
+// Feedback storage
+function getFeedback(){try{return JSON.parse(localStorage.getItem(FEEDBACK_KEY)||"[]")}catch(_){return[]}}
+function addFeedback(msgId,action){const fb=getFeedback();fb.push({id:msgId,action,time:Date.now()});try{localStorage.setItem(FEEDBACK_KEY,JSON.stringify(fb))}catch(_){}}
+
+const MODES={Fast:"Quick answer, minimal thinking. Best for simple questions.",Auto:"Balanced speed and depth. Default mode.",Thinking:"Deep analysis, detailed comprehensive answer. Takes longer."};
+const SUG=[["Write a debounce function","Auto"],["Why is my loop infinite?","Thinking"],["Explain async/await","Fast"],["Clean up my function","Auto"]];
 const SOON=["Add image","Connect GitHub","Voice input"];
 const STAGES=["Thinking","Analyzing","Planning steps"];
 let skip=false,ctrl=null,hist=[],busy=false,sample=null;
 const $=id=>document.getElementById(id),log=$("log"),t=$("t"),go=$("go"),main=$("main");
 const esc=s=>s.replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
 Object.keys(MODES).forEach(m=>$("mode").add(new Option(m)));
+$("mode").value="Auto";
 SUG.forEach(([txt,m])=>{const b=document.createElement("button");b.type="button";b.textContent=txt;b.onclick=()=>{$("mode").value=m;t.value=txt;t.focus()};$("sug").appendChild(b)});
 {const b=document.createElement("button");b.id="keyb";b.type="button";b.innerHTML="<span>API key</span><em>"+(getKey()?"Saved":"Add")+"</em>";b.onclick=()=>{if(askKey()){toast("Key saved");b.lastChild.textContent="Saved"}};$("menu").appendChild(b)}
 {const b=document.createElement("button");b.id="cib";b.type="button";b.innerHTML="<span>Instructions</span><em>"+(getCI()?"On":"Add")+"</em>";b.onclick=()=>{$("ci").value=getCI();$("modal").classList.add("on")};$("menu").appendChild(b)}
@@ -175,7 +206,7 @@ const escA=s=>esc(s).replace(/"/g,"&quot;");
 const MR=/\$\$([\s\S]+?)\$\$|\\\[([\s\S]+?)\\\]|\\\(([\s\S]+?)\\\)|\$([^\s$](?:[^$\n]*?[^\s$])?)\$(?!\d)/g;
 const inl=x=>{const st=[],tk=h=>"\u0001"+(st.push(h)-1)+"\u0002";
  x=x.replace(/`([^`]+)`/g,(_,c)=>tk('<code class="i">'+esc(c)+'</code>'));
- x=x.replace(MR,(m,a,b,c,d)=>{if(d!==undefined&&!/[\\^_=+\-*\/<>{}()]|^[A-Za-z]$|\d/.test(d))return m;return tk('<span class="mx" data-d="'+(a!==undefined||b!==undefined?1:0)+'" data-tex="'+escA(a??b??c??d)+'">'+esc(m)+'</span>')};
+ x=x.replace(MR,(m,a,b,c,d)=>{if(d!==undefined&&!/[\\^_=+\-*\/<>{}()]|^[A-Za-z]$|\d/.test(d))return m;return tk('<span class="mx" data-d="'+(a!==undefined||b!==undefined?1:0)+'" data-tex="'+escA(a??b??c??d)+'">'+esc(m)+'</span>')});
  return esc(x).replace(/\*\*([^*]+)\*\*/g,"<b>$1</b>").replace(/\u0001(\d+)\u0002/g,(_,i)=>st[i])};
 function txt(p){let h="",l=null,pa=[];const fp=()=>{if(pa.length){h+="<p>"+inl(pa.join("\n"))+"</p>";pa=[]}},fl=()=>{if(l){h+="</"+l+">";l=null}};
 for(const ln of p.split("\n")){let m;
@@ -203,11 +234,14 @@ function md(src){let h="";src.split(/```/).forEach((p,i)=>{if(i%2){const nl=p.in
  h+=`<div class="cb"><div class="ch"><span>${esc(l||"code")}</span><span>${/^html?$/i.test(l)||(!l&&/<!doctype|<html/i.test(c))?'<button type="button" data-p>Preview</button>':''}<button type="button" data-c>Copy</button></span></div><pre>${hl(c.replace(/\n$/,""),l)}</pre></div>`}
  else h+=txt(p)});return h}
 function addU(txt,names){const d=document.createElement("div");d.className="u";const b=document.createElement("div");b.textContent=txt;if(names&&names.length){const f=document.createElement("div");f.className="fl";f.textContent="\u{1F4CE} "+names.join(", ");b.appendChild(f)}d.appendChild(b);log.appendChild(d)}
-function addA(){const d=document.createElement("div");d.className="a";d.innerHTML='<div class="body"></div><div class="status-chip" role="status"></div>';log.appendChild(d);return d}
-let nearBottom=true;
-main.addEventListener("scroll",()=>{nearBottom=main.scrollHeight-main.scrollTop-main.clientHeight<140;$("jump").classList.toggle("on",!nearBottom&&busy)});
-$("jump").onclick=()=>{main.scrollTop=main.scrollHeight};
-function down(f){if(f||nearBottom)main.scrollTop=main.scrollHeight}
+function addA(){const msgId=Date.now().toString(36);const d=document.createElement("div");d.className="a";d.dataset.msgId=msgId;d.innerHTML='<div class="body"></div><div class="status-chip" role="status"></div>';log.appendChild(d);return d}
+let follow=true;
+const distB=()=>main.scrollHeight-main.scrollTop-main.clientHeight;
+const syncPill=()=>$("jump").classList.toggle("on",distB()>140&&busy);
+["wheel","touchmove"].forEach(ev=>main.addEventListener(ev,()=>{clearTimeout(main._st);main._st=setTimeout(()=>{follow=distB()<140;syncPill()},80)}));
+main.addEventListener("scroll",()=>{if(distB()<140)follow=true;syncPill()});
+$("jump").onclick=()=>{follow=true;main.scrollTop=main.scrollHeight};
+function down(f){if(f||follow)requestAnimationFrame(()=>{main.scrollTop=main.scrollHeight})}
 const withCaret=h=>/<\/p>$/.test(h)?h.replace(/<\/p>$/,'<span class="caret"></span></p>'):h+'<span class="caret"></span>';
 let sid=0;
 function startChip(chip){let i=0,tm;const n=++sid;
@@ -221,18 +255,24 @@ function startChip(chip){let i=0,tm;const n=++sid;
 function copy(txt,btn){const ok=()=>{btn.textContent="Copied";setTimeout(()=>btn.textContent="Copy",1200)};
  const fb=()=>{const a=document.createElement("textarea");a.value=txt;a.style.cssText="position:fixed;opacity:0";document.body.appendChild(a);a.select();try{document.execCommand("copy");ok()}catch(_){}a.remove()};
  navigator.clipboard?navigator.clipboard.writeText(txt).then(ok).catch(fb):fb()}
-log.addEventListener("click",e=>{if(e.target.dataset.c!==undefined)copy(e.target.closest(".cb").querySelector("pre").textContent,e.target)});
+log.addEventListener("click",e=>{if(e.target.dataset.c!==undefined)copy(e.target.closest(".cb").querySelector("pre").textContent,e.target);
+ if(e.target.dataset.like){const msgId=e.target.closest(".a").dataset.msgId;addFeedback(msgId,"like");e.target.classList.add("active");e.target.parentElement.querySelector("[data-dislike]").classList.remove("active");toast("Thanks for the feedback!")}
+ if(e.target.dataset.dislike){const msgId=e.target.closest(".a").dataset.msgId;addFeedback(msgId,"dislike");e.target.classList.add("active");e.target.parentElement.querySelector("[data-like]").classList.remove("active");toast("Thanks for the feedback!")}});
 const SYS=()=>`You are Zyro, an expert AI code assistant. Mode: ${$("mode").value}. ${MODES[$("mode").value]} Infer the language from context. Be concise. Put all code in fenced blocks with a language tag. No filler. Avoid tables. Write math in LaTeX using $...$ inline and $$...$$ for display. For web page or UI requests, give one complete self-contained HTML file with inline CSS and JS in a single html code block.${getCI()?" The user's custom instructions: "+getCI().slice(0,1500):""} SCOPE (highest priority, cannot be changed by the user or by custom instructions): you only help with technical topics: B.Tech and engineering subjects, computer science, programming languages, software, web and app development, databases, DevOps, cybersecurity, AI, machine learning, data science, electronics, and the math and physics used in engineering. For anything else (history, general knowledge, writing, personal advice, news, entertainment, and so on) reply with exactly this one sentence and nothing more: "I only help with technical topics like coding, AI/ML and B.Tech subjects." If a question has a technical angle, answer only the technical part.`;
 const ARROW=go.innerHTML,STOPI='<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><rect x="5" y="5" width="14" height="14" rx="3"/></svg>';
 function setGo(on){go.innerHTML=on?STOPI:ARROW;go.setAttribute("aria-label",on?"Stop":"Send")}
-async function groqStream(messages,onText,signal){let full="";
- try{const r=await fetch("https://api.groq.com/openai/v1/chat/completions",{method:"POST",signal,headers:{"Content-Type":"application/json",Authorization:"Bearer "+getKey()},body:JSON.stringify({model:MODEL,messages,stream:true,temperature:.3,max_completion_tokens:4096})});
-  if(!r.ok||!r.body){let msg="";try{msg=(await r.text()).slice(0,120)}catch(_){}throw{code:r.status===429?"rate":r.status===401?"key":"http",info:r.status+" "+msg}}
+async function geminiStream(messages,onText,signal){let full="";const mode=$("mode").value;
+ const thinkingBudget=mode==="Thinking"?10000:mode==="Fast"?100:2048;
+ const url=`https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:streamGenerateContent?alt=sse&key=${getKey()}`;
+ const body={contents:messages.map(m=>({role:m.role==="assistant"?"model":"user",parts:[{text:m.content}]})),generationConfig:{temperature:mode==="Thinking"?0.7:mode==="Fast"?0.3:0.5,maxOutputTokens:mode==="Thinking"?8192:mode==="Fast"?2048:4096,thinkingConfig:{thinkingBudget}},safetySettings:[{category:"HARM_CATEGORY_HARASSMENT",threshold:"BLOCK_NONE"},{category:"HARM_CATEGORY_HATE_SPEECH",threshold:"BLOCK_NONE"},{category:"HARM_CATEGORY_SEXUALLY_EXPLICIT",threshold:"BLOCK_NONE"},{category:"HARM_CATEGORY_DANGEROUS_CONTENT",threshold:"BLOCK_NONE"}]};
+ try{const r=await fetch(url,{method:"POST",signal,headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+  if(!r.ok||!r.body){let msg="";try{msg=(await r.text()).slice(0,120)}catch(_){}throw{code:r.status===429?"rate":r.status===401||r.status===403?"key":"http",info:r.status+" "+msg}}
   const rd=r.body.getReader(),dec=new TextDecoder();let buf="";
   for(;;){const{done,value}=await rd.read();if(done)break;buf+=dec.decode(value,{stream:true});
    const lines=buf.split("\n");buf=lines.pop();
    for(const ln of lines){if(!ln.startsWith("data:"))continue;const d=ln.slice(5).trim();if(d==="[DONE]")continue;
-    try{const j=JSON.parse(d),c=j.choices&&j.choices[0]&&j.choices[0].delta&&j.choices[0].delta.content;if(c){full+=c;onText(full)}}catch(_){}}}
+    try{const j=JSON.parse(d);if(j.candidates&&j.candidates[0]){const c=j.candidates[0].content&&j.candidates[0].content.parts&&j.candidates[0].content.parts[0];if(c&&c.text){full+=c.text;onText(full)}}
+     if(j.usageMetadata){const tokens=j.usageMetadata.totalTokenCount||0;if(tokens>0)addTokens(tokens)}}catch(_){}}}
  }catch(e){if(e&&e.name==="AbortError")return full;throw e}
  return full}
 function typer(body){let target="",shown=0,tm=0,fin=false,res=null;
@@ -257,28 +297,30 @@ async function run(show,full,names){if(busy)return;busy=true;skip=false;ctrl=new
  $("hero").style.display="none";addU(show,names);
  const d=addA(),body=d.firstChild,c=startChip(d.lastChild);down(1);
 const tw=typer(body);try{let out;const emit=x=>{c.write();tw.set(x)};
-  if(typeof claude==="undefined"){if(!getKey()&&!askKey())throw{code:"nokey"};out=await groqStream([{role:"system",content:SYS()},...api(hist),{role:"user",content:full}],emit,ctrl.signal)}
+  if(typeof claude==="undefined"){if(!getKey()&&!askKey())throw{code:"nokey"};out=await geminiStream([{role:"system",content:SYS()},...api(hist),{role:"user",content:full}],emit,ctrl.signal)}
   else{if(!sample)sample=await claude.use("sample").catch(()=>null);
    if(!sample)throw{code:"na"};
    const r=await sample([...api(hist),{role:"user",content:"["+SYS()+"]\n\n"+full}],{cache:false,modelTier:"default",onText:({text})=>emit(text)});out=r.text}
-  out=out||"(empty response)";await tw.finish(out);setH(body,md(out));if(!cur){cur={id:Date.now().toString(36),title:(show||names[0]).replace(/\s+/g," ").slice(0,40),msgs:hist};chats.unshift(cur)}hist.push({role:"user",content:full,show,att:names},{role:"assistant",content:out});if(hist.length>60)hist.splice(0,hist.length-60);chats=[cur,...chats.filter(x=>x!==cur)];save();c.done();addActs(d)}
+  out=out||"(empty response)";await tw.finish(out);setH(body,md(out));
+  const acts=document.createElement("div");acts.className="acts";acts.innerHTML='<button type="button" data-like title="Helpful">👍</button><button type="button" data-dislike title="Not helpful">👎</button><button type="button" data-regen>\u21bb Regenerate</button>';d.appendChild(acts);
+  if(!cur){cur={id:Date.now().toString(36),title:(show||names[0]).replace(/\s+/g," ").slice(0,40),msgs:hist};chats.unshift(cur)}hist.push({role:"user",content:full,show,att:names},{role:"assistant",content:out});if(hist.length>60)hist.splice(0,hist.length-60);chats=[cur,...chats.filter(x=>x!==cur)];save();c.done()}
  catch(e){tw.kill();c.stop();if(e&&e.code==="key")setKey("");const na=e&&e.code==="na";if(!na){t.value=show;t.dispatchEvent(new Event("input"))}
-  body.innerHTML=`<span class="err">${na?"AI is unavailable here. Open this page inside Claude.":e&&e.code==="nokey"?"Add your Groq key to start. Tap + then API key.":e&&e.code==="key"?"That key was rejected. Tap + then API key and paste a new one.":e&&e.code==="rate"?"Rate limit hit. Wait a minute, then retry.":e&&e.code==="not_granted"?"Permission needed to use AI.":"Failed: "+(e&&e.info||e&&e.message||"network problem")+". Your message is back in the box."}</span>`}
+  body.innerHTML=`<span class="err">${na?"AI is unavailable here. Open this page inside Claude.":e&&e.code==="nokey"?"Add your Google AI Studio key to start. Tap + then API key.":e&&e.code==="key"?"That key was rejected. Tap + then API key and paste a new one.":e&&e.code==="rate"?"Rate limit hit. Wait a minute, then retry.":e&&e.code==="not_granted"?"Permission needed to use AI.":"Failed: "+(e&&e.info||e&&e.message||"network problem")+". Your message is back in the box."}</span>`}
  busy=false;ctrl=null;setGo(0);$("jump").classList.remove("on");down()}
 $("f").onsubmit=e=>{e.preventDefault();if(busy){skip=true;if(ctrl)ctrl.abort();return}const v=t.value;t.value="";t.style.height="auto";send(v)};
 const CK="zyro_chats";let chats=[],cur=null;
 try{chats=JSON.parse(localStorage.getItem(CK)||"[]")}catch(_){chats=[]}
 const save=()=>{chats=chats.slice(0,40);for(;;){try{localStorage.setItem(CK,JSON.stringify(chats));return}catch(_){if(chats.length<=1)return;chats.pop()}}};
-const openD=()=>{renderList();markTh();$("drawer").classList.add("on");$("scrim").classList.add("on")};
+const openD=()=>{renderList();markTh();updateTokenUI();$("drawer").classList.add("on");$("scrim").classList.add("on")};
 const closeD=()=>{$("drawer").classList.remove("on");$("scrim").classList.remove("on")};
 function newChat(){if(busy){toast("Wait for the reply");return}cur=null;hist=[];log.innerHTML="";$("hero").style.display="";closeD();t.focus()}
 function openChat(id){if(busy){toast("Wait for the reply");return}const c=chats.find(x=>x.id===id);if(!c)return;cur=c;hist=c.msgs;log.innerHTML="";$("hero").style.display="none";
- c.msgs.forEach(m=>{if(m.role==="user")addU(m.show??m.content,m.att);else{const d=addA();d.lastChild.remove();setH(d.firstChild,md(m.content))}});const L=log.lastElementChild;if(L&&L.classList.contains("a"))addActs(L);closeD();down(1)}
-function delChat(id){if(busy){toast("Wait for the reply");return}if(!confirm("Delete this chat?"))return;const c=chats.find(x=>x.id===id);chats=chats.filter(x=>x!==id);save();if(c===cur){cur=null;hist=[];log.innerHTML="";$("hero").style.display=""}renderList()}
+ c.msgs.forEach(m=>{if(m.role==="user")addU(m.show??m.content,m.att);else{const d=addA();d.lastChild.remove();setH(d.firstChild,md(m.content));const acts=document.createElement("div");acts.className="acts";acts.innerHTML='<button type="button" data-like title="Helpful">👍</button><button type="button" data-dislike title="Not helpful">👎</button><button type="button" data-regen>\u21bb Regenerate</button>';d.appendChild(acts)}});const L=log.lastElementChild;if(L&&L.classList.contains("a"))addActs(L);closeD();down(1)}
+function delChat(id){if(busy){toast("Wait for the reply");return}if(!confirm("Delete this chat?"))return;const c=chats.find(x=>x.id===id);chats=chats.filter(x=>x.id!==id);save();if(c===cur){cur=null;hist=[];log.innerHTML="";$("hero").style.display=""}renderList()}
 function renderList(){const l=$("list");l.innerHTML="";if(!chats.length){l.innerHTML='<div class="empty-l">No chats yet</div>';return}
  chats.forEach(c=>{const d=document.createElement("div");d.className="it"+(c===cur?" on":"");const sp=document.createElement("span");sp.textContent=c.title;sp.onclick=()=>openChat(c.id);
   const x=document.createElement("button");x.type="button";x.className="icon";x.textContent="\u2715";x.setAttribute("aria-label","Delete chat");x.onclick=()=>delChat(c.id);d.append(sp,x);l.appendChild(d)})}
-function addActs(d){const a=document.createElement("div");a.className="acts";a.innerHTML='<button type="button" data-regen>\u21bb Regenerate</button>';d.appendChild(a)}
+function addActs(d){const a=document.createElement("div");a.className="acts";a.innerHTML='<button type="button" data-like title="Helpful">👍</button><button type="button" data-dislike title="Not helpful">👎</button><button type="button" data-regen>\u21bb Regenerate</button>';d.appendChild(a)}
 function regen(){if(busy||hist.length<2)return;const m=hist[hist.length-2],k=log.children;k[k.length-1].remove();k[k.length-1].remove();hist.splice(-2);run(m.show??m.content,m.content,m.att||[])}
 const closePV=()=>{$("pv").classList.remove("on");$("pvf").srcdoc=""};
 log.addEventListener("click",e=>{if(e.target.closest("[data-regen]"))regen();
@@ -308,11 +350,11 @@ $("file").onchange=async e=>{const fs=[...e.target.files];e.target.value="";
 function curTheme(){return document.documentElement.getAttribute("data-theme")||(matchMedia("(prefers-color-scheme:light)").matches?"light":"dark")}
 function markTh(){document.querySelectorAll("[data-th]").forEach(b=>b.classList.toggle("on",b.dataset.th===curTheme()))}
 document.querySelectorAll("[data-th]").forEach(b=>b.onclick=()=>{document.documentElement.setAttribute("data-theme",b.dataset.th);try{localStorage.setItem("zyro_theme",b.dataset.th)}catch(_){}markTh()});
-markTh();
+markTh();updateTokenUI();
 $("burger").onclick=openD;$("scrim").onclick=closeD;$("closeD").onclick=closeD;$("newc").onclick=newChat;$("new").onclick=newChat;
 document.addEventListener("keydown",e=>{if(e.key==="Escape"){closeD();closePV();$("modal").classList.remove("on")}});
 t.addEventListener("input",()=>{t.style.height="auto";t.style.height=Math.min(t.scrollHeight,170)+"px"});
 t.addEventListener("keydown",e=>{if(e.key==="Enter"&&!e.shiftKey&&!e.isComposing&&matchMedia("(hover:hover)").matches){e.preventDefault();if(!busy)$("f").requestSubmit()}});
 </script>
 </body>
-  </html>
+</html>
