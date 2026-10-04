@@ -1,10 +1,13 @@
 const KEYNAME="zyro_google_key";
+const HFKEY="zyro_hf_key";
 const TOKEN_KEY="zyro_tokens";
 const FEEDBACK_KEY="zyro_feedback";
 const TOTAL=100000;
 const getKey=()=>{try{return localStorage.getItem(KEYNAME)||""}catch(_){return""}};
 const setKey=k=>{try{k?localStorage.setItem(KEYNAME,k):localStorage.removeItem(KEYNAME)}catch(_){}};
 function askKey(){const k=prompt("Paste your Google AI Studio API key. It is saved only on this device.");if(k&&k.trim()){setKey(k.trim());return true}return false}
+const getHfKey=()=>{try{return localStorage.getItem(HFKEY)||""}catch(_){return""}};
+const setHfKey=k=>{try{k?localStorage.setItem(HFKEY,k):localStorage.removeItem(HFKEY)}catch(_){}};
 const CI="zyro_ci";
 const getCI=()=>{try{return localStorage.getItem(CI)||""}catch(_){return""}};
 function getTokens(){try{const d=JSON.parse(localStorage.getItem(TOKEN_KEY)||"null");const now=Date.now();
@@ -35,11 +38,12 @@ const $=id=>document.getElementById(id),log=$("log"),t=$("t"),go=$("go"),main=$(
 const esc=s=>s.replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
 Object.keys(MODES).forEach(m=>$("mode").add(new Option(m)));
 $("mode").value="Auto";
-{const b=document.createElement("button");b.id="keyb";b.type="button";b.innerHTML="<span>API key</span><em>"+(getKey()?"Saved":"Add")+"</em>";b.onclick=()=>{if(askKey()){toast("Key saved");b.lastChild.textContent="Saved"}};$("menu").appendChild(b)}
+{const b=document.createElement("button");b.id="keyb";b.type="button";b.innerHTML="<span>Google key</span><em>"+(getKey()?"Saved":"Add")+"</em>";b.onclick=()=>{if(askKey()){toast("Key saved");b.lastChild.textContent="Saved"}};$("menu").appendChild(b)}
+{const b=document.createElement("button");b.id="hfb";b.type="button";b.innerHTML="<span>HuggingFace key</span><em>"+(getHfKey()?"Saved":"Add")+"</em>";b.onclick=()=>{const k=prompt("Paste your Hugging Face token (hf_...). Saved only on this device.");if(k&&k.trim()){setHfKey(k.trim());toast("HF key saved");b.lastChild.textContent="Saved"}};$("menu").appendChild(b)}
 {const b=document.createElement("button");b.id="cib";b.type="button";b.innerHTML="<span>Instructions</span><em>"+(getCI()?"On":"Add")+"</em>";b.onclick=()=>{$("ci").value=getCI();$("modal").classList.add("on")};$("menu").appendChild(b)}
 {const b=document.createElement("button");b.id="upb";b.type="button";b.innerHTML="<span>Upload file or PDF</span><em>Code, PDF</em>";b.onclick=()=>$("file").click();$("menu").appendChild(b)}
 SOON.forEach(s=>{const b=document.createElement("button");b.type="button";b.innerHTML=`<span>${s}</span><em>Soon</em>`;b.onclick=()=>{toast(s+" is coming soon");$("menu").classList.remove("open")};$("menu").appendChild(b)});
-$("plus").onclick=e=>{e.stopPropagation();const cb=$("cib");if(cb)cb.lastChild.textContent=getCI()?"On":"Add";const kb=$("keyb");if(kb)kb.lastChild.textContent=getKey()?"Saved":"Add";$("menu").classList.toggle("open")};
+$("plus").onclick=e=>{e.stopPropagation();const cb=$("cib");if(cb)cb.lastChild.textContent=getCI()?"On":"Add";const kb=$("keyb");if(kb)kb.lastChild.textContent=getKey()?"Saved":"Add";const hb=$("hfb");if(hb)hb.lastChild.textContent=getHfKey()?"Saved":"Add";$("menu").classList.toggle("open")};
 document.addEventListener("click",()=>$("menu").classList.remove("open"));
 function toast(m){const e=$("toast");e.textContent=m;e.classList.add("on");setTimeout(()=>e.classList.remove("on"),1600)}
 const THUMB_UP='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/></svg>';
@@ -114,7 +118,7 @@ log.addEventListener("click",e=>{
 const SYS=()=>`You are Zyro, a friendly expert AI assistant for ANY topic: coding, AI/ML, B.Tech subjects, writing, ideas, studies, plans, daily advice, fun. Mode: ${$("mode").value}. ${MODES[$("mode").value]} IMPORTANT: if the user's message is only a greeting (hi, hey, hello, yo, good morning, how are you, etc.), reply with exactly ONE short friendly sentence introducing yourself as Zyro — never list features, subjects or abilities. Put all code in fenced blocks with a language tag. Write math in LaTeX using $...$ inline and $$...$$ for display. For any web page or UI request, give one complete self-contained HTML file with inline CSS and JS in a single html code block. For product, fashion, food or storefront websites, use real photos (https://images.unsplash.com/ image URLs or https://picsum.photos/seed/name/600/800) inside clean cards with names and prices — never represent products with abstract 3D shapes or colored boxes.${getCI()?" The user's custom instructions: "+getCI().slice(0,1500):""}`;
 const ARROW=go.innerHTML,STOPI='<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><rect x="5" y="5" width="14" height="14" rx="3"/></svg>';
 function setGo(on){go.innerHTML=on?STOPI:ARROW;go.setAttribute("aria-label",on?"Stop":"Send")}
-const RETRY=[400,404,429,500,502,503,504];
+const RETRY=[400,404,429,500,502,503,504,524];
 async function geminiStream(messages,onText,signal,cheap,onThought){
  const mode=$("mode").value;
  const fast=cheap||mode==="Fast";
@@ -157,6 +161,34 @@ async function geminiStream(messages,onText,signal,cheap,onThought){
   if(used>0)addTokens(used);else if(aborted&&full)addTokens(Math.ceil(full.length/4));
   return full}
  throw lastErr||{code:"http",info:"No model responded"};
+}
+const HF_LIST=["meta-llama/Llama-3.1-8B-Instruct","mistralai/Mistral-7B-Instruct-v0.3","Qwen/Qwen2.5-7B-Instruct"];
+async function hfStream(messages,onText,signal,cheap){
+ let pref="";try{pref=localStorage.getItem("zyro_hf_model")||""}catch(_){}
+ let start=HF_LIST.indexOf(pref);if(start<0)start=0;
+ let lastErr=null;
+ for(let k=0;k<HF_LIST.length;k++){
+  const model=HF_LIST[(start+k)%HF_LIST.length];
+  const url="https://api-inference.huggingface.co/models/"+model+"/v1/chat/completions";
+  const body={model,messages,stream:true,max_tokens:cheap?1024:4096,temperature:cheap?0.3:0.6};
+  let r;
+  try{r=await fetch(url,{method:"POST",signal,headers:{"Content-Type":"application/json",Authorization:"Bearer "+getHfKey()},body:JSON.stringify(body)})}
+  catch(e){if(e&&e.name==="AbortError")return"";throw e}
+  if(!r.ok){let msg="";try{msg=await r.text()}catch(_){}
+   const info=r.status+" "+msg.slice(0,120);
+   if(r.status===401||r.status===403)throw{code:"hfkey",info};
+   lastErr={code:"http",info};continue}
+  if(!r.body)throw{code:"http",info:"empty response"};
+  try{localStorage.setItem("zyro_hf_model",model)}catch(_){}
+  let full="",aborted=false;const rd=r.body.getReader(),dec=new TextDecoder();let buf="";
+  try{for(;;){const{done,value}=await rd.read();if(done)break;buf+=dec.decode(value,{stream:true});
+   const lines=buf.split("\n");buf=lines.pop();
+   for(const ln of lines){if(!ln.startsWith("data:"))continue;const d=ln.slice(5).trim();if(d==="[DONE]")continue;
+    try{const j=JSON.parse(d);const c=j.choices&&j.choices[0]&&j.choices[0].delta&&j.choices[0].delta.content;if(c){full+=c;onText(full)}}catch(_){}}}}
+  catch(e){if(e&&e.name==="AbortError")aborted=true;else throw e}
+  if(full)addTokens(Math.ceil(full.length/4));
+  return full}
+ throw lastErr||{code:"http",info:"HF: no model responded"};
 }
 function typer(body,cheap){let target="",shown=0,tm=0,fin=false,res=null,lastDraw=0;
  const fast=cheap||$("mode").value==="Fast";
@@ -202,7 +234,16 @@ async function run(show,full,names){if(busy)return;busy=true;skip=false;streamin
  const onThought=th=>{if(!thinkEl){thinkEl=document.createElement("details");thinkEl.className="think";thinkEl.innerHTML='<summary>Thinking…</summary><div class="think-body"></div>';d.insertBefore(thinkEl,body)}
   thinkEl.querySelector(".think-body").textContent=th};
 const tw=typer(body,cheap);try{let out;const emit=x=>{c.write();tw.set(x);paintBar(baseUsed+Math.round(x.length/4),0)};
-  if(typeof claude==="undefined"){if(!getKey()&&!askKey())throw{code:"nokey"};out=await geminiStream([{role:"system",content:SYS()},...api(hist),{role:"user",content:full}],emit,ctrl.signal,cheap,onThought)}
+  if(typeof claude==="undefined"){
+   const msgs=[{role:"system",content:SYS()},...api(hist),{role:"user",content:full}];
+   if(!getKey()&&!getHfKey()){if(!askKey())throw{code:"nokey"}}
+   if(getKey()){
+    try{out=await geminiStream(msgs,emit,ctrl.signal,cheap,onThought)}
+    catch(e){if(e&&e.name==="AbortError")throw e;
+     if(getHfKey()){toast("Gemini busy — using Hugging Face");out=await hfStream(msgs,emit,ctrl.signal,cheap)}
+     else throw e}
+   }else{out=await hfStream(msgs,emit,ctrl.signal,cheap)}
+  }
   else{if(!sample)sample=await claude.use("sample").catch(()=>null);
    if(!sample)throw{code:"na"};
    const r=await sample([...api(hist),{role:"user",content:"["+SYS()+"]\n\n"+full}],{cache:false,modelTier:"default",onText:({text})=>emit(text)});out=r.text}
@@ -214,8 +255,8 @@ const tw=typer(body,cheap);try{let out;const emit=x=>{c.write();tw.set(x);paintB
   if(!cur){cur={id:Date.now().toString(36),title:(show||names[0]).replace(/\s+/g," ").slice(0,40),msgs:hist,ts:Date.now()};chats.unshift(cur)}
   cur.ts=Date.now();
   hist.push({role:"user",content:full,show,att:names},{role:"assistant",content:out});if(hist.length>60)hist.splice(0,hist.length-60);chats=[cur,...chats.filter(x=>x!==cur)];save();c.done()}
- catch(e){streaming=false;tw.kill();c.stop();if(e&&e.code==="key")setKey("");const na=e&&e.code==="na";if(!na){t.value=show;t.dispatchEvent(new Event("input"))}
-  body.innerHTML=`<span class="err">${na?"AI is unavailable here. Open this page inside Claude.":e&&e.code==="nokey"?"Add your Google AI Studio key to start. Tap + then API key.":e&&e.code==="key"?"That key was rejected. Tap + then API key and paste a new one.":e&&e.code==="rate"?"Rate limit hit on every model. Wait a minute, then retry.":"Failed: "+(e&&e.info||e&&e.message||"network problem")+". Your message is back in the box."}</span>`}
+ catch(e){streaming=false;tw.kill();c.stop();if(e&&e.code==="key")setKey("");if(e&&e.code==="hfkey")setHfKey("");const na=e&&e.code==="na";if(!na){t.value=show;t.dispatchEvent(new Event("input"))}
+  body.innerHTML=`<span class="err">${na?"AI is unavailable here. Open this page inside Claude.":e&&e.code==="nokey"?"Add a key to start. Tap + then Google key or HuggingFace key.":e&&e.code==="key"?"Google key rejected. Tap + then Google key.":e&&e.code==="hfkey"?"Hugging Face token rejected. Tap + then HuggingFace key.":e&&e.code==="rate"?"Rate limit hit on every model. Wait a minute, then retry.":"Failed: "+(e&&e.info||e&&e.message||"network problem")+". Your message is back in the box."}</span>`}
  busy=false;ctrl=null;setGo(0);syncPill();down()}
 $("f").onsubmit=e=>{e.preventDefault();if(busy){skip=true;if(ctrl)ctrl.abort();return}const v=t.value;t.value="";t.style.height="auto";send(v)};
 const CK="zyro_chats";let chats=[],cur=null;
