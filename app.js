@@ -75,7 +75,6 @@ function typesetAll(){typeset(document)}
 function md(src){let h="";src.split(/```/).forEach((p,i)=>{if(i%2){const nl=p.indexOf("\n"),l=nl>-1?p.slice(0,nl).trim():"",c=nl>-1?p.slice(nl+1):p;
  h+=`<div class="cb"><div class="ch"><span>${esc(l||"code")}</span><span>${/^html?$/i.test(l)||(!l&&/<!doctype|<html/i.test(c))?'<button type="button" data-p>Preview</button>':''}<button type="button" data-c>Copy</button></span></div><pre>${hl(c.replace(/\n$/,""),l)}</pre></div>`}
  else h+=txt(p)});return h}
-/* lightweight render used ONLY while streaming — no highlighting, no math */
 function liteMd(src){let h="";const parts=src.split(/```/);
  for(let i=0;i<parts.length;i++){const p=parts[i];
   if(i%2){const nl=p.indexOf("\n"),c=nl>-1?p.slice(nl+1):p;h+='<div class="cb"><pre>'+esc(c)+'</pre></div>'}
