@@ -1,14 +1,7 @@
-const WORKER_URL="https://zyro-ai.debaxixhsingha.workers.dev/"; // ← paste your Cloudflare worker URL here (then visitors need NO keys)
-const KEYNAME="zyro_google_key";
-const HFKEY="zyro_hf_key";
+const WORKER_URL="https://zyro-ai.debaxixhsingha.workers.dev/"; // your Cloudflare Worker (visitors need no keys)
 const TOKEN_KEY="zyro_tokens";
 const FEEDBACK_KEY="zyro_feedback";
 const TOTAL=100000;
-const getKey=()=>{try{return localStorage.getItem(KEYNAME)||""}catch(_){return""}};
-const setKey=k=>{try{k?localStorage.setItem(KEYNAME,k):localStorage.removeItem(KEYNAME)}catch(_){}};
-function askKey(){const k=prompt("Paste your Google AI Studio API key. It is saved only on this device.");if(k&&k.trim()){setKey(k.trim());return true}return false}
-const getHfKey=()=>{try{return localStorage.getItem(HFKEY)||""}catch(_){return""}};
-const setHfKey=k=>{try{k?localStorage.setItem(HFKEY,k):localStorage.removeItem(HFKEY)}catch(_){}};
 const CI="zyro_ci";
 const getCI=()=>{try{return localStorage.getItem(CI)||""}catch(_){return""}};
 function getTokens(){try{const d=JSON.parse(localStorage.getItem(TOKEN_KEY)||"null");const now=Date.now();
@@ -39,12 +32,10 @@ const $=id=>document.getElementById(id),log=$("log"),t=$("t"),go=$("go"),main=$(
 const esc=s=>s.replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
 Object.keys(MODES).forEach(m=>$("mode").add(new Option(m)));
 $("mode").value="Auto";
-{const b=document.createElement("button");b.id="keyb";b.type="button";b.innerHTML="<span>Google key</span><em>"+(getKey()?"Saved":"Add")+"</em>";b.onclick=()=>{if(askKey()){toast("Key saved");b.lastChild.textContent="Saved"}};$("menu").appendChild(b)}
-{const b=document.createElement("button");b.id="hfb";b.type="button";b.innerHTML="<span>HuggingFace key</span><em>"+(getHfKey()?"Saved":"Add")+"</em>";b.onclick=()=>{const k=prompt("Paste your Hugging Face token (hf_...). Saved only on this device.");if(k&&k.trim()){setHfKey(k.trim());toast("HF key saved");b.lastChild.textContent="Saved"}};$("menu").appendChild(b)}
 {const b=document.createElement("button");b.id="cib";b.type="button";b.innerHTML="<span>Instructions</span><em>"+(getCI()?"On":"Add")+"</em>";b.onclick=()=>{$("ci").value=getCI();$("modal").classList.add("on")};$("menu").appendChild(b)}
 {const b=document.createElement("button");b.id="upb";b.type="button";b.innerHTML="<span>Upload file or PDF</span><em>Code, PDF</em>";b.onclick=()=>$("file").click();$("menu").appendChild(b)}
 SOON.forEach(s=>{const b=document.createElement("button");b.type="button";b.innerHTML=`<span>${s}</span><em>Soon</em>`;b.onclick=()=>{toast(s+" is coming soon");$("menu").classList.remove("open")};$("menu").appendChild(b)});
-$("plus").onclick=e=>{e.stopPropagation();const cb=$("cib");if(cb)cb.lastChild.textContent=getCI()?"On":"Add";const kb=$("keyb");if(kb)kb.lastChild.textContent=getKey()?"Saved":"Add";const hb=$("hfb");if(hb)hb.lastChild.textContent=getHfKey()?"Saved":"Add";$("menu").classList.toggle("open")};
+$("plus").onclick=e=>{e.stopPropagation();const cb=$("cib");if(cb)cb.lastChild.textContent=getCI()?"On":"Add";$("menu").classList.toggle("open")};
 document.addEventListener("click",()=>$("menu").classList.remove("open"));
 function toast(m){const e=$("toast");e.textContent=m;e.classList.add("on");setTimeout(()=>e.classList.remove("on"),1600)}
 const THUMB_UP='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/></svg>';
@@ -117,119 +108,30 @@ log.addEventListener("click",e=>{
  if(rg){if(rg.closest(".a")===log.lastElementChild)regen();else toast("Only the last reply can be regenerated");return}
  const lk=e.target.closest("[data-like]");if(lk){addFeedback(lk.closest(".a").dataset.msgId,"like");lk.classList.add("active");lk.parentElement.querySelector("[data-dislike]").classList.remove("active");toast("Thanks for the feedback!");return}
  const dk=e.target.closest("[data-dislike]");if(dk){addFeedback(dk.closest(".a").dataset.msgId,"dislike");dk.classList.add("active");dk.parentElement.querySelector("[data-like]").classList.remove("active");toast("Thanks for the feedback!")}});
-const SYS=()=>`You are Zyro, a friendly expert AI assistant for ANY topic: coding, AI/ML, B.Tech subjects, writing, ideas, studies, plans, daily advice, fun. Mode: ${$("mode").value}. ${MODES[$("mode").value]} IMPORTANT: if the user's message is only a greeting (hi, hey, hello, yo, good morning, how are you, etc.), reply with exactly ONE short friendly sentence introducing yourself as Zyro — never list features, subjects or abilities. Put all code in fenced blocks with a language tag. Write math in LaTeX using $...$ inline and $$...$$ for display. For any web page or UI request, give one complete self-contained HTML file with inline CSS and JS in a single html code block. For product, fashion, food or storefront websites, use real photos (https://images.unsplash.com/ image URLs or https://picsum.photos/seed/name/600/800) inside clean cards with names and prices — never represent products with abstract 3D shapes or colored boxes.${getCI()?" The user's custom instructions: "+getCI().slice(0,1500):""}`;
+const SYS=()=>`You are Zyro, a friendly expert AI assistant for ANY topic: coding, AI/ML, B.Tech subjects, writing, ideas, studies, plans, daily advice, fun. Mode: ${$("mode").value}. ${MODES[$("mode").value]} IMPORTANT: if the user's message is only a greeting (hi, hey, hello, yo, good morning, how are you, etc.), reply with exactly ONE short friendly sentence introducing yourself as Zyro — never list features, subjects or abilities. Put all code in fenced blocks with a language tag. Write math in LaTeX using $...$ inline and $$...$$ for display. For any web page or UI request, give one complete self-contained HTML file with inline CSS and JS in a single html code block. For product, fashion, food or storefront websites, use real photos from https://picsum.photos/seed/WORD/600/800 (use a different WORD for each item) inside clean cards with names and prices. Never invent other image URLs, and never represent products with abstract 3D shapes or colored boxes.${getCI()?" The user's custom instructions: "+getCI().slice(0,1500):""}`;
 const ARROW=go.innerHTML,STOPI='<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><rect x="5" y="5" width="14" height="14" rx="3"/></svg>';
 function setGo(on){go.innerHTML=on?STOPI:ARROW;go.setAttribute("aria-label",on?"Stop":"Send")}
-const RETRY=[400,404,429,500,502,503,504,524];
-async function workerStream(messages,onText,signal){
- const r=await fetch(WORKER_URL,{method:"POST",signal,headers:{"Content-Type":"application/json"},body:JSON.stringify({messages})});
- if(!r.ok||!r.body){let msg="";try{msg=await r.text()}catch(_){}
-  throw{code:r.status===429?"rate":"http",info:"relay "+r.status+" "+msg.slice(0,100)}}
- let full="",used=0,aborted=false;const rd=r.body.getReader(),dec=new TextDecoder();let buf="";
+async function workerStream(messages,onText,signal,fast,onThought){
+ let r;
+ try{r=await fetch(WORKER_URL,{method:"POST",signal,headers:{"Content-Type":"application/json"},body:JSON.stringify({messages,mode:$("mode").value,fast})})}
+ catch(e){if(e&&e.name==="AbortError")return"";throw{code:"net",info:"can't reach the server"}}
+ if(!r.ok){let m="";try{const j=await r.json();m=(j.error&&j.error.message)||""}catch(_){}
+  throw{code:r.status===429?"rate":r.status===403?"origin":r.status===413?"big":"http",info:r.status+(m?" "+m.slice(0,100):"")}}
+ if(!r.body)throw{code:"http",info:"empty response"};
+ let full="",th="",used=0,aborted=false;const rd=r.body.getReader(),dec=new TextDecoder();let buf="";
  try{for(;;){const{done,value}=await rd.read();if(done)break;buf+=dec.decode(value,{stream:true});
   const lines=buf.split("\n");buf=lines.pop();
   for(const ln of lines){if(!ln.startsWith("data:"))continue;const d=ln.slice(5).trim();
    try{const j=JSON.parse(d);
     if(j.candidates&&j.candidates[0]&&j.candidates[0].content&&j.candidates[0].content.parts){
-     for(const p of j.candidates[0].content.parts){if(p.text&&!p.thought){full+=p.text;onText(full)}}}
+     for(const p of j.candidates[0].content.parts){if(!p.text)continue;
+      if(p.thought){th+=p.text;if(onThought)onThought(th)}
+      else{full+=p.text;onText(full)}}}
     if(j.usageMetadata){used=j.usageMetadata.totalTokenCount||used}}catch(_){}}}}
  catch(e){if(e&&e.name==="AbortError")aborted=true;else throw e}
  if(used>0)addTokens(used);else if(full)addTokens(Math.ceil(full.length/4));
+ if(!full&&!aborted)throw{code:"empty"};
  return full}
-async function geminiStream(messages,onText,signal,cheap,onThought){
- const mode=$("mode").value;
- const fast=cheap||mode==="Fast";
- const LIST=fast?["gemini-2.5-flash","gemini-2.0-flash"]:["gemini-2.5-flash","gemini-2.5-pro","gemini-2.0-flash"];
- let pref="";try{pref=localStorage.getItem("zyro_model")||""}catch(_){}
- let start=LIST.indexOf(pref);if(start<0)start=0;
- const sysMsg=messages.find(m=>m.role==="system"),turns=messages.filter(m=>m.role!=="system");
- let lastErr=null;
- for(let k=0;k<LIST.length;k++){
-  const model=LIST[(start+k)%LIST.length];
-  const is3=model.indexOf("gemini-3")===0,pro=model.indexOf("pro")>-1;
-  const lvl=pro?(mode==="Thinking"&&!fast?"HIGH":"LOW"):(fast?"MINIMAL":mode==="Thinking"?"HIGH":"MEDIUM");
-  const gc={maxOutputTokens:fast?1024:mode==="Thinking"?8192:4096,
-   thinkingConfig:is3?{thinkingLevel:lvl}:{thinkingBudget:fast?0:mode==="Thinking"?10000:2048}};
-  if(!is3)gc.temperature=fast?0.2:mode==="Thinking"?0.7:0.5;
-  const url="https://generativelanguage.googleapis.com/v1beta/models/"+model+":streamGenerateContent?alt=sse&key="+getKey();
-  const body={contents:turns.map(m=>({role:m.role==="assistant"?"model":"user",parts:[{text:m.content}]})),generationConfig:gc};
-  if(sysMsg)body.systemInstruction={parts:[{text:sysMsg.content}]};
-  let r;
-  try{r=await fetch(url,{method:"POST",signal,headers:{"Content-Type":"application/json"},body:JSON.stringify(body)})}
-  catch(e){if(e&&e.name==="AbortError")return"";throw e}
-  if(!r.ok){let msg="";try{msg=await r.text()}catch(_){}
-   const info=r.status+" "+msg.slice(0,120);
-   if(r.status===401||r.status===403||/API key not valid|API_KEY_INVALID/i.test(msg))throw{code:"key",info};
-   if(RETRY.indexOf(r.status)>-1){lastErr={code:r.status===429?"rate":"http",info};continue}
-   throw{code:"http",info}}
-  if(!r.body)throw{code:"http",info:"empty response"};
-  try{localStorage.setItem("zyro_model",model)}catch(_){}
-  let full="",th="",used=0,aborted=false;const rd=r.body.getReader(),dec=new TextDecoder();let buf="";
-  try{for(;;){const{done,value}=await rd.read();if(done)break;buf+=dec.decode(value,{stream:true});
-   const lines=buf.split("\n");buf=lines.pop();
-   for(const ln of lines){if(!ln.startsWith("data:"))continue;const d=ln.slice(5).trim();
-    try{const j=JSON.parse(d);
-     if(j.candidates&&j.candidates[0]&&j.candidates[0].content&&j.candidates[0].content.parts){
-      for(const p of j.candidates[0].content.parts){if(!p.text)continue;
-       if(p.thought){th+=p.text;if(onThought)onThought(th)}
-       else{full+=p.text;onText(full)}}}
-     if(j.usageMetadata){used=j.usageMetadata.totalTokenCount||used}}catch(_){}}}}
-  catch(e){if(e&&e.name==="AbortError")aborted=true;else throw e}
-  if(used>0)addTokens(used);else if(aborted&&full)addTokens(Math.ceil(full.length/4));
-  return full}
- throw lastErr||{code:"http",info:"No model responded"};
-}
-const HF_LIST=["Qwen/Qwen2.5-7B-Instruct","mistralai/Mistral-7B-Instruct-v0.3","HuggingFaceTB/SmolLM2-1.7B-Instruct","meta-llama/Llama-3.1-8B-Instruct"];
-async function hfStream(messages,onText,signal,cheap){
- let pref="";try{pref=localStorage.getItem("zyro_hf_model")||""}catch(_){}
- let start=HF_LIST.indexOf(pref);if(start<0)start=0;
- let lastErr=null;
- for(let k=0;k<HF_LIST.length;k++){
-  const model=HF_LIST[(start+k)%HF_LIST.length];
-  const url="https://api-inference.huggingface.co/models/"+model+"/v1/chat/completions";
-  const body={model,messages,stream:true,max_tokens:cheap?1024:4096,temperature:cheap?0.3:0.6};
-  let r;
-  try{r=await fetch(url,{method:"POST",signal,headers:{"Content-Type":"application/json",Authorization:"Bearer "+getHfKey()},body:JSON.stringify(body)})}
-  catch(e){if(e&&e.name==="AbortError")return"";lastErr={code:"http",info:"network/CORS blocked"};continue}
-  if(!r.ok){let msg="";try{msg=await r.text()}catch(_){}
-   const info=r.status+" "+msg.slice(0,120);
-   lastErr={code:r.status===401||r.status===403?"hfkey":"http",info};continue}
-  if(!r.body){lastErr={code:"http",info:"empty response"};continue}
-  try{localStorage.setItem("zyro_hf_model",model)}catch(_){}
-  let full="",aborted=false;const rd=r.body.getReader(),dec=new TextDecoder();let buf="",raw="";
-  try{for(;;){const{done,value}=await rd.read();if(done)break;const s=dec.decode(value,{stream:true});raw+=s;buf+=s;
-   const lines=buf.split("\n");buf=lines.pop();
-   for(const ln of lines){if(!ln.startsWith("data:"))continue;const d=ln.slice(5).trim();if(d==="[DONE]")continue;
-    try{const j=JSON.parse(d);const c=j.choices&&j.choices[0]&&j.choices[0].delta&&j.choices[0].delta.content;if(c){full+=c;onText(full)}}catch(_){}}}}
-  catch(e){if(e&&e.name==="AbortError")aborted=true;else throw e}
-  if(!full&&!aborted){try{const j=JSON.parse(raw);
-   const c=j.choices&&j.choices[0]&&j.choices[0].message&&j.choices[0].message.content;
-   const g=Array.isArray(j)?j.map(x=>x.generated_text||"").join(""):null;
-   full=c||g||"";if(full)onText(full)}catch(_){}}
-  if(full||aborted){if(full)addTokens(Math.ceil(full.length/4));return full}
-  lastErr={code:"http",info:"no text from "+model}}
- throw lastErr||{code:"http",info:"HF: no model responded"};
-}
-const POLL_MODELS=["openai","mistral"];
-async function pollStream(messages,onText,signal){
- let lastErr=null;
- for(const model of POLL_MODELS){
-  let r;
-  try{r=await fetch("https://text.pollinations.ai/openai",{method:"POST",signal,headers:{"Content-Type":"application/json"},body:JSON.stringify({model,messages})})}
-  catch(e){if(e&&e.name==="AbortError")return"";lastErr={code:"http",info:"backup unreachable"};continue}
-  if(!r.ok){lastErr={code:"http",info:"backup "+r.status};continue}
-  let j;try{j=await r.json()}catch(_){lastErr={code:"http",info:"backup bad json"};continue}
-  const full=(j.choices&&j.choices[0]&&j.choices[0].message&&j.choices[0].message.content)||"";
-  if(full){onText(full);addTokens(Math.ceil(full.length/4));return full}
-  lastErr={code:"http",info:"backup empty"}}
- throw lastErr||{code:"http",info:"backup failed"};
-}
-async function localChain(msgs,emit,signal,cheap,onThought){
- if(getKey()){try{return await geminiStream(msgs,emit,signal,cheap,onThought)}catch(e){if(e&&e.name==="AbortError")throw e}}
- if(getHfKey()){try{return await hfStream(msgs,emit,signal,cheap)}catch(e){if(e&&e.name==="AbortError")throw e}}
- toast("Using free backup model");
- return await pollStream(msgs,emit,signal);
-}
 function typer(body,cheap){let target="",shown=0,tm=0,fin=false,res=null,lastDraw=0;
  const fast=cheap||$("mode").value==="Fast";
  const draw=force=>{const now=performance.now();if(!force&&now-lastDraw<180)return;lastDraw=now;
@@ -250,7 +152,8 @@ function typer(body,cheap){let target="",shown=0,tm=0,fin=false,res=null,lastDra
  return{set(x){target=x;if(!tm)tm=setTimeout(tick,0)},
   finish(x){target=x;fin=true;return new Promise(r=>{res=r;if(!tm)tm=setTimeout(tick,0)})},
   kill(){clearTimeout(tm);tm=0}}}
-const api=h=>h.slice(-20).map(m=>({role:m.role,content:m.content}));
+const api=h=>{const out=[];let n=0;for(let i=h.length-1;i>=0&&out.length<20;i--){const c=h[i].content||"";if(out.length&&n+c.length>30000)break;n+=c.length;out.unshift({role:h[i].role,content:c})}
+ while(out.length&&out[0].role!=="user")out.shift();return out};
 function send(text){const files=pending.slice();if(busy||(!text.trim()&&!files.length))return;
  const out=tokensOut();
  if(out&&files.length){toast("Tokens are out — uploads are off until tomorrow");pending=[];renderAtts();return}
@@ -264,6 +167,13 @@ function send(text){const files=pending.slice();if(busy||(!text.trim()&&!files.l
  const full=show+files.map(f=>"\n\n--- "+f.name+" ---\n"+f.text).join("");
  pending=[];renderAtts();return run(show,full,files.map(f=>f.name))}
 function actsHTML(noRegen){return '<button type="button" data-like title="Helpful">'+THUMB_UP+'</button><button type="button" data-dislike title="Not helpful">'+THUMB_DOWN+'</button>'+(noRegen?'':'<button type="button" data-regen>\u21bb Regenerate</button>')}
+const ERR={
+ nowork:"The server address isn't set. Add your Worker URL as WORKER_URL in app.js.",
+ rate:"Zyro is busy right now (free limit reached). Try again in a minute.",
+ origin:"This site isn't allowed to use the server. Check ALLOWED_ORIGINS in your Worker.",
+ big:"That message or file is too large. Try a smaller one.",
+ empty:"Zyro sent back nothing (the reply may have been blocked). Try rephrasing.",
+ net:"Can't reach the server. Check your connection and retry."};
 async function run(show,full,names){if(busy)return;busy=true;skip=false;streaming=true;ctrl=new AbortController();setGo(1);log.querySelectorAll("[data-regen]").forEach(x=>x.remove());
  $("hero").style.display="none";addU(show,names);
  const t0=Date.now();
@@ -275,12 +185,9 @@ async function run(show,full,names){if(busy)return;busy=true;skip=false;streamin
   thinkEl.querySelector(".think-body").textContent=th};
 const tw=typer(body,cheap);try{let out;const emit=x=>{c.write();tw.set(x);paintBar(baseUsed+Math.round(x.length/4),0)};
   if(typeof claude==="undefined"){
+   if(!WORKER_URL)throw{code:"nowork"};
    const msgs=[{role:"system",content:SYS()},...api(hist),{role:"user",content:full}];
-   if(WORKER_URL){
-    try{out=await workerStream(msgs,emit,ctrl.signal)}
-    catch(e){if(e&&e.name==="AbortError")throw e;out=await localChain(msgs,emit,ctrl.signal,cheap,onThought)}
-   }else{out=await localChain(msgs,emit,ctrl.signal,cheap,onThought)}
-  }
+   out=await workerStream(msgs,emit,ctrl.signal,cheap||$("mode").value==="Fast",onThought)}
   else{if(!sample)sample=await claude.use("sample").catch(()=>null);
    if(!sample)throw{code:"na"};
    const r=await sample([...api(hist),{role:"user",content:"["+SYS()+"]\n\n"+full}],{cache:false,modelTier:"default",onText:({text})=>emit(text)});out=r.text}
@@ -292,8 +199,11 @@ const tw=typer(body,cheap);try{let out;const emit=x=>{c.write();tw.set(x);paintB
   if(!cur){cur={id:Date.now().toString(36),title:(show||names[0]).replace(/\s+/g," ").slice(0,40),msgs:hist,ts:Date.now()};chats.unshift(cur)}
   cur.ts=Date.now();
   hist.push({role:"user",content:full,show,att:names},{role:"assistant",content:out});if(hist.length>60)hist.splice(0,hist.length-60);chats=[cur,...chats.filter(x=>x!==cur)];save();c.done()}
- catch(e){streaming=false;tw.kill();c.stop();if(e&&e.code==="key")setKey("");if(e&&e.code==="hfkey")setHfKey("");const na=e&&e.code==="na";if(!na){t.value=show;t.dispatchEvent(new Event("input"))}
-  body.innerHTML=`<span class="err">${na?"AI is unavailable here. Open this page inside Claude.":e&&e.code==="nokey"?"Add a key to start. Tap + then Google key or HuggingFace key.":e&&e.code==="key"?"Google key rejected. Tap + then Google key.":e&&e.code==="hfkey"?"Hugging Face token rejected. Tap + then HuggingFace key.":e&&e.code==="rate"?"Rate limit hit on every model. Wait a minute, then retry.":"Failed: "+(e&&e.info||e&&e.message||"network problem")+". Your message is back in the box."}</span>`}
+ catch(e){streaming=false;tw.kill();c.stop();
+  if(e&&e.name==="AbortError"){body.innerHTML='<span class="err">(stopped)</span>'}
+  else{const na=e&&e.code==="na";if(!na){t.value=show;t.dispatchEvent(new Event("input"))}
+   const msg=na?"AI is unavailable here. Open this page inside Claude.":(e&&ERR[e.code])||("Failed: "+(e&&e.info||e&&e.message||"network problem")+". Your message is back in the box.");
+   body.innerHTML='<span class="err"></span>';body.firstChild.textContent=msg}}
  busy=false;ctrl=null;setGo(0);syncPill();down()}
 $("f").onsubmit=e=>{e.preventDefault();if(busy){skip=true;if(ctrl)ctrl.abort();return}const v=t.value;t.value="";t.style.height="auto";send(v)};
 const CK="zyro_chats";let chats=[],cur=null;
