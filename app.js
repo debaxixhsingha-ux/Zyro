@@ -112,7 +112,8 @@ function copy(txt,btn){const ok=()=>{btn.textContent="Copied";setTimeout(()=>btn
 log.addEventListener("click",e=>{
  const cb=e.target.closest("[data-c]");if(cb)return copy(cb.closest(".cb").querySelector("pre").textContent,cb);
  const pv=e.target.closest("[data-p]");if(pv){$("pvf").srcdoc=pv.closest(".cb").querySelector("pre").textContent;$("pv").classList.add("on");return}
- if(e.target.closest("[data-regen]"))return regen();
+ const rg=e.target.closest("[data-regen]");
+ if(rg){if(rg.closest(".a")===log.lastElementChild)regen();else toast("Only the last reply can be regenerated");return}
  const lk=e.target.closest("[data-like]");if(lk){addFeedback(lk.closest(".a").dataset.msgId,"like");lk.classList.add("active");lk.parentElement.querySelector("[data-dislike]").classList.remove("active");toast("Thanks for the feedback!");return}
  const dk=e.target.closest("[data-dislike]");if(dk){addFeedback(dk.closest(".a").dataset.msgId,"dislike");dk.classList.add("active");dk.parentElement.querySelector("[data-like]").classList.remove("active");toast("Thanks for the feedback!")}});
 const SYS=()=>`You are Zyro, a friendly expert AI assistant for ANY topic: coding, AI/ML, B.Tech subjects, writing, ideas, studies, plans, daily advice, fun. Mode: ${$("mode").value}. ${MODES[$("mode").value]} IMPORTANT: if the user's message is only a greeting (hi, hey, hello, yo, good morning, how are you, etc.), reply with exactly ONE short friendly sentence introducing yourself as Zyro — never list features, subjects or abilities. Put all code in fenced blocks with a language tag. Write math in LaTeX using $...$ inline and $$...$$ for display. For any web page or UI request, give one complete self-contained HTML file with inline CSS and JS in a single html code block. For product, fashion, food or storefront websites, use real photos (https://images.unsplash.com/ image URLs or https://picsum.photos/seed/name/600/800) inside clean cards with names and prices — never represent products with abstract 3D shapes or colored boxes.${getCI()?" The user's custom instructions: "+getCI().slice(0,1500):""}`;
@@ -162,7 +163,7 @@ async function geminiStream(messages,onText,signal,cheap,onThought){
   return full}
  throw lastErr||{code:"http",info:"No model responded"};
 }
-const HF_LIST=["meta-llama/Llama-3.1-8B-Instruct","mistralai/Mistral-7B-Instruct-v0.3","Qwen/Qwen2.5-7B-Instruct"];
+const HF_LIST=["Qwen/Qwen2.5-7B-Instruct","mistralai/Mistral-7B-Instruct-v0.3","HuggingFaceTB/SmolLM2-1.7B-Instruct","meta-llama/Llama-3.1-8B-Instruct"];
 async function hfStream(messages,onText,signal,cheap){
  let pref="";try{pref=localStorage.getItem("zyro_hf_model")||""}catch(_){}
  let start=HF_LIST.indexOf(pref);if(start<0)start=0;
@@ -173,21 +174,24 @@ async function hfStream(messages,onText,signal,cheap){
   const body={model,messages,stream:true,max_tokens:cheap?1024:4096,temperature:cheap?0.3:0.6};
   let r;
   try{r=await fetch(url,{method:"POST",signal,headers:{"Content-Type":"application/json",Authorization:"Bearer "+getHfKey()},body:JSON.stringify(body)})}
-  catch(e){if(e&&e.name==="AbortError")return"";throw e}
+  catch(e){if(e&&e.name==="AbortError")return"";lastErr={code:"http",info:"network/CORS blocked"};continue}
   if(!r.ok){let msg="";try{msg=await r.text()}catch(_){}
    const info=r.status+" "+msg.slice(0,120);
-   if(r.status===401||r.status===403)throw{code:"hfkey",info};
-   lastErr={code:"http",info};continue}
-  if(!r.body)throw{code:"http",info:"empty response"};
+   lastErr={code:r.status===401||r.status===403?"hfkey":"http",info};continue}
+  if(!r.body){lastErr={code:"http",info:"empty response"};continue}
   try{localStorage.setItem("zyro_hf_model",model)}catch(_){}
-  let full="",aborted=false;const rd=r.body.getReader(),dec=new TextDecoder();let buf="";
-  try{for(;;){const{done,value}=await rd.read();if(done)break;buf+=dec.decode(value,{stream:true});
+  let full="",aborted=false;const rd=r.body.getReader(),dec=new TextDecoder();let buf="",raw="";
+  try{for(;;){const{done,value}=await rd.read();if(done)break;const s=dec.decode(value,{stream:true});raw+=s;buf+=s;
    const lines=buf.split("\n");buf=lines.pop();
    for(const ln of lines){if(!ln.startsWith("data:"))continue;const d=ln.slice(5).trim();if(d==="[DONE]")continue;
     try{const j=JSON.parse(d);const c=j.choices&&j.choices[0]&&j.choices[0].delta&&j.choices[0].delta.content;if(c){full+=c;onText(full)}}catch(_){}}}}
   catch(e){if(e&&e.name==="AbortError")aborted=true;else throw e}
-  if(full)addTokens(Math.ceil(full.length/4));
-  return full}
+  if(!full&&!aborted){try{const j=JSON.parse(raw);
+   const c=j.choices&&j.choices[0]&&j.choices[0].message&&j.choices[0].message.content;
+   const g=Array.isArray(j)?j.map(x=>x.generated_text||"").join(""):null;
+   full=c||g||"";if(full)onText(full)}catch(_){}}
+  if(full||aborted){if(full)addTokens(Math.ceil(full.length/4));return full}
+  lastErr={code:"http",info:"no text from "+model}}
  throw lastErr||{code:"http",info:"HF: no model responded"};
 }
 function typer(body,cheap){let target="",shown=0,tm=0,fin=false,res=null,lastDraw=0;
@@ -223,7 +227,7 @@ function send(text){const files=pending.slice();if(busy||(!text.trim()&&!files.l
   return}
  const full=show+files.map(f=>"\n\n--- "+f.name+" ---\n"+f.text).join("");
  pending=[];renderAtts();return run(show,full,files.map(f=>f.name))}
-function actsHTML(){return '<button type="button" data-like title="Helpful">'+THUMB_UP+'</button><button type="button" data-dislike title="Not helpful">'+THUMB_DOWN+'</button><button type="button" data-regen>\u21bb Regenerate</button>'}
+function actsHTML(noRegen){return '<button type="button" data-like title="Helpful">'+THUMB_UP+'</button><button type="button" data-dislike title="Not helpful">'+THUMB_DOWN+'</button>'+(noRegen?'':'<button type="button" data-regen>\u21bb Regenerate</button>')}
 async function run(show,full,names){if(busy)return;busy=true;skip=false;streaming=true;ctrl=new AbortController();setGo(1);log.querySelectorAll("[data-regen]").forEach(x=>x.remove());
  $("hero").style.display="none";addU(show,names);
  const t0=Date.now();
@@ -250,7 +254,7 @@ const tw=typer(body,cheap);try{let out;const emit=x=>{c.write();tw.set(x);paintB
   out=out||(skip?"(stopped)":"(empty response)");streaming=false;await tw.finish(out);setH(body,md(out));
   const secs=((Date.now()-t0)/1000).toFixed(1);
   if(thinkEl)thinkEl.querySelector("summary").textContent="Thought for "+secs+"s";
-  const acts=document.createElement("div");acts.className="acts";acts.innerHTML=actsHTML();d.appendChild(acts);
+  const acts=document.createElement("div");acts.className="acts";acts.innerHTML=actsHTML(false);d.appendChild(acts);
   const rt=document.createElement("div");rt.className="rt";rt.textContent="responded in "+secs+"s";d.appendChild(rt);
   if(!cur){cur={id:Date.now().toString(36),title:(show||names[0]).replace(/\s+/g," ").slice(0,40),msgs:hist,ts:Date.now()};chats.unshift(cur)}
   cur.ts=Date.now();
@@ -272,7 +276,7 @@ const openD=()=>{renderList();markTh();updateTokenUI();$("drawer").classList.add
 const closeD=()=>{$("drawer").classList.remove("on");$("scrim").classList.remove("on")};
 function newChat(){if(busy){toast("Wait for the reply");return}cur=null;hist=[];log.innerHTML="";$("hero").style.display="";closeD();t.focus()}
 function openChat(id){if(busy){toast("Wait for the reply");return}const c=chats.find(x=>x.id===id);if(!c)return;cur=c;hist=c.msgs;log.innerHTML="";$("hero").style.display="none";
- c.msgs.forEach((m,i)=>{if(m.role==="user")addU(m.show??m.content,m.att);else{const d=addA();d.lastChild.remove();setH(d.firstChild,md(m.content));const acts=document.createElement("div");acts.className="acts";acts.innerHTML=actsHTML();d.appendChild(acts)}});closeD();down(1)}
+ c.msgs.forEach((m,i)=>{if(m.role==="user")addU(m.show??m.content,m.att);else{const d=addA();d.lastChild.remove();setH(d.firstChild,md(m.content));const acts=document.createElement("div");acts.className="acts";acts.innerHTML=actsHTML(i!==c.msgs.length-1);d.appendChild(acts)}});closeD();down(1)}
 function delChat(id){if(busy){toast("Wait for the reply");return}if(!confirm("Delete this chat?"))return;const c=chats.find(x=>x.id===id);chats=chats.filter(x=>x.id!==id);save();if(c===cur){cur=null;hist=[];log.innerHTML="";$("hero").style.display=""}renderList()}
 function renderList(){const l=$("list");l.innerHTML="";if(!chats.length){l.innerHTML='<div class="empty-l">No chats yet</div>';return}
  chats.forEach(c=>{const d=document.createElement("div");d.className="it"+(c===cur?" on":"");
