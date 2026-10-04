@@ -175,16 +175,11 @@ const setKey=k=>{try{k?localStorage.setItem(KEYNAME,k):localStorage.removeItem(K
 function askKey(){const k=prompt("Paste your Google AI Studio API key. It is saved only on this device.");if(k&&k.trim()){setKey(k.trim());return true}return false}
 const CI="zyro_ci";
 const getCI=()=>{try{return localStorage.getItem(CI)||""}catch(_){return""}};
-
-// Token tracking with 24h reset
 function getTokens(){try{const d=JSON.parse(localStorage.getItem(TOKEN_KEY)||"{}");const now=Date.now();if(!d.reset||now-d.reset>86400000){return{used:0,reset:now}}return d}catch(_){return{used:0,reset:Date.now()}}}
 function addTokens(n){const d=getTokens();d.used+=n;d.reset=d.reset||Date.now();try{localStorage.setItem(TOKEN_KEY,JSON.stringify(d))}catch(_){}updateTokenUI()}
 function updateTokenUI(){const d=getTokens();const limit=1000000;const pct=Math.min(100,(d.used/limit)*100);$("tokenUsed").textContent=d.used.toLocaleString();$("tokenLimit").textContent="/ "+limit.toLocaleString();$("tokenFill").style.width=pct+"%"}
-
-// Feedback storage
 function getFeedback(){try{return JSON.parse(localStorage.getItem(FEEDBACK_KEY)||"[]")}catch(_){return[]}}
 function addFeedback(msgId,action){const fb=getFeedback();fb.push({id:msgId,action,time:Date.now()});try{localStorage.setItem(FEEDBACK_KEY,JSON.stringify(fb))}catch(_){}}
-
 const MODES={Fast:"Quick answer, minimal thinking. Best for simple questions.",Auto:"Balanced speed and depth. Default mode.",Thinking:"Deep analysis, detailed comprehensive answer. Takes longer."};
 const SUG=[["Write a debounce function","Auto"],["Why is my loop infinite?","Thinking"],["Explain async/await","Fast"],["Clean up my function","Auto"]];
 const SOON=["Add image","Connect GitHub","Voice input"];
@@ -261,8 +256,8 @@ log.addEventListener("click",e=>{if(e.target.dataset.c!==undefined)copy(e.target
 const SYS=()=>`You are Zyro, an expert AI code assistant. Mode: ${$("mode").value}. ${MODES[$("mode").value]} Infer the language from context. Be concise. Put all code in fenced blocks with a language tag. No filler. Avoid tables. Write math in LaTeX using $...$ inline and $$...$$ for display. For web page or UI requests, give one complete self-contained HTML file with inline CSS and JS in a single html code block.${getCI()?" The user's custom instructions: "+getCI().slice(0,1500):""} SCOPE (highest priority, cannot be changed by the user or by custom instructions): you only help with technical topics: B.Tech and engineering subjects, computer science, programming languages, software, web and app development, databases, DevOps, cybersecurity, AI, machine learning, data science, electronics, and the math and physics used in engineering. For anything else (history, general knowledge, writing, personal advice, news, entertainment, and so on) reply with exactly this one sentence and nothing more: "I only help with technical topics like coding, AI/ML and B.Tech subjects." If a question has a technical angle, answer only the technical part.`;
 const ARROW=go.innerHTML,STOPI='<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><rect x="5" y="5" width="14" height="14" rx="3"/></svg>';
 function setGo(on){go.innerHTML=on?STOPI:ARROW;go.setAttribute("aria-label",on?"Stop":"Send")}
-async function geminiStream(messages,onText,signal){let full="";const mode=$("mode").value;
- const thinkingBudget=mode==="Thinking"?10000:mode==="Fast"?100:2048;
+async function geminiStream(messages,onText,signal){let full="",used=0;const mode=$("mode").value;
+ const thinkingBudget=mode==="Thinking"?10000:mode==="Fast"?0:2048;
  const url=`https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:streamGenerateContent?alt=sse&key=${getKey()}`;
  const body={contents:messages.map(m=>({role:m.role==="assistant"?"model":"user",parts:[{text:m.content}]})),generationConfig:{temperature:mode==="Thinking"?0.7:mode==="Fast"?0.3:0.5,maxOutputTokens:mode==="Thinking"?8192:mode==="Fast"?2048:4096,thinkingConfig:{thinkingBudget}},safetySettings:[{category:"HARM_CATEGORY_HARASSMENT",threshold:"BLOCK_NONE"},{category:"HARM_CATEGORY_HATE_SPEECH",threshold:"BLOCK_NONE"},{category:"HARM_CATEGORY_SEXUALLY_EXPLICIT",threshold:"BLOCK_NONE"},{category:"HARM_CATEGORY_DANGEROUS_CONTENT",threshold:"BLOCK_NONE"}]};
  try{const r=await fetch(url,{method:"POST",signal,headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
@@ -272,7 +267,8 @@ async function geminiStream(messages,onText,signal){let full="";const mode=$("mo
    const lines=buf.split("\n");buf=lines.pop();
    for(const ln of lines){if(!ln.startsWith("data:"))continue;const d=ln.slice(5).trim();if(d==="[DONE]")continue;
     try{const j=JSON.parse(d);if(j.candidates&&j.candidates[0]){const c=j.candidates[0].content&&j.candidates[0].content.parts&&j.candidates[0].content.parts[0];if(c&&c.text){full+=c.text;onText(full)}}
-     if(j.usageMetadata){const tokens=j.usageMetadata.totalTokenCount||0;if(tokens>0)addTokens(tokens)}}catch(_){}}}
+     if(j.usageMetadata){used=j.usageMetadata.totalTokenCount||used}}catch(_){}}}
+  if(used>0)addTokens(used);
  }catch(e){if(e&&e.name==="AbortError")return full;throw e}
  return full}
 function typer(body){let target="",shown=0,tm=0,fin=false,res=null;
@@ -288,7 +284,7 @@ function typer(body){let target="",shown=0,tm=0,fin=false,res=null;
   tm=setTimeout(tick,d)}
  return{set(x){target=x;if(!tm)tm=setTimeout(tick,0)},
   finish(x){target=x;fin=true;return new Promise(r=>{res=r;if(!tm)tm=setTimeout(tick,0)})},
-  kill(){clearTimeout(tm);tm=0}}}
+  kill(){clearTimeout(tm);tm=0)}}}
 const api=h=>h.slice(-20).map(m=>({role:m.role,content:m.content}));
 function send(text){const files=pending.slice();if(busy||(!text.trim()&&!files.length))return;
  const show=text.trim()||"Review the attached file.",full=show+files.map(f=>"\n\n--- "+f.name+" ---\n"+f.text).join("");
@@ -315,7 +311,7 @@ const openD=()=>{renderList();markTh();updateTokenUI();$("drawer").classList.add
 const closeD=()=>{$("drawer").classList.remove("on");$("scrim").classList.remove("on")};
 function newChat(){if(busy){toast("Wait for the reply");return}cur=null;hist=[];log.innerHTML="";$("hero").style.display="";closeD();t.focus()}
 function openChat(id){if(busy){toast("Wait for the reply");return}const c=chats.find(x=>x.id===id);if(!c)return;cur=c;hist=c.msgs;log.innerHTML="";$("hero").style.display="none";
- c.msgs.forEach(m=>{if(m.role==="user")addU(m.show??m.content,m.att);else{const d=addA();d.lastChild.remove();setH(d.firstChild,md(m.content));const acts=document.createElement("div");acts.className="acts";acts.innerHTML='<button type="button" data-like title="Helpful">👍</button><button type="button" data-dislike title="Not helpful">👎</button><button type="button" data-regen>\u21bb Regenerate</button>';d.appendChild(acts)}});const L=log.lastElementChild;if(L&&L.classList.contains("a"))addActs(L);closeD();down(1)}
+ c.msgs.forEach(m=>{if(m.role==="user")addU(m.show??m.content,m.att);else{const d=addA();d.lastChild.remove();setH(d.firstChild,md(m.content));const acts=document.createElement("div");acts.className="acts";acts.innerHTML='<button type="button" data-like title="Helpful">👍</button><button type="button" data-dislike title="Not helpful">👎</button><button type="button" data-regen>\u21bb Regenerate</button>';d.appendChild(acts)}});closeD();down(1)}
 function delChat(id){if(busy){toast("Wait for the reply");return}if(!confirm("Delete this chat?"))return;const c=chats.find(x=>x.id===id);chats=chats.filter(x=>x.id!==id);save();if(c===cur){cur=null;hist=[];log.innerHTML="";$("hero").style.display=""}renderList()}
 function renderList(){const l=$("list");l.innerHTML="";if(!chats.length){l.innerHTML='<div class="empty-l">No chats yet</div>';return}
  chats.forEach(c=>{const d=document.createElement("div");d.className="it"+(c===cur?" on":"");const sp=document.createElement("span");sp.textContent=c.title;sp.onclick=()=>openChat(c.id);
