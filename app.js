@@ -194,6 +194,20 @@ async function hfStream(messages,onText,signal,cheap){
   lastErr={code:"http",info:"no text from "+model}}
  throw lastErr||{code:"http",info:"HF: no model responded"};
 }
+const POLL_MODELS=["openai","mistral"];
+async function pollStream(messages,onText,signal){
+ let lastErr=null;
+ for(const model of POLL_MODELS){
+  let r;
+  try{r=await fetch("https://text.pollinations.ai/openai",{method:"POST",signal,headers:{"Content-Type":"application/json"},body:JSON.stringify({model,messages})})}
+  catch(e){if(e&&e.name==="AbortError")return"";lastErr={code:"http",info:"backup unreachable"};continue}
+  if(!r.ok){lastErr={code:"http",info:"backup "+r.status};continue}
+  let j;try{j=await r.json()}catch(_){lastErr={code:"http",info:"backup bad json"};continue}
+  const full=(j.choices&&j.choices[0]&&j.choices[0].message&&j.choices[0].message.content)||"";
+  if(full){onText(full);addTokens(Math.ceil(full.length/4));return full}
+  lastErr={code:"http",info:"backup empty"}}
+ throw lastErr||{code:"http",info:"backup failed"};
+}
 function typer(body,cheap){let target="",shown=0,tm=0,fin=false,res=null,lastDraw=0;
  const fast=cheap||$("mode").value==="Fast";
  const draw=force=>{const now=performance.now();if(!force&&now-lastDraw<180)return;lastDraw=now;
@@ -240,13 +254,16 @@ async function run(show,full,names){if(busy)return;busy=true;skip=false;streamin
 const tw=typer(body,cheap);try{let out;const emit=x=>{c.write();tw.set(x);paintBar(baseUsed+Math.round(x.length/4),0)};
   if(typeof claude==="undefined"){
    const msgs=[{role:"system",content:SYS()},...api(hist),{role:"user",content:full}];
-   if(!getKey()&&!getHfKey()){if(!askKey())throw{code:"nokey"}}
    if(getKey()){
     try{out=await geminiStream(msgs,emit,ctrl.signal,cheap,onThought)}
     catch(e){if(e&&e.name==="AbortError")throw e;
-     if(getHfKey()){toast("Gemini busy — using Hugging Face");out=await hfStream(msgs,emit,ctrl.signal,cheap)}
-     else throw e}
-   }else{out=await hfStream(msgs,emit,ctrl.signal,cheap)}
+     if(getHfKey()){try{toast("Gemini busy — using Hugging Face");out=await hfStream(msgs,emit,ctrl.signal,cheap)}
+      catch(e2){if(e2&&e2.name==="AbortError")throw e2;toast("Using free backup model");out=await pollStream(msgs,emit,ctrl.signal)}}
+     else{toast("Using free backup model");out=await pollStream(msgs,emit,ctrl.signal)}}
+   }else if(getHfKey()){
+    try{out=await hfStream(msgs,emit,ctrl.signal,cheap)}
+    catch(e){if(e&&e.name==="AbortError")throw e;toast("Using free backup model");out=await pollStream(msgs,emit,ctrl.signal)}
+   }else{out=await pollStream(msgs,emit,ctrl.signal)}
   }
   else{if(!sample)sample=await claude.use("sample").catch(()=>null);
    if(!sample)throw{code:"na"};
