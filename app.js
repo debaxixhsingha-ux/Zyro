@@ -1,3 +1,4 @@
+const WORKER_URL="https://zyro-ai.debaxixhsingha.workers.dev/"; // ← paste your Cloudflare worker URL here (then visitors need NO keys)
 const KEYNAME="zyro_google_key";
 const HFKEY="zyro_hf_key";
 const TOKEN_KEY="zyro_tokens";
@@ -120,6 +121,21 @@ const SYS=()=>`You are Zyro, a friendly expert AI assistant for ANY topic: codin
 const ARROW=go.innerHTML,STOPI='<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><rect x="5" y="5" width="14" height="14" rx="3"/></svg>';
 function setGo(on){go.innerHTML=on?STOPI:ARROW;go.setAttribute("aria-label",on?"Stop":"Send")}
 const RETRY=[400,404,429,500,502,503,504,524];
+async function workerStream(messages,onText,signal){
+ const r=await fetch(WORKER_URL,{method:"POST",signal,headers:{"Content-Type":"application/json"},body:JSON.stringify({messages})});
+ if(!r.ok||!r.body){let msg="";try{msg=await r.text()}catch(_){}
+  throw{code:r.status===429?"rate":"http",info:"relay "+r.status+" "+msg.slice(0,100)}}
+ let full="",used=0,aborted=false;const rd=r.body.getReader(),dec=new TextDecoder();let buf="";
+ try{for(;;){const{done,value}=await rd.read();if(done)break;buf+=dec.decode(value,{stream:true});
+  const lines=buf.split("\n");buf=lines.pop();
+  for(const ln of lines){if(!ln.startsWith("data:"))continue;const d=ln.slice(5).trim();
+   try{const j=JSON.parse(d);
+    if(j.candidates&&j.candidates[0]&&j.candidates[0].content&&j.candidates[0].content.parts){
+     for(const p of j.candidates[0].content.parts){if(p.text&&!p.thought){full+=p.text;onText(full)}}}
+    if(j.usageMetadata){used=j.usageMetadata.totalTokenCount||used}}catch(_){}}}}
+ catch(e){if(e&&e.name==="AbortError")aborted=true;else throw e}
+ if(used>0)addTokens(used);else if(full)addTokens(Math.ceil(full.length/4));
+ return full}
 async function geminiStream(messages,onText,signal,cheap,onThought){
  const mode=$("mode").value;
  const fast=cheap||mode==="Fast";
@@ -208,6 +224,12 @@ async function pollStream(messages,onText,signal){
   lastErr={code:"http",info:"backup empty"}}
  throw lastErr||{code:"http",info:"backup failed"};
 }
+async function localChain(msgs,emit,signal,cheap,onThought){
+ if(getKey()){try{return await geminiStream(msgs,emit,signal,cheap,onThought)}catch(e){if(e&&e.name==="AbortError")throw e}}
+ if(getHfKey()){try{return await hfStream(msgs,emit,signal,cheap)}catch(e){if(e&&e.name==="AbortError")throw e}}
+ toast("Using free backup model");
+ return await pollStream(msgs,emit,signal);
+}
 function typer(body,cheap){let target="",shown=0,tm=0,fin=false,res=null,lastDraw=0;
  const fast=cheap||$("mode").value==="Fast";
  const draw=force=>{const now=performance.now();if(!force&&now-lastDraw<180)return;lastDraw=now;
@@ -254,16 +276,10 @@ async function run(show,full,names){if(busy)return;busy=true;skip=false;streamin
 const tw=typer(body,cheap);try{let out;const emit=x=>{c.write();tw.set(x);paintBar(baseUsed+Math.round(x.length/4),0)};
   if(typeof claude==="undefined"){
    const msgs=[{role:"system",content:SYS()},...api(hist),{role:"user",content:full}];
-   if(getKey()){
-    try{out=await geminiStream(msgs,emit,ctrl.signal,cheap,onThought)}
-    catch(e){if(e&&e.name==="AbortError")throw e;
-     if(getHfKey()){try{toast("Gemini busy — using Hugging Face");out=await hfStream(msgs,emit,ctrl.signal,cheap)}
-      catch(e2){if(e2&&e2.name==="AbortError")throw e2;toast("Using free backup model");out=await pollStream(msgs,emit,ctrl.signal)}}
-     else{toast("Using free backup model");out=await pollStream(msgs,emit,ctrl.signal)}}
-   }else if(getHfKey()){
-    try{out=await hfStream(msgs,emit,ctrl.signal,cheap)}
-    catch(e){if(e&&e.name==="AbortError")throw e;toast("Using free backup model");out=await pollStream(msgs,emit,ctrl.signal)}
-   }else{out=await pollStream(msgs,emit,ctrl.signal)}
+   if(WORKER_URL){
+    try{out=await workerStream(msgs,emit,ctrl.signal)}
+    catch(e){if(e&&e.name==="AbortError")throw e;out=await localChain(msgs,emit,ctrl.signal,cheap,onThought)}
+   }else{out=await localChain(msgs,emit,ctrl.signal,cheap,onThought)}
   }
   else{if(!sample)sample=await claude.use("sample").catch(()=>null);
    if(!sample)throw{code:"na"};
