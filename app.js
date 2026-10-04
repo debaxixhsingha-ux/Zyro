@@ -7,7 +7,10 @@ const setKey=k=>{try{k?localStorage.setItem(KEYNAME,k):localStorage.removeItem(K
 function askKey(){const k=prompt("Paste your Google AI Studio API key. It is saved only on this device.");if(k&&k.trim()){setKey(k.trim());return true}return false}
 const CI="zyro_ci";
 const getCI=()=>{try{return localStorage.getItem(CI)||""}catch(_){return""}};
-function getTokens(){try{const d=JSON.parse(localStorage.getItem(TOKEN_KEY)||"null");const now=Date.now();if(!d||!d.reset||now-d.reset>86400000)return{used:0,last:0,reset:now};return d}catch(_){return{used:0,last:0,reset:Date.now()}}}
+function getTokens(){try{const d=JSON.parse(localStorage.getItem(TOKEN_KEY)||"null");const now=Date.now();
+ if(!d||!d.reset||now-d.reset>86400000)return{used:0,last:0,reset:now};
+ if(typeof d.used!=="number"){let s=0;for(const k in d.used)s+=+d.used[k]||0;d.used=s;try{localStorage.setItem(TOKEN_KEY,JSON.stringify(d))}catch(_){}}
+ return d}catch(_){return{used:0,last:0,reset:Date.now()}}}
 function saveTokens(d){try{localStorage.setItem(TOKEN_KEY,JSON.stringify(d))}catch(_){}}
 function addTokens(n){const d=getTokens();d.used+=n;d.last=n;saveTokens(d);updateTokenUI()}
 const tokensOut=()=>getTokens().used>=TOTAL;
@@ -15,7 +18,7 @@ function updateTokenUI(){const d=getTokens();const pct=Math.min(100,(d.used/TOTA
  $("tPct").textContent=(d.used>0&&pct<1?"<1":Math.floor(pct))+"% of 100% used";
  $("fTotal").style.width=pct+"%";
  $("tLast").textContent=d.last?("last "+d.last.toLocaleString()+" · "+(d.last<2000?"light":d.last<8000?"medium":"heavy")):"";
- $("tNote").textContent=tokensOut()?"Tokens out — refills tomorrow. Quick chats still work; Thinking, uploads & building are paused.":"Refills daily · Thinking burns fastest · short chats are cheap";
+ $("tNote").textContent=tokensOut()?"Tokens out — refills tomorrow. Quick chats still work; Thinking, uploads & building are paused.":"Counts your messages + replies · refills daily";
  applyLimits()}
 function applyLimits(){const out=tokensOut();
  const th=$("mode").querySelector("option[value=Thinking]");if(th)th.disabled=out;
@@ -105,7 +108,7 @@ log.addEventListener("click",e=>{
 const SYS=()=>`You are Zyro, a friendly expert AI assistant for ANY topic: coding, AI/ML, B.Tech subjects, writing, ideas, studies, plans, daily advice, fun. Mode: ${$("mode").value}. ${MODES[$("mode").value]} IMPORTANT: if the user's message is only a greeting (hi, hey, hello, yo, good morning, how are you, etc.), reply with exactly ONE short friendly sentence introducing yourself as Zyro — never list features, subjects or abilities. Put all code in fenced blocks with a language tag. Write math in LaTeX using $...$ inline and $$...$$ for display. For any web page or UI request, give one complete self-contained HTML file with inline CSS and JS in a single html code block. For product, fashion, food or storefront websites, use real photos (https://images.unsplash.com/ image URLs or https://picsum.photos/seed/name/600/800) inside clean cards with names and prices — never represent products with abstract 3D shapes or colored boxes.${getCI()?" The user's custom instructions: "+getCI().slice(0,1500):""}`;
 const ARROW=go.innerHTML,STOPI='<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><rect x="5" y="5" width="14" height="14" rx="3"/></svg>';
 function setGo(on){go.innerHTML=on?STOPI:ARROW;go.setAttribute("aria-label",on?"Stop":"Send")}
-async function geminiStream(messages,onText,signal,cheap){
+async function geminiStream(messages,onText,signal,cheap,onThought){
  const mode=$("mode").value;
  const fast=cheap||mode==="Fast";
  const LIST=fast?["gemini-2.5-flash-lite","gemini-3-flash-preview","gemini-3-pro-preview"]:["gemini-3-flash-preview","gemini-2.5-flash-lite","gemini-3-pro-preview","gemini-2.5-flash"];
@@ -125,11 +128,15 @@ async function geminiStream(messages,onText,signal,cheap){
   if(r.status===404){try{await r.text()}catch(_){}continue}
   if(!r.ok||!r.body){let msg="";try{msg=(await r.text()).slice(0,120)}catch(_){}throw{code:r.status===429?"rate":r.status===401||r.status===403?"key":"http",info:r.status+" "+msg}}
   try{localStorage.setItem("zyro_model",model)}catch(_){}
-  let full="",used=0;const rd=r.body.getReader(),dec=new TextDecoder();let buf="";
+  let full="",th="",used=0;const rd=r.body.getReader(),dec=new TextDecoder();let buf="";
   for(;;){const{done,value}=await rd.read();if(done)break;buf+=dec.decode(value,{stream:true});
    const lines=buf.split("\n");buf=lines.pop();
    for(const ln of lines){if(!ln.startsWith("data:"))continue;const d=ln.slice(5).trim();
-    try{const j=JSON.parse(d);if(j.candidates&&j.candidates[0]){const c=j.candidates[0].content&&j.candidates[0].content.parts&&j.candidates[0].content.parts[0];if(c&&c.text){full+=c.text;onText(full)}}
+    try{const j=JSON.parse(d);
+     if(j.candidates&&j.candidates[0]&&j.candidates[0].content&&j.candidates[0].content.parts){
+      for(const p of j.candidates[0].content.parts){if(!p.text)continue;
+       if(p.thought){th+=p.text;if(onThought)onThought(th)}
+       else{full+=p.text;onText(full)}}}
      if(j.usageMetadata){used=j.usageMetadata.totalTokenCount||used}}catch(_){}}}
   if(used>0)addTokens(used);
   return full}
@@ -170,16 +177,25 @@ function send(text){const files=pending.slice();if(busy||(!text.trim()&&!files.l
 function actsHTML(){return '<button type="button" data-like title="Helpful">'+THUMB_UP+'</button><button type="button" data-dislike title="Not helpful">'+THUMB_DOWN+'</button><button type="button" data-regen>\u21bb Regenerate</button>'}
 async function run(show,full,names){if(busy)return;busy=true;skip=false;ctrl=new AbortController();setGo(1);log.querySelectorAll(".acts").forEach(x=>x.remove());
  $("hero").style.display="none";addU(show,names);
+ const t0=Date.now();
  const cheap=full.trim().length<60||tokensOut();
  const d=addA(),body=d.firstChild,c=startChip(d.lastChild);down(1);
+ let thinkEl=null;
+ const onThought=th=>{if(!thinkEl){thinkEl=document.createElement("details");thinkEl.className="think";thinkEl.innerHTML='<summary>Thinking…</summary><div class="think-body"></div>';d.insertBefore(thinkEl,body)}
+  thinkEl.querySelector(".think-body").textContent=th};
 const tw=typer(body,cheap);try{let out;const emit=x=>{c.write();tw.set(x)};
-  if(typeof claude==="undefined"){if(!getKey()&&!askKey())throw{code:"nokey"};out=await geminiStream([{role:"system",content:SYS()},...api(hist),{role:"user",content:full}],emit,ctrl.signal,cheap)}
+  if(typeof claude==="undefined"){if(!getKey()&&!askKey())throw{code:"nokey"};out=await geminiStream([{role:"system",content:SYS()},...api(hist),{role:"user",content:full}],emit,ctrl.signal,cheap,onThought)}
   else{if(!sample)sample=await claude.use("sample").catch(()=>null);
    if(!sample)throw{code:"na"};
    const r=await sample([...api(hist),{role:"user",content:"["+SYS()+"]\n\n"+full}],{cache:false,modelTier:"default",onText:({text})=>emit(text)});out=r.text}
   out=out||"(empty response)";await tw.finish(out);setH(body,md(out));
+  const secs=((Date.now()-t0)/1000).toFixed(1);
+  if(thinkEl)thinkEl.querySelector("summary").textContent="Thought for "+secs+"s";
   const acts=document.createElement("div");acts.className="acts";acts.innerHTML=actsHTML();d.appendChild(acts);
-  if(!cur){cur={id:Date.now().toString(36),title:(show||names[0]).replace(/\s+/g," ").slice(0,40),msgs:hist};chats.unshift(cur)}hist.push({role:"user",content:full,show,att:names},{role:"assistant",content:out});if(hist.length>60)hist.splice(0,hist.length-60);chats=[cur,...chats.filter(x=>x!==cur)];save();c.done()}
+  const rt=document.createElement("div");rt.className="rt";rt.textContent="responded in "+secs+"s";d.appendChild(rt);
+  if(!cur){cur={id:Date.now().toString(36),title:(show||names[0]).replace(/\s+/g," ").slice(0,40),msgs:hist,ts:Date.now()};chats.unshift(cur)}
+  cur.ts=Date.now();
+  hist.push({role:"user",content:full,show,att:names},{role:"assistant",content:out});if(hist.length>60)hist.splice(0,hist.length-60);chats=[cur,...chats.filter(x=>x!==cur)];save();c.done()}
  catch(e){tw.kill();c.stop();if(e&&e.code==="key")setKey("");const na=e&&e.code==="na";if(!na){t.value=show;t.dispatchEvent(new Event("input"))}
   body.innerHTML=`<span class="err">${na?"AI is unavailable here. Open this page inside Claude.":e&&e.code==="nokey"?"Add your Google AI Studio key to start. Tap + then API key.":e&&e.code==="key"?"That key was rejected. Tap + then API key and paste a new one.":e&&e.code==="rate"?"Rate limit hit. Wait a minute, then retry.":"Failed: "+(e&&e.info||e&&e.message||"network problem")+". Your message is back in the box."}</span>`}
  busy=false;ctrl=null;setGo(0);$("jump").classList.remove("on");down()}
@@ -187,6 +203,12 @@ $("f").onsubmit=e=>{e.preventDefault();if(busy){skip=true;if(ctrl)ctrl.abort();r
 const CK="zyro_chats";let chats=[],cur=null;
 try{chats=JSON.parse(localStorage.getItem(CK)||"[]")}catch(_){chats=[]}
 const save=()=>{chats=chats.slice(0,40);for(;;){try{localStorage.setItem(CK,JSON.stringify(chats));return}catch(_){if(chats.length<=1)return;chats.pop()}}};
+function fmtDate(ts){if(!ts)return"";const d=new Date(ts),now=new Date();
+ const hms=String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0");
+ if(d.toDateString()===now.toDateString())return"Today "+hms;
+ if(d.toDateString()===new Date(now-86400000).toDateString())return"Yesterday "+hms;
+ return d.getDate()+" "+d.toLocaleString("en",{month:"short"})+" "+hms}
+function renChat(id){const c=chats.find(x=>x.id===id);if(!c)return;const n=prompt("Rename chat:",c.title);if(n&&n.trim()){c.title=n.trim().slice(0,40);save();renderList()}}
 const openD=()=>{renderList();markTh();updateTokenUI();$("drawer").classList.add("on");$("scrim").classList.add("on")};
 const closeD=()=>{$("drawer").classList.remove("on");$("scrim").classList.remove("on")};
 function newChat(){if(busy){toast("Wait for the reply");return}cur=null;hist=[];log.innerHTML="";$("hero").style.display="";closeD();t.focus()}
@@ -194,8 +216,14 @@ function openChat(id){if(busy){toast("Wait for the reply");return}const c=chats.
  c.msgs.forEach(m=>{if(m.role==="user")addU(m.show??m.content,m.att);else{const d=addA();d.lastChild.remove();setH(d.firstChild,md(m.content));const acts=document.createElement("div");acts.className="acts";acts.innerHTML=actsHTML();d.appendChild(acts)}});closeD();down(1)}
 function delChat(id){if(busy){toast("Wait for the reply");return}if(!confirm("Delete this chat?"))return;const c=chats.find(x=>x.id===id);chats=chats.filter(x=>x.id!==id);save();if(c===cur){cur=null;hist=[];log.innerHTML="";$("hero").style.display=""}renderList()}
 function renderList(){const l=$("list");l.innerHTML="";if(!chats.length){l.innerHTML='<div class="empty-l">No chats yet</div>';return}
- chats.forEach(c=>{const d=document.createElement("div");d.className="it"+(c===cur?" on":"");const sp=document.createElement("span");sp.textContent=c.title;sp.onclick=()=>openChat(c.id);
-  const x=document.createElement("button");x.type="button";x.className="icon";x.textContent="\u2715";x.setAttribute("aria-label","Delete chat");x.onclick=()=>delChat(c.id);d.append(sp,x);l.appendChild(d)})}
+ chats.forEach(c=>{const d=document.createElement("div");d.className="it"+(c===cur?" on":"");
+  const meta=document.createElement("div");meta.className="meta";
+  const sp=document.createElement("span");sp.textContent=c.title;
+  const sm=document.createElement("small");sm.textContent=fmtDate(c.ts);
+  meta.append(sp,sm);meta.onclick=()=>openChat(c.id);
+  const rn=document.createElement("button");rn.type="button";rn.className="icon";rn.textContent="\u270E";rn.setAttribute("aria-label","Rename chat");rn.onclick=()=>renChat(c.id);
+  const x=document.createElement("button");x.type="button";x.className="icon";x.textContent="\u2715";x.setAttribute("aria-label","Delete chat");x.onclick=()=>delChat(c.id);
+  d.append(meta,rn,x);l.appendChild(d)})}
 function regen(){if(busy||hist.length<2)return;const m=hist[hist.length-2],k=log.children;k[k.length-1].remove();k[k.length-1].remove();hist.splice(-2);run(m.show??m.content,m.content,m.att||[])}
 const closePV=()=>{$("pv").classList.remove("on");$("pvf").srcdoc=""};
 $("pvx").onclick=closePV;
