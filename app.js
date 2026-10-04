@@ -2,19 +2,25 @@ const KEYNAME="zyro_google_key";
 const TOKEN_KEY="zyro_tokens";
 const FEEDBACK_KEY="zyro_feedback";
 const TOTAL=1000000;
-const QUOTA={Fast:0.25,Auto:0.15,Thinking:0.60};
 const getKey=()=>{try{return localStorage.getItem(KEYNAME)||""}catch(_){return""}};
 const setKey=k=>{try{k?localStorage.setItem(KEYNAME,k):localStorage.removeItem(KEYNAME)}catch(_){}};
 function askKey(){const k=prompt("Paste your Google AI Studio API key. It is saved only on this device.");if(k&&k.trim()){setKey(k.trim());return true}return false}
 const CI="zyro_ci";
 const getCI=()=>{try{return localStorage.getItem(CI)||""}catch(_){return""}};
-function getTokens(){try{const d=JSON.parse(localStorage.getItem(TOKEN_KEY)||"null");const now=Date.now();if(!d||!d.reset||now-d.reset>86400000)return{used:{Fast:0,Auto:0,Thinking:0},reset:now};d.used=d.used||{Fast:0,Auto:0,Thinking:0};return d}catch(_){return{used:{Fast:0,Auto:0,Thinking:0},reset:Date.now()}}}
+function getTokens(){try{const d=JSON.parse(localStorage.getItem(TOKEN_KEY)||"null");const now=Date.now();if(!d||!d.reset||now-d.reset>86400000)return{used:0,last:0,reset:now};return d}catch(_){return{used:0,last:0,reset:Date.now()}}}
 function saveTokens(d){try{localStorage.setItem(TOKEN_KEY,JSON.stringify(d))}catch(_){}}
-function addTokens(n,mode){const d=getTokens();d.used[mode]=(d.used[mode]||0)+n;saveTokens(d);updateTokenUI()}
-const totalUsed=d=>(d.used.Fast||0)+(d.used.Auto||0)+(d.used.Thinking||0);
-function updateTokenUI(){const d=getTokens();
- const set=(m,id,fid)=>{const q=Math.floor(TOTAL*QUOTA[m]);const u=Math.min(q,d.used[m]||0);$(id).textContent=u.toLocaleString()+" / "+q.toLocaleString();$(fid).style.width=Math.min(100,(u/q)*100)+"%"};
- set("Fast","tFast","fFast");set("Auto","tAuto","fAuto");set("Thinking","tThink","fThink")}
+function addTokens(n){const d=getTokens();d.used+=n;d.last=n;saveTokens(d);updateTokenUI()}
+const tokensOut=()=>getTokens().used>=TOTAL;
+function updateTokenUI(){const d=getTokens();const pct=Math.min(100,(d.used/TOTAL)*100);
+ $("tPct").textContent=(d.used>0&&pct<1?"<1":Math.floor(pct))+"% of 100% used";
+ $("fTotal").style.width=pct+"%";
+ $("tLast").textContent=d.last?("last "+d.last.toLocaleString()+" · "+(d.last<2000?"light":d.last<8000?"medium":"heavy")):"";
+ $("tNote").textContent=tokensOut()?"Tokens out — refills tomorrow. Quick chats still work; Thinking, uploads & building are paused.":"Refills daily · Thinking burns fastest · short chats are cheap";
+ applyLimits()}
+function applyLimits(){const out=tokensOut();
+ const th=$("mode").querySelector("option[value=Thinking]");if(th)th.disabled=out;
+ const up=$("upb");if(up)up.disabled=out;
+ if(out&&$("mode").value==="Thinking")$("mode").value="Fast"}
 function getFeedback(){try{return JSON.parse(localStorage.getItem(FEEDBACK_KEY)||"[]")}catch(_){return[]}}
 function addFeedback(msgId,action){const fb=getFeedback();fb.push({id:msgId,action,time:Date.now()});try{localStorage.setItem(FEEDBACK_KEY,JSON.stringify(fb))}catch(_){}}
 const MODES={Fast:"Quick short answer, minimal thinking.",Auto:"Balanced speed and depth.",Thinking:"Deep analysis, long detailed answer."};
@@ -27,7 +33,7 @@ Object.keys(MODES).forEach(m=>$("mode").add(new Option(m)));
 $("mode").value="Auto";
 {const b=document.createElement("button");b.id="keyb";b.type="button";b.innerHTML="<span>API key</span><em>"+(getKey()?"Saved":"Add")+"</em>";b.onclick=()=>{if(askKey()){toast("Key saved");b.lastChild.textContent="Saved"}};$("menu").appendChild(b)}
 {const b=document.createElement("button");b.id="cib";b.type="button";b.innerHTML="<span>Instructions</span><em>"+(getCI()?"On":"Add")+"</em>";b.onclick=()=>{$("ci").value=getCI();$("modal").classList.add("on")};$("menu").appendChild(b)}
-{const b=document.createElement("button");b.type="button";b.innerHTML="<span>Upload file or PDF</span><em>Code, PDF</em>";b.onclick=()=>$("file").click();$("menu").appendChild(b)}
+{const b=document.createElement("button");b.id="upb";b.type="button";b.innerHTML="<span>Upload file or PDF</span><em>Code, PDF</em>";b.onclick=()=>$("file").click();$("menu").appendChild(b)}
 SOON.forEach(s=>{const b=document.createElement("button");b.type="button";b.innerHTML=`<span>${s}</span><em>Soon</em>`;b.onclick=()=>{toast(s+" is coming soon");$("menu").classList.remove("open")};$("menu").appendChild(b)});
 $("plus").onclick=e=>{e.stopPropagation();const cb=$("cib");if(cb)cb.lastChild.textContent=getCI()?"On":"Add";const kb=$("keyb");if(kb)kb.lastChild.textContent=getKey()?"Saved":"Add";$("menu").classList.toggle("open")};
 document.addEventListener("click",()=>$("menu").classList.remove("open"));
@@ -74,7 +80,10 @@ const syncPill=()=>$("jump").classList.toggle("on",distB()>140&&busy);
 main.addEventListener("scroll",()=>{if(distB()<140)follow=true;syncPill()});
 $("jump").onclick=()=>{follow=true;main.scrollTop=main.scrollHeight};
 function down(f){if(f||follow)requestAnimationFrame(()=>{main.scrollTop=main.scrollHeight})}
-const withCaret=h=>/<\/p>$/.test(h)?h.replace(/<\/p>$/,'<span class="caret"></span></p>'):h+'<span class="caret"></span>';
+function withCaret(h){
+ if(/<\/p>$/.test(h))return h.replace(/<\/p>$/,'<span class="caret"></span></p>');
+ if(/<\/pre><\/div>$/.test(h))return h.replace(/<\/pre><\/div>$/,'<span class="caret"></span></pre></div>');
+ return h+'<span class="caret"></span>'}
 let sid=0;
 function startChip(chip){let i=0,tm;const n=++sid;
  chip.innerHTML=`<span class="spark"><svg viewBox="0 0 24 24" aria-hidden="true"><defs><linearGradient id="sg${n}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#d97757"/><stop offset=".55" stop-color="#f0b48a"/><stop offset="1" stop-color="#d97757"/></linearGradient></defs><path fill="url(#sg${n})" d="M12 2l2.6 7.4L22 12l-7.4 2.6L12 22l-2.6-7.4L2 12l7.4-2.6z"/></svg></span><span class="shimmer status-text">Thinking</span>`;
@@ -93,20 +102,21 @@ log.addEventListener("click",e=>{
  if(e.target.closest("[data-regen]"))return regen();
  const lk=e.target.closest("[data-like]");if(lk){addFeedback(lk.closest(".a").dataset.msgId,"like");lk.classList.add("active");lk.parentElement.querySelector("[data-dislike]").classList.remove("active");toast("Thanks for the feedback!");return}
  const dk=e.target.closest("[data-dislike]");if(dk){addFeedback(dk.closest(".a").dataset.msgId,"dislike");dk.classList.add("active");dk.parentElement.querySelector("[data-like]").classList.remove("active");toast("Thanks for the feedback!")}});
-const SYS=()=>`You are Zyro, a friendly expert AI assistant for ANY topic: coding, AI/ML, B.Tech subjects, writing, ideas, studies, plans, daily advice, fun. Mode: ${$("mode").value}. ${MODES[$("mode").value]} Put all code in fenced blocks with a language tag. Write math in LaTeX using $...$ inline and $$...$$ for display. For any web page or UI request, give one complete self-contained HTML file with inline CSS and JS in a single html code block. For product, fashion, food or storefront websites, use real photos (https://images.unsplash.com/ image URLs or https://picsum.photos/seed/name/600/800) inside clean cards with names and prices — never represent products with abstract 3D shapes or colored boxes.${getCI()?" The user's custom instructions: "+getCI().slice(0,1500):""}`;
+const SYS=()=>`You are Zyro, a friendly expert AI assistant for ANY topic: coding, AI/ML, B.Tech subjects, writing, ideas, studies, plans, daily advice, fun. Mode: ${$("mode").value}. ${MODES[$("mode").value]} IMPORTANT: if the user's message is only a greeting (hi, hey, hello, yo, good morning, how are you, etc.), reply with exactly ONE short friendly sentence introducing yourself as Zyro — never list features, subjects or abilities. Put all code in fenced blocks with a language tag. Write math in LaTeX using $...$ inline and $$...$$ for display. For any web page or UI request, give one complete self-contained HTML file with inline CSS and JS in a single html code block. For product, fashion, food or storefront websites, use real photos (https://images.unsplash.com/ image URLs or https://picsum.photos/seed/name/600/800) inside clean cards with names and prices — never represent products with abstract 3D shapes or colored boxes.${getCI()?" The user's custom instructions: "+getCI().slice(0,1500):""}`;
 const ARROW=go.innerHTML,STOPI='<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><rect x="5" y="5" width="14" height="14" rx="3"/></svg>';
 function setGo(on){go.innerHTML=on?STOPI:ARROW;go.setAttribute("aria-label",on?"Stop":"Send")}
-async function geminiStream(messages,onText,signal){
+async function geminiStream(messages,onText,signal,cheap){
  const mode=$("mode").value;
- const LIST=mode==="Fast"?["gemini-2.5-flash-lite","gemini-3-flash-preview","gemini-3-pro-preview"]:["gemini-3-flash-preview","gemini-2.5-flash-lite","gemini-3-pro-preview","gemini-2.5-flash"];
+ const fast=cheap||mode==="Fast";
+ const LIST=fast?["gemini-2.5-flash-lite","gemini-3-flash-preview","gemini-3-pro-preview"]:["gemini-3-flash-preview","gemini-2.5-flash-lite","gemini-3-pro-preview","gemini-2.5-flash"];
  let pref="";try{pref=localStorage.getItem("zyro_model")||""}catch(_){}
  let start=LIST.indexOf(pref);if(start<0)start=0;
  for(let k=0;k<LIST.length;k++){
   const model=LIST[(start+k)%LIST.length];
   const is3=model.indexOf("gemini-3")===0;
-  const gc={maxOutputTokens:mode==="Thinking"?8192:mode==="Fast"?1024:4096,
-   thinkingConfig:is3?{thinkingLevel:mode==="Thinking"?"HIGH":mode==="Fast"?"MINIMAL":"MEDIUM"}:{thinkingBudget:mode==="Thinking"?10000:mode==="Fast"?0:2048}};
-  if(!is3)gc.temperature=mode==="Thinking"?0.7:mode==="Fast"?0.2:0.5;
+  const gc={maxOutputTokens:fast?1024:mode==="Thinking"?8192:4096,
+   thinkingConfig:is3?{thinkingLevel:fast?"MINIMAL":mode==="Thinking"?"HIGH":"MEDIUM"}:{thinkingBudget:fast?0:mode==="Thinking"?10000:2048}};
+  if(!is3)gc.temperature=fast?0.2:mode==="Thinking"?0.7:0.5;
   const url="https://generativelanguage.googleapis.com/v1beta/models/"+model+":streamGenerateContent?alt=sse&key="+getKey();
   const body={contents:messages.map(m=>({role:m.role==="assistant"?"model":"user",parts:[{text:m.content}]})),generationConfig:gc,safetySettings:[{category:"HARM_CATEGORY_HARASSMENT",threshold:"BLOCK_NONE"},{category:"HARM_CATEGORY_HATE_SPEECH",threshold:"BLOCK_NONE"},{category:"HARM_CATEGORY_SEXUALLY_EXPLICIT",threshold:"BLOCK_NONE"},{category:"HARM_CATEGORY_DANGEROUS_CONTENT",threshold:"BLOCK_NONE"}]};
   let r;
@@ -121,12 +131,12 @@ async function geminiStream(messages,onText,signal){
    for(const ln of lines){if(!ln.startsWith("data:"))continue;const d=ln.slice(5).trim();
     try{const j=JSON.parse(d);if(j.candidates&&j.candidates[0]){const c=j.candidates[0].content&&j.candidates[0].content.parts&&j.candidates[0].content.parts[0];if(c&&c.text){full+=c.text;onText(full)}}
      if(j.usageMetadata){used=j.usageMetadata.totalTokenCount||used}}catch(_){}}}
-  if(used>0)addTokens(used,mode);
+  if(used>0)addTokens(used);
   return full}
  throw{code:"http",info:"404 on all models — open AI Studio and tell me which models it shows"};
 }
-function typer(body){let target="",shown=0,tm=0,fin=false,res=null;
- const mode=$("mode").value,fast=mode==="Fast";
+function typer(body,cheap){let target="",shown=0,tm=0,fin=false,res=null;
+ const fast=cheap||$("mode").value==="Fast";
  const draw=()=>{setH(body,withCaret(md(target.slice(0,shown))));down()};
  function tick(){tm=0;const back=target.length-shown;
   if(back<=0){if(fin&&res)res();return}
@@ -146,17 +156,24 @@ function typer(body){let target="",shown=0,tm=0,fin=false,res=null;
   kill(){clearTimeout(tm);tm=0}}}
 const api=h=>h.slice(-20).map(m=>({role:m.role,content:m.content}));
 function send(text){const files=pending.slice();if(busy||(!text.trim()&&!files.length))return;
- const mode=$("mode").value,d=getTokens();
- if(totalUsed(d)>=TOTAL){toast("All tokens used — refills tomorrow");return}
- if((d.used[mode]||0)>=Math.floor(TOTAL*QUOTA[mode])){toast(mode+" mode tokens used up for today — switch mode");return}
- const show=text.trim()||"Review the attached file.",full=show+files.map(f=>"\n\n--- "+f.name+" ---\n"+f.text).join("");
+ const out=tokensOut();
+ if(out&&files.length){toast("Tokens are out — uploads are off until tomorrow");pending=[];renderAtts();return}
+ applyLimits();
+ const show=text.trim()||"Review the attached file.";
+ if(out&&/\b(make|build|create|design|generate|develop)\b/i.test(show)){
+  addU(show);
+  const d=addA();d.lastChild.remove();
+  setH(d.firstChild,md("I'm sorry, your tokens are out for today ⚡\n\nEverything refills tomorrow at the same time. Until then, quick chats in Fast mode still work — but building, uploads and Thinking mode are paused."));
+  return}
+ const full=show+files.map(f=>"\n\n--- "+f.name+" ---\n"+f.text).join("");
  pending=[];renderAtts();return run(show,full,files.map(f=>f.name))}
 function actsHTML(){return '<button type="button" data-like title="Helpful">'+THUMB_UP+'</button><button type="button" data-dislike title="Not helpful">'+THUMB_DOWN+'</button><button type="button" data-regen>\u21bb Regenerate</button>'}
 async function run(show,full,names){if(busy)return;busy=true;skip=false;ctrl=new AbortController();setGo(1);log.querySelectorAll(".acts").forEach(x=>x.remove());
  $("hero").style.display="none";addU(show,names);
+ const cheap=full.trim().length<60||tokensOut();
  const d=addA(),body=d.firstChild,c=startChip(d.lastChild);down(1);
-const tw=typer(body);try{let out;const emit=x=>{c.write();tw.set(x)};
-  if(typeof claude==="undefined"){if(!getKey()&&!askKey())throw{code:"nokey"};out=await geminiStream([{role:"system",content:SYS()},...api(hist),{role:"user",content:full}],emit,ctrl.signal)}
+const tw=typer(body,cheap);try{let out;const emit=x=>{c.write();tw.set(x)};
+  if(typeof claude==="undefined"){if(!getKey()&&!askKey())throw{code:"nokey"};out=await geminiStream([{role:"system",content:SYS()},...api(hist),{role:"user",content:full}],emit,ctrl.signal,cheap)}
   else{if(!sample)sample=await claude.use("sample").catch(()=>null);
    if(!sample)throw{code:"na"};
    const r=await sample([...api(hist),{role:"user",content:"["+SYS()+"]\n\n"+full}],{cache:false,modelTier:"default",onText:({text})=>emit(text)});out=r.text}
@@ -195,7 +212,8 @@ async function readAny(f){
   return o}
  return await f.text()}
 $("file").onchange=async e=>{const fs=[...e.target.files];e.target.value="";
- for(const f of fs){if(pending.length>=3){toast("Max 3 files");break}
+ for(const f of fs){if(tokensOut()){toast("Tokens are out — uploads paused until tomorrow");break}
+  if(pending.length>=3){toast("Max 3 files");break}
   if(f.size>8e6){toast(f.name+" is too big (max 8 MB)");continue}
   try{let x=(await readAny(f)).replace(/\r/g,"");
    if(x.includes("\u0000")){toast("Can't read "+f.name);continue}
