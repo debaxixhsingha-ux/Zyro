@@ -1,7 +1,7 @@
 const KEYNAME="zyro_google_key";
 const TOKEN_KEY="zyro_tokens";
 const FEEDBACK_KEY="zyro_feedback";
-const TOTAL=1000000;
+const TOTAL=100000;
 const getKey=()=>{try{return localStorage.getItem(KEYNAME)||""}catch(_){return""}};
 const setKey=k=>{try{k?localStorage.setItem(KEYNAME,k):localStorage.removeItem(KEYNAME)}catch(_){}};
 function askKey(){const k=prompt("Paste your Google AI Studio API key. It is saved only on this device.");if(k&&k.trim()){setKey(k.trim());return true}return false}
@@ -14,10 +14,11 @@ function getTokens(){try{const d=JSON.parse(localStorage.getItem(TOKEN_KEY)||"nu
 function saveTokens(d){try{localStorage.setItem(TOKEN_KEY,JSON.stringify(d))}catch(_){}}
 function addTokens(n){const d=getTokens();d.used+=n;d.last=n;saveTokens(d);updateTokenUI()}
 const tokensOut=()=>getTokens().used>=TOTAL;
-function updateTokenUI(){const d=getTokens();const pct=Math.min(100,(d.used/TOTAL)*100);
- $("tPct").textContent=(d.used>0&&pct<1?"<1":Math.floor(pct))+"% of 100% used";
+function paintBar(used,last){const pct=Math.min(100,(used/TOTAL)*100);
+ $("tPct").textContent=(used>0&&pct<0.1?"<0.1":pct<10?+(pct.toFixed(1)):Math.floor(pct))+"% of 100% used";
  $("fTotal").style.width=pct+"%";
- $("tLast").textContent=d.last?("last "+d.last.toLocaleString()+" · "+(d.last<2000?"light":d.last<8000?"medium":"heavy")):"";
+ if(last)$("tLast").textContent="last "+last.toLocaleString()+" · "+(last<2000?"light":last<8000?"medium":"heavy")}
+function updateTokenUI(){const d=getTokens();paintBar(d.used,d.last);
  $("tNote").textContent=tokensOut()?"Tokens out — refills tomorrow. Quick chats still work; Thinking, uploads & building are paused.":"Counts your messages + replies · refills daily";
  applyLimits()}
 function applyLimits(){const out=tokensOut();
@@ -78,10 +79,10 @@ function addU(txt,names){const d=document.createElement("div");d.className="u";c
 function addA(){const msgId=Date.now().toString(36);const d=document.createElement("div");d.className="a";d.dataset.msgId=msgId;d.innerHTML='<div class="body"></div><div class="status-chip" role="status"></div>';log.appendChild(d);return d}
 let follow=true;
 const distB=()=>main.scrollHeight-main.scrollTop-main.clientHeight;
-const syncPill=()=>$("jump").classList.toggle("on",distB()>140&&busy);
+const syncPill=()=>$("jump").classList.toggle("on",distB()>140);
 ["wheel","touchmove"].forEach(ev=>main.addEventListener(ev,()=>{clearTimeout(main._st);main._st=setTimeout(()=>{follow=distB()<140;syncPill()},80)}));
 main.addEventListener("scroll",()=>{if(distB()<140)follow=true;syncPill()});
-$("jump").onclick=()=>{follow=true;main.scrollTop=main.scrollHeight};
+$("jump").onclick=()=>{follow=true;main.scrollTo({top:main.scrollHeight,behavior:"smooth"})};
 function down(f){if(f||follow)requestAnimationFrame(()=>{main.scrollTop=main.scrollHeight})}
 function withCaret(h){
  if(/<\/p>$/.test(h))return h.replace(/<\/p>$/,'<span class="caret"></span></p>');
@@ -179,11 +180,12 @@ async function run(show,full,names){if(busy)return;busy=true;skip=false;ctrl=new
  $("hero").style.display="none";addU(show,names);
  const t0=Date.now();
  const cheap=full.trim().length<60||tokensOut();
+ const baseUsed=getTokens().used;
  const d=addA(),body=d.firstChild,c=startChip(d.lastChild);down(1);
  let thinkEl=null;
  const onThought=th=>{if(!thinkEl){thinkEl=document.createElement("details");thinkEl.className="think";thinkEl.innerHTML='<summary>Thinking…</summary><div class="think-body"></div>';d.insertBefore(thinkEl,body)}
   thinkEl.querySelector(".think-body").textContent=th};
-const tw=typer(body,cheap);try{let out;const emit=x=>{c.write();tw.set(x)};
+const tw=typer(body,cheap);try{let out;const emit=x=>{c.write();tw.set(x);paintBar(baseUsed+Math.round(x.length/4),0)};
   if(typeof claude==="undefined"){if(!getKey()&&!askKey())throw{code:"nokey"};out=await geminiStream([{role:"system",content:SYS()},...api(hist),{role:"user",content:full}],emit,ctrl.signal,cheap,onThought)}
   else{if(!sample)sample=await claude.use("sample").catch(()=>null);
    if(!sample)throw{code:"na"};
@@ -198,7 +200,7 @@ const tw=typer(body,cheap);try{let out;const emit=x=>{c.write();tw.set(x)};
   hist.push({role:"user",content:full,show,att:names},{role:"assistant",content:out});if(hist.length>60)hist.splice(0,hist.length-60);chats=[cur,...chats.filter(x=>x!==cur)];save();c.done()}
  catch(e){tw.kill();c.stop();if(e&&e.code==="key")setKey("");const na=e&&e.code==="na";if(!na){t.value=show;t.dispatchEvent(new Event("input"))}
   body.innerHTML=`<span class="err">${na?"AI is unavailable here. Open this page inside Claude.":e&&e.code==="nokey"?"Add your Google AI Studio key to start. Tap + then API key.":e&&e.code==="key"?"That key was rejected. Tap + then API key and paste a new one.":e&&e.code==="rate"?"Rate limit hit. Wait a minute, then retry.":"Failed: "+(e&&e.info||e&&e.message||"network problem")+". Your message is back in the box."}</span>`}
- busy=false;ctrl=null;setGo(0);$("jump").classList.remove("on");down()}
+ busy=false;ctrl=null;setGo(0);syncPill();down()}
 $("f").onsubmit=e=>{e.preventDefault();if(busy){skip=true;if(ctrl)ctrl.abort();return}const v=t.value;t.value="";t.style.height="auto";send(v)};
 const CK="zyro_chats";let chats=[],cur=null;
 try{chats=JSON.parse(localStorage.getItem(CK)||"[]")}catch(_){chats=[]}
