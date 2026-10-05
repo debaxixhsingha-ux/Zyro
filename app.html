@@ -5,21 +5,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Zyro</title>
 <script>try{var m=localStorage.getItem("zyro_theme");if(m)document.documentElement.setAttribute("data-theme",m)}catch(e){}</script>
-<script>
-window.__zyro_err=function(msg){try{
- var b=document.getElementById('__zerr');
- if(!b){b=document.createElement('div');b.id='__zerr';
-  b.style.cssText='position:fixed;top:0;left:0;right:0;background:#e5484d;color:#fff;padding:10px 14px;font:12px/1.5 monospace;z-index:99999;white-space:pre-wrap;max-height:40vh;overflow:auto;box-shadow:0 4px 20px rgba(0,0,0,.4)';
-  (document.body||document.documentElement).appendChild(b);}
- b.textContent+=(b.textContent?'\n':'')+msg;
-}catch(e){}};
-window.addEventListener('error',function(e){
- window.__zyro_err('JS ERROR: '+(e.message||'script error')+(e.filename?' @ '+e.filename.split('/').pop()+':'+e.lineno:''));
-});
-window.addEventListener('unhandledrejection',function(e){
- var r=e.reason;window.__zyro_err('UNHANDLED: '+(r&&(r.message||r)||'unknown'));
-});
-</script>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.11/katex.min.css">
 <script defer src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.11/katex.min.js" onload="window.typesetAll&&typesetAll()"></script>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
@@ -29,8 +14,7 @@ window.addEventListener('unhandledrejection',function(e){
   --ink:#f2f2f2;--ink-2:#c8c8c8;--dim:#8a8a8a;--dim-2:#5a5a5a;
   --box:rgba(255,255,255,.035);--box-2:rgba(255,255,255,.06);
   --line:rgba(255,255,255,.08);--line-2:rgba(255,255,255,.16);
-  --hover:rgba(255,255,255,.05);
-  --code:rgba(0,0,0,.55);
+  --hover:rgba(255,255,255,.05);--code:rgba(0,0,0,.55);
   --glow-soft:rgba(255,255,255,.10);
   --caret:#f2f2f2;--caret-glow:rgba(255,255,255,.85);
   --focus:rgba(255,255,255,.35);--focus-glow:rgba(255,255,255,.15);
@@ -70,8 +54,9 @@ header{display:flex;justify-content:space-between;align-items:center;padding:12p
 main{flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;display:flex;flex-direction:column;position:relative;z-index:2}
 .wrap{width:100%;max-width:720px;margin:0 auto;padding:0 18px;flex:1;display:flex;flex-direction:column}
 .hero{margin:auto 0;padding:6vh 0;text-align:center}
-.hero h1{font:500 clamp(34px,9vw,52px)/1.12 'Space Grotesk',sans-serif;margin:0;letter-spacing:-1.5px;background:linear-gradient(180deg,#ffffff 0%,#8a8a8a 100%);-webkit-background-clip:text;background-clip:text;color:transparent}
+.hero h1{font:500 clamp(34px,9vw,52px)/1.12 'Space Grotesk',sans-serif;margin:0;letter-spacing:-1.5px;background:linear-gradient(180deg,#fff 0%,#8a8a8a 100%);-webkit-background-clip:text;background-clip:text;color:transparent}
 :root[data-theme="light"] .hero h1{background:linear-gradient(180deg,#000 0%,#666 100%);-webkit-background-clip:text;background-clip:text}
+@media(prefers-color-scheme:light){:root:not([data-theme="dark"]) .hero h1{background:linear-gradient(180deg,#000 0%,#666 100%);-webkit-background-clip:text;background-clip:text}}
 #log{padding-bottom:24px}
 #log,.a,.body{min-width:0;max-width:100%}
 .u{margin:20px 0 6px;display:flex;justify-content:flex-end}
@@ -212,7 +197,7 @@ select option{color:#000}
 #go{margin-left:auto;width:36px;height:36px;border-radius:50%;border:0;background:#ffffff;color:#0a0a0a;display:grid;place-items:center;box-shadow:0 0 20px rgba(255,255,255,.22);transition:box-shadow .25s,transform .15s}
 :root[data-theme="light"] #go{background:#101010;color:#fafafa;box-shadow:0 0 20px rgba(0,0,0,.18)}
 #go:hover{box-shadow:0 0 30px rgba(255,255,255,.42)}
-#go:disabled{opacity:.35}
+#go:active{transform:scale(.96)}
 .menu{position:absolute;left:8px;bottom:56px;background:var(--bg-soft);border:1px solid var(--line);border-radius:16px;padding:6px;min-width:210px;display:none;box-shadow:0 8px 30px #0006;z-index:5}
 .menu.open{display:block}
 .menu button{width:100%;display:flex;justify-content:space-between;align-items:center;background:none;border:0;padding:9px 10px;border-radius:10px;color:var(--dim);font-size:14px;text-align:left}
@@ -228,9 +213,11 @@ select option{color:#000}
 .ava{width:30px;height:30px;border-radius:50%;background:var(--ink);color:var(--bg);display:grid;place-items:center;font-weight:600;flex:none}
 .amail{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px;color:var(--dim)}
 .pro{border:1px solid var(--acc);color:var(--acc);border-radius:10px;padding:1px 8px;font:600 10px 'Space Grotesk';font-style:normal}
+#jsErr{position:fixed;top:0;left:0;right:0;background:#e5484d;color:#fff;padding:10px 14px;font:12px/1.5 monospace;z-index:99999;white-space:pre-wrap;word-break:break-word;max-height:45vh;overflow:auto;display:none}
 </style>
 </head>
 <body>
+<div id="jsErr"></div>
 <header>
   <button class="icon" id="burger" aria-label="Menu" style="color:var(--ink)"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
   <div style="display:flex;gap:6px;align-items:center">
@@ -253,7 +240,7 @@ select option{color:#000}
 </div>
 </div>
 <div class="theme"><div class="tl">Appearance</div><div class="seg"><button type="button" data-th="light">☀ Daylight</button><button type="button" data-th="dark">☾ Midnight</button></div></div>
-<div class="df">Chats saved on this device · Zyro v19</div>
+<div class="df">Chats saved on this device · Zyro v20</div>
 </aside>
 <main id="main"><div class="wrap">
 <div class="hero" id="hero"><h1>What are we building?</h1><div class="chips" id="chips"></div></div>
@@ -282,6 +269,6 @@ select option{color:#000}
 </div></div>
 <div class="cv" id="cv"><div class="cvh"><span id="cvl">code</span><span><button type="button" id="cvc">Copy</button><button class="icon" id="cvx" aria-label="Close">✕</button></span></div><pre id="cvp"></pre></div>
 <div class="toast" id="toast"></div>
-<script src="app.js?v=22" onerror="window.__zyro_err && window.__zyro_err('Failed to load app.js — check your file')"></script>
+<script src="app.js?v=22"></script>
 </body>
 </html>
