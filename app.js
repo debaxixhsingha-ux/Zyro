@@ -1,7 +1,9 @@
 const WORKER_URL="https://zyro-ai.debaxixhsingha.workers.dev/";
+const SUPABASE_URL="https://opeyjksuklfmeicmnxsh.supabase.co"; // ← paste https://xxxx.supabase.co
+const SUPABASE_ANON_KEY="sb_publishable_LC3DrFcQAsG3HSILCekaFw_SOVVDxjA"; // ← paste anon public key
 const TOKEN_KEY="zyro_tokens";
 const FEEDBACK_KEY="zyro_feedback";
-const TOTAL=100000;
+let TOTAL=100000;
 const CI="zyro_ci";
 const getCI=()=>{try{return localStorage.getItem(CI)||""}catch(_){return""}};
 function getTokens(){try{const d=JSON.parse(localStorage.getItem(TOKEN_KEY)||"null");const now=Date.now();
@@ -9,19 +11,19 @@ function getTokens(){try{const d=JSON.parse(localStorage.getItem(TOKEN_KEY)||"nu
  if(typeof d.used!=="number"){let s=0;for(const k in d.used)s+=+d.used[k]||0;d.used=s;try{localStorage.setItem(TOKEN_KEY,JSON.stringify(d))}catch(_){}}
  return d}catch(_){return{used:0,last:0,reset:Date.now()}}}
 function saveTokens(d){try{localStorage.setItem(TOKEN_KEY,JSON.stringify(d))}catch(_){}}
-function addTokens(n){const d=getTokens();d.used+=n;d.last=n;saveTokens(d);updateTokenUI()}
+function addTokens(n){const d=getTokens();d.used+=n;d.last=n;saveTokens(d);updateTokenUI();cloudUsage(n)}
 const tokensOut=()=>getTokens().used>=TOTAL;
 function paintBar(used,last){const pct=Math.min(100,(used/TOTAL)*100);
- $("tPct").textContent=(used>0&&pct<0.1?"<0.1":pct<10?+(pct.toFixed(1)):Math.floor(pct))+"% of 100% used";
+ $("tPct").textContent=(used>0&&pct<0.1?"<0.1":pct<10?+(pct.toFixed(1)):Math.floor(pct))+"% of "+(TOTAL>=1000000?"1M":"100k")+" used";
  $("fTotal").style.width=pct+"%";
  if(last)$("tLast").textContent="last "+last.toLocaleString()+" · "+(last<2000?"light":last<8000?"medium":"heavy")}
 function updateTokenUI(){const d=getTokens();paintBar(d.used,d.last);
- $("tNote").textContent=tokensOut()?"Tokens out — refills tomorrow. Quick chats still work; Thinking, uploads & building are paused.":"Counts your messages + replies · refills daily";
+ $("tNote").textContent=tokensOut()?"Tokens out — refills tomorrow."+(pro?" Pro members keep Thinking & uploads on.":" Quick chats still work; Thinking, uploads & building are paused."):"Counts your messages + replies · refills daily"+(pro?" · PRO limits active":"");
  applyLimits()}
 function applyLimits(){const out=tokensOut();
- const th=$("mode").querySelector("option[value=Thinking]");if(th)th.disabled=out;
- const up=$("upb");if(up)up.disabled=out;const ib=$("imb");if(ib)ib.disabled=out;
- if(out&&$("mode").value==="Thinking")$("mode").value="Fast"}
+ const th=$("mode").querySelector("option[value=Thinking]");if(th)th.disabled=out&&!pro;
+ const up=$("upb");if(up)up.disabled=out&&!pro;const ib=$("imb");if(ib)ib.disabled=out&&!pro;
+ if(out&&!pro&&$("mode").value==="Thinking")$("mode").value="Fast"}
 function getFeedback(){try{return JSON.parse(localStorage.getItem(FEEDBACK_KEY)||"[]")}catch(_){return[]}}
 function addFeedback(msgId,action){const fb=getFeedback();fb.push({id:msgId,action,time:Date.now()});try{localStorage.setItem(FEEDBACK_KEY,JSON.stringify(fb))}catch(_){}}
 const MODES={Fast:"Quick short answer, minimal thinking.",Auto:"Balanced speed and depth.",Thinking:"Deep analysis, long detailed answer."};
@@ -46,6 +48,51 @@ SOON.forEach(s=>{const b=document.createElement("button");b.type="button";b.inne
 $("plus").onclick=e=>{e.stopPropagation();const cb=$("cib");if(cb)cb.lastChild.textContent=getCI()?"On":"Add";$("menu").classList.toggle("open")};
 document.addEventListener("click",()=>$("menu").classList.remove("open"));
 function toast(m){const e=$("toast");e.textContent=m;e.classList.add("on");setTimeout(()=>e.classList.remove("on"),1600)}
+/* ---------- Supabase auth + cloud sync ---------- */
+let sb=null,sbP=null,user=null,pro=false;
+function sbClient(){if(!SUPABASE_URL)return Promise.resolve(null);
+ if(sb)return Promise.resolve(sb);
+ if(!sbP)sbP=loadJS("https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2").then(()=>{sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);return sb});
+ return sbP}
+(function(){const st=document.createElement("style");st.textContent=".authsec{margin:2px 0 8px}.arow{display:flex;gap:8px;align-items:center}.ava{width:30px;height:30px;border-radius:50%;background:var(--acc);color:#fff;display:grid;place-items:center;font-weight:600;flex:none}.amail{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px;color:var(--dim)}.pro{border:1px solid var(--acc);color:var(--acc);border-radius:10px;padding:1px 8px;font:600 10px 'Space Grotesk';font-style:normal}.abtn{flex:1;border:1px solid var(--line);background:var(--box);border-radius:12px;padding:9px 10px;font-size:13.5px;color:var(--ink);text-align:center}.abtn:hover{background:var(--hover)}.aform{display:flex;flex-direction:column;gap:6px;margin-top:8px}.aform .sq{margin:0}";document.head.appendChild(st)})();
+const authsec=document.createElement("div");authsec.id="authsec";authsec.className="authsec";
+$("drawer").querySelector(".dh").insertAdjacentElement("afterend",authsec);
+function renderAuth(){const d=$("authsec");
+ if(user){d.innerHTML='<div class="arow"><span class="ava">'+esc((user.email||"Z")[0].toUpperCase())+'</span><span class="amail">'+esc(user.email||"")+'</span>'+(pro?'<em class="pro">PRO</em>':'')+'<button class="icon" id="signout" aria-label="Sign out">⎋</button></div>';
+  $("signout").onclick=async()=>{const s=await sbClient();if(s){await s.auth.signOut();user=null;pro=false;TOTAL=100000;renderAuth();updateTokenUI();toast("Signed out — chats stay on this device")}};
+ }else{d.innerHTML='<div class="arow"><button class="abtn" id="sing"><b>G</b>&nbsp; Continue with Google</button><button class="abtn" id="sein">Email</button></div><div class="aform" id="aform" hidden><input id="aem" type="email" placeholder="Email" class="sq"><input id="apw" type="password" placeholder="Password" class="sq"><div class="arow"><button class="abtn" id="alog">Sign in</button><button class="abtn" id="asig">Create account</button></div></div>';
+  $("sing").onclick=signInGoogle;
+  $("sein").onclick=()=>{$("aform").hidden=!$("aform").hidden};
+  $("alog").onclick=()=>signInEmail($("aem").value.trim(),$("apw").value,false);
+  $("asig").onclick=()=>signInEmail($("aem").value.trim(),$("apw").value,true)}}
+async function signInGoogle(){const s=await sbClient();if(!s)return toast("Add Supabase keys in app.js first");
+ const {error}=await s.auth.signInWithOAuth({provider:"google",options:{redirectTo:location.origin+location.pathname}});
+ if(error)toast(error.message)}
+async function signInEmail(em,pw,signup){if(!em||pw.length<6)return toast("Enter email + 6+ char password");
+ const s=await sbClient();if(!s)return toast("Add Supabase keys in app.js first");
+ const r=signup?await s.auth.signUp({email:em,password:pw}):await s.auth.signInWithPassword({email:em,password:pw});
+ if(r.error)toast(r.error.message);else toast(signup?"Account created — check your email to confirm!":"Signed in")}
+async function loadProfile(){try{const s=await sbClient();const {data}=await s.from("profiles").select("pro").eq("id",user.id).maybeSingle();
+ pro=!!(data&&data.pro);TOTAL=pro?1000000:100000;updateTokenUI()}catch(_){}}
+let syncT=null;
+function cloudSave(){if(!user||!cur)return;clearTimeout(syncT);syncT=setTimeout(async()=>{try{const s=await sbClient();if(!s)return;
+ const msgs=JSON.parse(JSON.stringify(cur.msgs));msgs.forEach(m=>{delete m.imgs});
+ await s.from("chats").upsert({id:cur.id,user_id:user.id,title:cur.title,pin:!!cur.pin,ts:cur.ts,msgs:msgs.slice(-40)},{onConflict:"id"})}catch(_){}},1200)}
+function cloudDelete(id){if(!user)return;sbClient().then(s=>{if(s)s.from("chats").delete().eq("id",id).then(()=>{}).catch(()=>{})})}
+async function pullCloud(){try{const s=await sbClient();if(!s)return;const {data}=await s.from("chats").select("*").order("ts",{ascending:false}).limit(100);
+ if(!data)return;let changed=false;
+ for(const r of data){const ex=chats.find(c=>c.id===r.id);
+  if(!ex){chats.push({id:r.id,title:r.title,pin:r.pin,ts:r.ts,msgs:r.msgs});changed=true}
+  else if((r.ts||0)>(ex.ts||0)){ex.title=r.title;ex.pin=r.pin;ex.ts=r.ts;ex.msgs=r.msgs;changed=true}}
+ if(changed){save();renderList();toast("Chats synced from cloud")}}catch(_){}}
+let uAcc=0,uT=null;
+function cloudUsage(n){if(!user)return;uAcc+=n;clearTimeout(uT);uT=setTimeout(async()=>{try{const s=await sbClient();if(!s||!uAcc)return;const a=uAcc;uAcc=0;await s.rpc("add_usage",{amt:a})}catch(_){}},15000)}
+async function afterSignIn(){renderAuth();await loadProfile();await pullCloud();renderAuth()}
+(async()=>{let s;try{s=await sbClient()}catch(_){}if(!s)return;
+ try{const {data}=await s.auth.getSession();user=(data&&data.session&&data.session.user)||null}catch(_){}
+ s.auth.onAuthStateChange((_e,ses)=>{user=(ses&&ses.user)||null;if(!user){pro=false;TOTAL=100000;renderAuth();updateTokenUI()}else afterSignIn()});
+ if(user)await afterSignIn();else renderAuth()})();
+/* ---------- end auth ---------- */
 const THUMB_UP='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/></svg>';
 const THUMB_DOWN='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h2.67A2.31 2.31 0 0 1 22 4v7a2.31 2.31 0 0 1-2.33 2H17"/></svg>';
 const escA=s=>esc(s).replace(/"/g,"&quot;");
@@ -77,7 +124,7 @@ function typeset(root){if(!window.katex||streaming)return;root.querySelectorAll(
 function setH(el,h){el.innerHTML=h;typeset(el)}
 function typesetAll(){typeset(document)}
 function md(src){let h="";src.split(/```/).forEach((p,i)=>{if(i%2){const nl=p.indexOf("\n"),l=nl>-1?p.slice(0,nl).trim():"",c=nl>-1?p.slice(nl+1):p;
- const code=c.replace(/\n$/,""),ln=code.split("\n").length,isH=/^html?$/i.test(l)||(!l&&/<!doctype|<html/i.test(c)),rn=/^(js|javascript|node|mjs)$/i.test(l)?"js":/^(py|python|python3)$/i.test(l)?"py":"";
+ const code=c.replace(/\n$/,""),isH=/^html?$/i.test(l)||(!l&&/<!doctype|<html/i.test(c)),rn=/^(js|javascript|node|mjs)$/i.test(l)?"js":/^(py|python|python3)$/i.test(l)?"py":"";
  h+=`<div class="cb col" data-lang="${escA(l)}"><div class="ch"><span>${esc(l||"code")}</span><span>${rn?'<button type="button" data-run="'+rn+'">Run</button>':''}${isH?'<button type="button" data-p>Preview</button>':''}<button type="button" data-c>Copy</button><button type="button" class="more" data-v>\u2922 Expand</button></span></div><pre>${hl(code,l)}</pre></div>`}
  else h+=txt(p)});return h}
 function liteMd(src){let h="";const parts=src.split(/```/);
@@ -127,7 +174,7 @@ log.addEventListener("click",e=>{
 const todayStr=()=>new Date().toLocaleDateString("en",{weekday:"long",year:"numeric",month:"long",day:"numeric"});
 const needsSearch=s=>/\b(latest|newest|recent(ly)?|today|tonight|yesterday|tomorrow|this (week|month|year)|news|released?|launch(ed|es)?|new version|prices?|score|weather|who (is|won)|what'?s new|trending|202[4-9]|203\d)\b/i.test(s)||(/\b(claude|chatgpt|gpt-?\d+|openai|anthropic|gemini|grok|deepseek|llama|qwen|mistral|nvidia|iphone|pixel|galaxy|react|next\.?js|python)\b/i.test(s)&&/\b(models?|versions?|releases?|new|newest|latest|vs|versus|compare|comparison|pricing|price|available|exists?|sonnet|opus|haiku|\d+(\.\d+)?)\b/i.test(s));
 function appFacts(){const d=getTokens(),pct=Math.min(100,Math.round(d.used/TOTAL*100)),out=tokensOut();
- return "Today's date is "+todayStr()+". Your built-in knowledge ends before today, so you may not know newer products, model versions or events: never insist that old information is current, and never say something new doesn't exist just because you don't recognise it. If search results are provided, rely on them; if not and the topic is recent, say you may be out of date. Never claim to be another company's assistant; if asked which model powers you, say you are Zyro and don't know the exact model. About this app (answer how-it-works questions only from these facts, and say you are not sure about anything else): users attach up to 3 files or images per message with the + button (PDF, code or text files up to 8 MB, each trimmed to 12,000 characters; images are JPG, PNG or WebP and are shrunk before sending). A selector next to the mode picker switches study modes: Chat, Solver, Socratic and Exam prep. Python and JavaScript code blocks have a Run button, and code blocks are collapsible with an Expand button. The last message can be edited with the pencil icon, and chats can be searched and pinned in the sidebar. There is a daily token meter of 100,000 tokens (used so far today: "+d.used.toLocaleString()+", "+pct+"%). When it is full, file uploads, Thinking mode and building web pages are paused until it refills the next day, while short chats in Fast mode still work. Right now uploads are "+(out?"PAUSED because the meter is full":"ON")+". If the server is very busy a reply can fail with a 'busy' message and work again after a minute. If the user asks why they can't send a file or message, explain using these facts and do not guess other reasons."}
+ return "Today's date is "+todayStr()+". Your built-in knowledge ends before today, so you may not know newer products, model versions or events: never insist that old information is current, and never say something new doesn't exist just because you don't recognise it. If search results are provided, rely on them; if not and the topic is recent, say you may be out of date. Never claim to be another company's assistant; if asked which model powers you, say you are Zyro and don't know the exact model. About this app (answer how-it-works questions only from these facts, and say you are not sure about anything else): users attach up to 3 files or images per message with the + button (PDF, code or text files up to 8 MB, each trimmed to 12,000 characters; images are JPG, PNG or WebP and are shrunk before sending). A selector next to the mode picker switches study modes: Chat, Solver, Socratic and Exam prep. Python and JavaScript code blocks have a Run button, and code blocks are collapsible with an Expand button. The last message can be edited with the pencil icon, and chats can be searched and pinned in the sidebar. Users can optionally sign in with Google or email to sync chats across devices; anonymous chats stay only on the device. There is a daily token meter (free: 100,000 tokens; Pro: 1,000,000) — used so far today: "+d.used.toLocaleString()+", "+pct+"%. When a free user's meter is full, file uploads, Thinking mode and building web pages are paused until it refills the next day, while short chats in Fast mode still work. Right now uploads are "+(out&&!pro?"PAUSED because the meter is full":"ON")+". If the server is very busy a reply can fail with a 'busy' message and work again after a minute. If the user asks why they can't send a file or message, explain using these facts and do not guess other reasons."}
 const SYS=()=>`You are Zyro, a friendly expert AI assistant for ANY topic: coding, AI/ML, B.Tech subjects, writing, ideas, studies, plans, daily advice, fun. Mode: ${$("mode").value}. ${MODES[$("mode").value]} ${appFacts()} ${STUDY[$("study").value]||""} IMPORTANT: if the user's message is only a greeting (hi, hey, hello, yo, good morning, how are you, etc.), reply with exactly ONE short friendly sentence introducing yourself as Zyro — never list features, subjects or abilities. Put all code in fenced blocks with a language tag. Write math in LaTeX using $...$ inline and $$...$$ for display. For any web page or UI request, give one complete self-contained HTML file with inline CSS and JS in a single html code block. For product, fashion, food or storefront websites, use real photos from https://picsum.photos/seed/WORD/600/800 (use a different WORD for each item) inside clean cards with names and prices. Never invent other image URLs, and never represent products with abstract 3D shapes or colored boxes.${getCI()?" The user's custom instructions: "+getCI().slice(0,1500):""}`;
 function addGround(d,src,sep){const ok=(src||[]).filter(x=>x&&/^https?:\/\//i.test(x.uri));if(!ok.length&&!sep)return;
  const w=document.createElement("div");w.className="ground";
@@ -188,10 +235,10 @@ const api=(h,keep)=>{const out=[];let n=0;for(let i=h.length-1;i>=0&&out.length<
 function send(text){const items=pending.slice();if(busy||(!text.trim()&&!items.length))return;
  const files=items.filter(f=>!f.img),imgs=items.filter(f=>f.img).map(f=>f.img);
  const out=tokensOut();
- if(out&&items.length){toast("Tokens are out — uploads are off until tomorrow");pending=[];renderAtts();t.value=text;t.dispatchEvent(new Event("input"));return}
+ if(out&&!pro&&items.length){toast("Tokens are out — uploads are off until tomorrow");pending=[];renderAtts();t.value=text;t.dispatchEvent(new Event("input"));return}
  applyLimits();
  const show=text.trim()||(imgs.length&&!files.length?"Describe this image.":imgs.length?"Review the attached files.":"Review the attached file.");
- if(out&&/\b(make|build|create|design|generate|develop)\b/i.test(show)){
+ if(out&&!pro&&/\b(make|build|create|design|generate|develop)\b/i.test(show)){
   $("hero").style.display="none";addU(show);
   const d=addA();d.lastChild.remove();
   setH(d.firstChild,md("I'm sorry, your tokens are out for today ⚡\n\nEverything refills tomorrow at the same time. Until then, quick chats in Fast mode still work — but building, uploads and Thinking mode are paused."));
@@ -243,7 +290,8 @@ const CK="zyro_chats";let chats=[],cur=null;
 try{chats=JSON.parse(localStorage.getItem(CK)||"[]")}catch(_){chats=[]}
 const save=()=>{chats=[...chats.filter(c=>c.pin),...chats.filter(c=>!c.pin)].slice(0,40);
  chats.forEach(c=>{let seen=false;for(let i=c.msgs.length-1;i>=0;i--){const m=c.msgs[i];if(m.imgs&&m.imgs.length){if(seen){m.nimg=m.imgs.length;delete m.imgs}else seen=true}}});
- for(;;){try{localStorage.setItem(CK,JSON.stringify(chats));return}catch(_){if(chats.length<=1)return;chats.pop()}}};
+ for(;;){try{localStorage.setItem(CK,JSON.stringify(chats));break}catch(_){if(chats.length<=1)break;chats.pop()}}
+ cloudSave()};
 function fmtDate(ts){if(!ts)return"";const d=new Date(ts),now=new Date();
  const hms=String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0");
  if(d.toDateString()===now.toDateString())return"Today "+hms;
@@ -255,7 +303,7 @@ const closeD=()=>{$("drawer").classList.remove("on");$("scrim").classList.remove
 function newChat(){if(busy){toast("Wait for the reply");return}cur=null;hist=[];log.innerHTML="";$("hero").style.display="";closeD();t.focus()}
 function openChat(id){if(busy){toast("Wait for the reply");return}const c=chats.find(x=>x.id===id);if(!c)return;cur=c;hist=c.msgs;log.innerHTML="";$("hero").style.display="none";
  c.msgs.forEach((m,i)=>{if(m.role==="user")addU(m.show??m.content,m.att,m.imgs,m.nimg);else{const d=addA();d.lastChild.remove();setH(d.firstChild,md(m.content));addGround(d,m.src,m.sep);const acts=document.createElement("div");acts.className="acts";acts.innerHTML=actsHTML(i!==c.msgs.length-1);d.appendChild(acts)}});{const us=log.querySelectorAll(".u");if(c.msgs.length>=2&&c.msgs[c.msgs.length-1].role==="assistant"&&us.length)addEdit(us[us.length-1])}closeD();down(1)}
-function delChat(id){if(busy){toast("Wait for the reply");return}if(!confirm("Delete this chat?"))return;const c=chats.find(x=>x.id===id);chats=chats.filter(x=>x.id!==id);save();if(c===cur){cur=null;hist=[];log.innerHTML="";$("hero").style.display=""}renderList()}
+function delChat(id){if(busy){toast("Wait for the reply");return}if(!confirm("Delete this chat?"))return;const c=chats.find(x=>x.id===id);chats=chats.filter(x=>x.id!==id);save();cloudDelete(id);if(c===cur){cur=null;hist=[];log.innerHTML="";$("hero").style.display=""}renderList()}
 function renderList(){const l=$("list");l.innerHTML="";const q=(($("q")&&$("q").value)||"").trim().toLowerCase();
  let arr=chats.filter(c=>!q||c.title.toLowerCase().includes(q)||c.msgs.some(m=>(m.show||m.content||"").toLowerCase().includes(q)));
  arr=[...arr.filter(c=>c.pin),...arr.filter(c=>!c.pin)];
@@ -288,7 +336,7 @@ async function readAny(f){
   return o}
  return await f.text()}
 $("file").onchange=async e=>{const fs=[...e.target.files];e.target.value="";
- for(const f of fs){if(tokensOut()){toast("Tokens are out — uploads paused until tomorrow");break}
+ for(const f of fs){if(tokensOut()&&!pro){toast("Tokens are out — uploads paused until tomorrow");break}
   if(pending.length>=3){toast("Max 3 files");break}
   if(f.size>8e6){toast(f.name+" is too big (max 8 MB)");continue}
   try{let x=(await readAny(f)).replace(/\r/g,"");
@@ -356,13 +404,13 @@ function readImg(f){return new Promise((ok,no)=>{const url=URL.createObjectURL(f
   const x=c.getContext("2d");x.fillStyle="#fff";x.fillRect(0,0,w,h);x.drawImage(im,0,0,w,h);const d=c.toDataURL("image/jpeg",.8);URL.revokeObjectURL(url);ok({mime:"image/jpeg",data:d.split(",")[1]})}catch(e){no(e)}};
  im.onerror=()=>{URL.revokeObjectURL(url);no(new Error("bad image"))};im.src=url})}
 $("img").onchange=async e=>{const fs=[...e.target.files];e.target.value="";
- for(const f of fs){if(tokensOut()){toast("Tokens are out — uploads paused until tomorrow");break}
+ for(const f of fs){if(tokensOut()&&!pro){toast("Tokens are out — uploads paused until tomorrow");break}
   if(pending.length>=3){toast("Max 3 attachments");break}
   if(!/^image\//.test(f.type)){toast("That isn't an image");continue}
   try{const im=await readImg(f);if(im.data.length>1100000){toast("Image is too large");continue}pending.push({name:f.name||"image",img:im})}catch(_){toast("Couldn't read "+(f.name||"image"))}}
  renderAtts()};
 $("q").oninput=()=>renderList();
 $("burger").onclick=openD;$("scrim").onclick=closeD;$("closeD").onclick=closeD;$("newc").onclick=newChat;$("new").onclick=newChat;
-document.addEventListener("keydown",e=>{if(e.key==="Escape"){closeD();closePV();$("modal").classList.remove("on")}});
+document.addEventListener("keydown",e=>{if(e.key==="Escape"){closeD();closePV();$("cv").classList.remove("on");$("modal").classList.remove("on")}});
 t.addEventListener("input",()=>{t.style.height="auto";t.style.height=Math.min(t.scrollHeight,170)+"px"});
 t.addEventListener("keydown",e=>{if(e.key==="Enter"&&!e.shiftKey&&!e.isComposing&&matchMedia("(hover:hover)").matches){e.preventDefault();if(!busy)$("f").requestSubmit()}});
