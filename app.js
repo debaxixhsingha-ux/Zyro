@@ -64,7 +64,7 @@ renderAuth();
 
 function renderAuth(){const d=$("authsec");
  if(user){
-  d.innerHTML='<div class="arow"><span class="ava">'+esc((user.email||"Z")[0].toUpperCase())+'</span><span class="amail">'+esc(user.email||"")+'</span>'+(pro?'<em class="pro">PRO</em>':'')+'<button class="icon" id="signout" aria-label="Sign out" title="Sign out">⎋</button></div>';
+  d.innerHTML='<div class="arow"><span class="ava">'+esc((user.email||"Z").toUpperCase()[0])+'</span><span class="amail">'+esc(user.email||"")+'</span>'+(pro?'<em class="pro">PRO</em>':'')+'<button class="icon" id="signout" aria-label="Sign out" title="Sign out">⎋</button></div>';
   $("signout").onclick=async()=>{const s=await sbClient();if(s){await s.auth.signOut()}
    user=null;pro=false;TOTAL=100000;renderAuth();updateTokenUI();toast("Signed out — chats stay on this device")};
   const ab=$("authBtn");if(ab)ab.title="Account";
@@ -92,7 +92,7 @@ $("amGo").onclick=async()=>{
  msg.style.color="var(--dim)";msg.textContent="Working…";btn.disabled=true;
  const s=await sbClient();
  if(!s){btn.disabled=false;msg.style.color="#e5484d";msg.textContent="Supabase isn't configured.";return}
- const r=authMode==="signup"?await s.auth.signUp({email:em,password:pw}):await s.auth.signInWithPassword({email:em,password:pw});
+ const r=authMode==="signup"?await s.auth.signUp({email:em,password:pw,options:{emailRedirectTo:location.origin+location.pathname}}):await s.auth.signInWithPassword({email:em,password:pw});
  btn.disabled=false;
  if(r.error){msg.style.color="#e5484d";msg.textContent=r.error.message;return}
  if(authMode==="signup"&&r.data&&!r.data.session){
@@ -211,8 +211,22 @@ log.addEventListener("click",e=>{
 const todayStr=()=>new Date().toLocaleDateString("en",{weekday:"long",year:"numeric",month:"long",day:"numeric"});
 const needsSearch=s=>/\b(latest|newest|recent(ly)?|today|tonight|yesterday|tomorrow|this (week|month|year)|news|released?|launch(ed|es)?|new version|prices?|score|weather|who (is|won)|what'?s new|trending|202[4-9]|203\d)\b/i.test(s)||(/\b(claude|chatgpt|gpt-?\d+|openai|anthropic|gemini|grok|deepseek|llama|qwen|mistral|nvidia|iphone|pixel|galaxy|react|next\.?js|python)\b/i.test(s)&&/\b(models?|versions?|releases?|new|newest|latest|vs|versus|compare|comparison|pricing|price|available|exists?|sonnet|opus|haiku|\d+(\.\d+)?)\b/i.test(s));
 function appFacts(){const d=getTokens(),pct=Math.min(100,Math.round(d.used/TOTAL*100)),out=tokensOut();
- return "Today's date is "+todayStr()+". Your built-in knowledge ends before today, so you may not know newer products, model versions or events: never insist that old information is current, and never say something new doesn't exist just because you don't recognise it. If search results are provided, rely on them; if not and the topic is recent, say you may be out of date. Never claim to be another company's assistant; if asked which model powers you, say you are Zyro and don't know the exact model. About this app (answer how-it-works questions only from these facts, and say you are not sure about anything else): users attach up to 3 files or images per message with the + button (PDF, code or text files up to 8 MB, each trimmed to 12,000 characters; images are JPG, PNG or WebP and are shrunk before sending). A selector next to the mode picker switches study modes: Chat, Solver, Socratic and Exam prep. Python and JavaScript code blocks have a Run button, and code blocks are collapsible with an Expand button. The last message can be edited with the pencil icon, and chats can be searched and pinned in the sidebar. Users can optionally sign in with email to sync chats across devices; anonymous chats stay only on the device. There is a daily token meter (free: 100,000 tokens; Pro: 1,000,000) — used so far today: "+d.used.toLocaleString()+", "+pct+"%. When a free user's meter is full, file uploads, Thinking mode and building web pages are paused until it refills the next day, while short chats in Fast mode still work. Right now uploads are "+(out&&!pro?"PAUSED because the meter is full":"ON")+". If the server is very busy a reply can fail with a 'busy' message and work again after a minute. If the user asks why they can't send a file or message, explain using these facts and do not guess other reasons."}
-const SYS=()=>`You are Zyro, a friendly expert AI assistant for ANY topic: coding, AI/ML, B.Tech subjects, writing, ideas, studies, plans, daily advice, fun. Mode: ${$("mode").value}. ${MODES[$("mode").value]} ${appFacts()} ${STUDY[$("study").value]||""} IMPORTANT: if the user's message is only a greeting (hi, hey, hello, yo, good morning, how are you, etc.), reply with exactly ONE short friendly sentence introducing yourself as Zyro — never list features, subjects or abilities. Put all code in fenced blocks with a language tag. Write math in LaTeX using $...$ inline and $$...$$ for display. For any web page or UI request, give one complete self-contained HTML file with inline CSS and JS in a single html code block. For product, fashion, food or storefront websites, use real photos from https://picsum.photos/seed/WORD/600/800 (use a different WORD for each item) inside clean cards with names and prices. Never invent other image URLs, and never represent products with abstract 3D shapes or colored boxes.${getCI()?" The user's custom instructions: "+getCI().slice(0,1500):""}`;
+ return "Today's date is "+todayStr()+". Your built-in knowledge ends before today, so you may not know newer products, model versions or events: never insist that old information is current, and never say something new doesn't exist just because you don't recognise it. If search results are provided, rely on them; if not and the topic is recent, say you may be out of date. Never claim to be another company's assistant; if asked which model powers you, say you are Zyro and don't know the exact model. About this app (answer how-it-works questions only from these facts, and say you are not sure about anything else): users attach up to 3 files or images per message with the + button (PDF, code or text files up to 8 MB, each trimmed to 12,000 characters; images are JPG, PNG or WebP and are shrunk before sending). A selector next to the mode picker switches study modes: Chat, Solver, Socratic and Exam prep. Python and JavaScript code blocks have a Run button, and code blocks are collapsible with an Expand button. The last message can be edited with the pencil icon, and chats can be searched and pinned in the sidebar. Users can optionally sign in with email to sync chats across devices; anonymous chats stay only on the device. There is a daily token meter (free: 100,000 tokens; Pro: 1,000,000) — used so far today: "+d.used.toLocaleString()+", "+pct+"%. When a free user's meter is full, file uploads, Thinking mode and building web pages are paused until it refills the next day, while short chats in Fast mode still work. Right now uploads are "+(out&&!pro?"PAUSED because the meter is full":"ON")+". If the server is very busy a reply can fail with a 'busy' message and work again after a minute. If the user asks why they can't send a file or message, explain using these facts and do not guess other reasons."+(out&&!pro?" IMPORTANT: The free token meter is FULL right now. You MUST keep every reply to 1-2 short sentences maximum. Do NOT write code. Do NOT write long explanations or essays. Do NOT build web pages. Just answer the question as briefly as possible and remind them their tokens refill tomorrow.":"")}
+const SYS=()=>`You are Zyro, a friendly expert AI assistant for ANY topic: coding, AI/ML, B.Tech subjects, writing, ideas, studies, plans, daily advice, fun. Mode: ${$("mode").value}. ${MODES[$("mode").value]} ${appFacts()} ${STUDY[$("study").value]||""} IMPORTANT: if the user's message is only a greeting (hi, hey, hello, yo, good morning, how are you, etc.), reply with exactly ONE short friendly sentence introducing yourself as Zyro — never list features, subjects or abilities. Put all code in fenced blocks with a language tag. Write math in LaTeX using $...$ inline and $$...$$ for display.
+
+WEB / UI / APP BUILDING RULES (follow these strictly whenever the user asks you to build, create, make, design, or generate a website, web page, landing page, app UI, dashboard, portfolio, store, blog, form, or any HTML/CSS/JS output):
+1. Output ONE complete, self-contained HTML file inside a single \`\`\`html code block. Nothing outside the block except a 1-line intro.
+2. Put ALL CSS inside <style> tags and ALL JS inside <script> tags. No external files, no build tools.
+3. Include REALISTIC content — real-looking names, headings, prices, hours, paragraphs, product names. NEVER use "Lorem ipsum", "your text here", "placeholder", "TODO", or lorem-style filler. Write actual text a real business would have.
+4. For photos, use https://picsum.photos/seed/UNIQUEWORD/600/800 — every image a DIFFERENT unique word (bakery1, cake2, chef3, etc.). Never repeat the same seed. Never invent other image URLs. Never use abstract 3D shapes or colored boxes in place of product images.
+5. Make it visually polished: modern typography, generous spacing, sensible color palette, hover states, clean layout. It should look like a real site, not a mockup.
+6. Make it responsive — must look good on mobile AND desktop. Use flexbox/grid, media queries.
+7. MINIMUM 150 lines of HTML. Real landing pages should be 250-400+ lines. Do not stop early. Do not abbreviate.
+8. Structure: header/nav, hero, main content sections (features/menu/about/gallery), footer with contact info.
+9. NEVER write "...", "rest of code here", "// TODO", or "continue like this". Always write the FULL file.
+10. When the user says "build a bakery landing page", produce a REAL bakery page with a hero, menu items with prices and photos, about section, hours, location, and a contact form. When they say "portfolio", produce a REAL portfolio with a bio, project cards, skills, and contact. Be specific and complete.
+
+Never invent other image URLs, and never represent products with abstract 3D shapes or colored boxes.${getCI()?" The user's custom instructions: "+getCI().slice(0,1500):""}`;
 function addGround(d,src,sep){const ok=(src||[]).filter(x=>x&&/^https?:\/\//i.test(x.uri));if(!ok.length&&!sep)return;
  const w=document.createElement("div");w.className="ground";
  if(ok.length){const s=document.createElement("div");s.className="srcs";const l=document.createElement("span");l.textContent="Sources";s.appendChild(l);
@@ -253,13 +267,13 @@ function typer(body,cheap){let target="",shown=0,tm=0,fin=false,res=null,lastDra
   if(back<=0){if(fin&&res)res();return}
   if(skip){shown=target.length;draw(true);if(fin&&res)res();return}
   let n;
-  if(fast)n=Math.max(6,Math.ceil(back/6));
-  else n=back>400?Math.ceil(back/12):back>120?4:back>30?2:1;
-  if(fin)n=Math.max(n,Math.ceil(back/5));
+  if(fast)n=Math.min(40,Math.max(4,Math.ceil(back/8)));
+  else n=back>400?Math.min(30,Math.ceil(back/16)):back>120?4:back>30?2:1;
+  if(fin)n=Math.max(n,Math.ceil(back/6));
   shown=Math.min(target.length,shown+n);let ch=target[shown-1];
   if(/[\uD800-\uDBFF]/.test(ch)&&shown<target.length){shown++;ch=target[shown-1]}
   draw();
-  let d=fast?6+Math.random()*10:14+Math.random()*26;
+  let d=fast?8+Math.random()*12:14+Math.random()*26;
   if(!fast&&back<=30&&!fin){if(",;:".includes(ch))d+=90;else if(".!?\n".includes(ch))d+=160}
   tm=setTimeout(tick,d)}
  return{set(x){target=x;if(!tm)tm=setTimeout(tick,0)},
@@ -284,172 +298,4 @@ function send(text){const items=pending.slice();if(busy||(!text.trim()&&!items.l
  pending=[];renderAtts();return run(show,full,files.map(f=>f.name),imgs)}
 function actsHTML(noRegen){return '<button type="button" data-like title="Helpful">'+THUMB_UP+'</button><button type="button" data-dislike title="Not helpful">'+THUMB_DOWN+'</button>'+(noRegen?'':'<button type="button" data-regen>\u21bb Regenerate</button>')}
 const ERR={
- nowork:"The server address isn't set. Add your Worker URL as WORKER_URL in app.js.",
- rate:"Zyro is busy right now (free limit reached). Try again in a minute.",
- origin:"This site isn't allowed to use the server. Check ALLOWED_ORIGINS in your Worker.",
- big:"That message or file is too large. Try a smaller one.",
- empty:"Zyro sent back nothing (the reply may have been blocked). Try rephrasing.",
- net:"Can't reach the server. Check your connection and retry."};
-async function run(show,full,names,imgs){imgs=imgs||[];if(busy)return;busy=true;skip=false;streaming=true;ctrl=new AbortController();setGo(1);log.querySelectorAll("[data-regen]").forEach(x=>x.remove());
- $("hero").style.display="none";log.querySelectorAll(".ed").forEach(x=>x.remove());const ub=addU(show,names,imgs);
- const t0=Date.now();
- const cheap=full.trim().length<60||tokensOut();
- const baseUsed=getTokens().used;
- const d=addA(),body=d.firstChild,c=startChip(d.lastChild);down(1);
- let thinkEl=null;
- const onThought=th=>{if(!thinkEl){thinkEl=document.createElement("details");thinkEl.className="think";thinkEl.innerHTML='<summary>Thinking…</summary><div class="think-body"></div>';d.insertBefore(thinkEl,body)}
-  thinkEl.querySelector(".think-body").textContent=th};
-const search=needsSearch(show)&&!tokensOut(),meta={src:[],sep:""};
-const tw=typer(body,cheap);try{let out;const emit=x=>{c.write();tw.set(x);paintBar(baseUsed+Math.round(x.length/4),0)};
-  if(typeof claude==="undefined"){
-   if(!WORKER_URL)throw{code:"nowork"};
-   const msgs=[{role:"system",content:SYS()},...api(hist,imgs.length===0),imgs.length?{role:"user",content:full,images:imgs}:{role:"user",content:full}];
-   try{out=await workerStream(msgs,emit,ctrl.signal,cheap||$("mode").value==="Fast",onThought,search,meta)}
-   catch(e1){if(e1&&e1.code==="empty"&&!ctrl.signal.aborted){toast("Retrying…");out=await workerStream(msgs,emit,ctrl.signal,cheap||$("mode").value==="Fast",onThought,search,meta)}else throw e1}}
-  else{if(!sample)sample=await claude.use("sample").catch(()=>null);
-   if(!sample)throw{code:"na"};
-   const r=await sample([...api(hist).map(({role,content})=>({role,content})),{role:"user",content:"["+SYS()+"]\n\n"+full}],{cache:false,modelTier:"default",onText:({text})=>emit(text)});out=r.text}
-  out=out||(skip?"(stopped)":"(empty response)");streaming=false;await tw.finish(out);setH(body,md(out));addGround(d,meta.src,meta.sep.length<=6000?meta.sep:"");
-  const secs=((Date.now()-t0)/1000).toFixed(1);
-  if(thinkEl)thinkEl.querySelector("summary").textContent="Thought for "+secs+"s";
-  const acts=document.createElement("div");acts.className="acts";acts.innerHTML=actsHTML(false);d.appendChild(acts);
-  const rt=document.createElement("div");rt.className="rt";rt.textContent="responded in "+secs+"s";d.appendChild(rt);addEdit(ub);
-  if(!cur){cur={id:Date.now().toString(36),title:(show||names[0]).replace(/\s+/g," ").slice(0,40),msgs:hist,ts:Date.now()};chats.unshift(cur)}
-  cur.ts=Date.now();
-  hist.push({role:"user",content:full,show,att:names,imgs:imgs.length?imgs:undefined},{role:"assistant",content:out,src:meta.src,sep:meta.sep.length<=6000?meta.sep:""});if(hist.length>60)hist.splice(0,hist.length-60);chats=[cur,...chats.filter(x=>x!==cur)];save();c.done()}
- catch(e){streaming=false;tw.kill();c.stop();
-  if(e&&e.name==="AbortError"){body.innerHTML='<span class="err">(stopped)</span>'}
-  else{const na=e&&e.code==="na";if(!na){t.value=show;t.dispatchEvent(new Event("input"))}
-   const msg=na?"AI is unavailable here. Open this page inside Claude.":(e&&ERR[e.code])||("Failed: "+(e&&e.info||e&&e.message||"network problem")+". Your message is back in the box.");
-   body.innerHTML='<span class="err"></span>';body.firstChild.textContent=msg}}
- busy=false;ctrl=null;setGo(0);syncPill();down()}
-$("f").onsubmit=e=>{e.preventDefault();if(busy){skip=true;if(ctrl)ctrl.abort();return}const v=t.value;t.value="";t.style.height="auto";send(v)};
-const CK="zyro_chats";let chats=[],cur=null;
-try{chats=JSON.parse(localStorage.getItem(CK)||"[]")}catch(_){chats=[]}
-const save=()=>{chats=[...chats.filter(c=>c.pin),...chats.filter(c=>!c.pin)].slice(0,40);
- chats.forEach(c=>{let seen=false;for(let i=c.msgs.length-1;i>=0;i--){const m=c.msgs[i];if(m.imgs&&m.imgs.length){if(seen){m.nimg=m.imgs.length;delete m.imgs}else seen=true}}});
- for(;;){try{localStorage.setItem(CK,JSON.stringify(chats));break}catch(_){if(chats.length<=1)break;chats.pop()}}
- cloudSave()};
-function fmtDate(ts){if(!ts)return"";const d=new Date(ts),now=new Date();
- const hms=String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0");
- if(d.toDateString()===now.toDateString())return"Today "+hms;
- if(d.toDateString()===new Date(now-86400000).toDateString())return"Yesterday "+hms;
- return d.getDate()+" "+d.toLocaleString("en",{month:"short"})+" "+hms}
-function renChat(id){const c=chats.find(x=>x.id===id);if(!c)return;const n=prompt("Rename chat:",c.title);if(n&&n.trim()){c.title=n.trim().slice(0,40);save();renderList()}}
-const openD=()=>{renderList();markTh();updateTokenUI();$("drawer").classList.add("on");$("scrim").classList.add("on")};
-const closeD=()=>{$("drawer").classList.remove("on");$("scrim").classList.remove("on")};
-function newChat(){if(busy){toast("Wait for the reply");return}cur=null;hist=[];log.innerHTML="";$("hero").style.display="";closeD();t.focus()}
-function openChat(id){if(busy){toast("Wait for the reply");return}const c=chats.find(x=>x.id===id);if(!c)return;cur=c;hist=c.msgs;log.innerHTML="";$("hero").style.display="none";
- c.msgs.forEach((m,i)=>{if(m.role==="user")addU(m.show??m.content,m.att,m.imgs,m.nimg);else{const d=addA();d.lastChild.remove();setH(d.firstChild,md(m.content));addGround(d,m.src,m.sep);const acts=document.createElement("div");acts.className="acts";acts.innerHTML=actsHTML(i!==c.msgs.length-1);d.appendChild(acts)}});{const us=log.querySelectorAll(".u");if(c.msgs.length>=2&&c.msgs[c.msgs.length-1].role==="assistant"&&us.length)addEdit(us[us.length-1])}closeD();down(1)}
-function delChat(id){if(busy){toast("Wait for the reply");return}if(!confirm("Delete this chat?"))return;const c=chats.find(x=>x.id===id);chats=chats.filter(x=>x.id!==id);save();cloudDelete(id);if(c===cur){cur=null;hist=[];log.innerHTML="";$("hero").style.display=""}renderList()}
-function renderList(){const l=$("list");l.innerHTML="";const q=(($("q")&&$("q").value)||"").trim().toLowerCase();
- let arr=chats.filter(c=>!q||c.title.toLowerCase().includes(q)||c.msgs.some(m=>(m.show||m.content||"").toLowerCase().includes(q)));
- arr=[...arr.filter(c=>c.pin),...arr.filter(c=>!c.pin)];
- if(!arr.length){l.innerHTML='<div class="empty-l">'+(q?"No chats match":"No chats yet")+'</div>';return}
- arr.forEach(c=>{const d=document.createElement("div");d.className="it"+(c===cur?" on":"");
-  const meta=document.createElement("div");meta.className="meta";
-  const sp=document.createElement("span");sp.textContent=c.title;
-  const sm=document.createElement("small");sm.textContent=fmtDate(c.ts);
-  meta.append(sp,sm);meta.onclick=()=>openChat(c.id);
-  const pn=document.createElement("button");pn.type="button";pn.className="icon pin"+(c.pin?" on":"");pn.textContent=c.pin?"\u2605":"\u2606";pn.setAttribute("aria-label",c.pin?"Unpin chat":"Pin chat");pn.onclick=()=>{c.pin=!c.pin;save();renderList()};
-  const rn=document.createElement("button");rn.type="button";rn.className="icon";rn.textContent="\u270E";rn.setAttribute("aria-label","Rename chat");rn.onclick=()=>renChat(c.id);
-  const x=document.createElement("button");x.type="button";x.className="icon";x.textContent="\u2715";x.setAttribute("aria-label","Delete chat");x.onclick=()=>delChat(c.id);
-  d.append(meta,pn,rn,x);l.appendChild(d)})}
-function regen(){if(busy||hist.length<2)return;const m=hist[hist.length-2],k=log.children;k[k.length-1].remove();k[k.length-1].remove();hist.splice(-2);run(m.show??m.content,m.content,m.att||[],m.imgs||[])}
-const closePV=()=>{$("pv").classList.remove("on");$("pvf").srcdoc=""};
-$("pvx").onclick=closePV;
-$("ciSave").onclick=()=>{try{localStorage.setItem(CI,$("ci").value.trim())}catch(_){}$("modal").classList.remove("on");toast("Instructions saved")};
-$("ciCancel").onclick=()=>$("modal").classList.remove("on");
-let pending=[];const LIM=12000;
-function renderAtts(){const a=$("atts");a.innerHTML="";pending.forEach((f,i)=>{const c=document.createElement("span");c.className="att";
- if(f.img){const im=document.createElement("img");im.alt="";im.src="data:"+f.img.mime+";base64,"+f.img.data;c.appendChild(im)}
- const n=document.createElement("span");n.textContent=f.name;c.appendChild(n);
- const x=document.createElement("button");x.type="button";x.textContent="\u2715";x.setAttribute("aria-label","Remove attachment");x.onclick=()=>{pending.splice(i,1);renderAtts()};c.appendChild(x);a.appendChild(c)})}
-const loadJS=u=>new Promise((ok,no)=>{const e=document.createElement("script");e.src=u;e.onload=ok;e.onerror=no;document.head.appendChild(e)});
-async function readAny(f){
- if(/\.pdf$/i.test(f.name)||f.type==="application/pdf"){
-  if(!window.pdfjsLib){await loadJS("https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js");pdfjsLib.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"}
-  const pdf=await pdfjsLib.getDocument({data:await f.arrayBuffer(),isEvalSupported:false}).promise;let o="";
-  for(let i=1;i<=Math.min(pdf.numPages,40)&&o.length<LIM;i++){const tc=await(await pdf.getPage(i)).getTextContent();o+=tc.items.map(x=>x.str).join(" ")+"\n"}
-  return o}
- return await f.text()}
-$("file").onchange=async e=>{const fs=[...e.target.files];e.target.value="";
- for(const f of fs){if(tokensOut()&&!pro){toast("Tokens are out — uploads paused until tomorrow");break}
-  if(pending.length>=3){toast("Max 3 files");break}
-  if(f.size>8e6){toast(f.name+" is too big (max 8 MB)");continue}
-  try{let x=(await readAny(f)).replace(/\r/g,"");
-   if(x.includes("\u0000")){toast("Can't read "+f.name);continue}
-   if(!x.trim()){toast("No text found in "+f.name+" (scanned PDF?)");continue}
-   if(x.length>LIM){x=x.slice(0,LIM)+"\n[...trimmed]";toast(f.name+" trimmed to fit")}
-   pending.push({name:f.name,text:x})}catch(_){toast("Couldn't read "+f.name)}}
- renderAtts()};
-function curTheme(){return document.documentElement.getAttribute("data-theme")||(matchMedia("(prefers-color-scheme:light)").matches?"light":"dark")}
-function markTh(){document.querySelectorAll("[data-th]").forEach(b=>b.classList.toggle("on",b.dataset.th===curTheme()))}
-document.querySelectorAll("[data-th]").forEach(b=>b.onclick=()=>{document.documentElement.setAttribute("data-theme",b.dataset.th);try{localStorage.setItem("zyro_theme",b.dataset.th)}catch(_){}markTh()});
-markTh();updateTokenUI();
-function addEdit(u){if(!u||u.querySelector(".ed"))return;const e=document.createElement("button");e.type="button";e.className="ed";e.setAttribute("data-edit","");e.setAttribute("aria-label","Edit message");e.textContent="\u270E";u.insertBefore(e,u.firstChild)}
-function startEdit(u){if(busy){toast("Wait for the reply");return}const m=hist[hist.length-2];if(!m||m.role!=="user")return;
- const b=u.querySelector(":scope>div"),old=m.show??m.content;u.classList.add("editing");b.textContent="";
- const ta=document.createElement("textarea");ta.className="ei";ta.value=old;ta.rows=3;
- const bar=document.createElement("div");bar.className="eb";
- const cn=document.createElement("button");cn.type="button";cn.textContent="Cancel";cn.onclick=()=>{u.classList.remove("editing");fillBubble(b,old,m.att,m.imgs,m.nimg)};
- const sv=document.createElement("button");sv.type="button";sv.className="go2";sv.textContent="Send";sv.onclick=()=>{const v=ta.value.trim();if(v)editLast(v)};
- bar.append(cn,sv);b.append(ta,bar);ta.focus();ta.setSelectionRange(ta.value.length,ta.value.length)}
-function editLast(v){if(busy||hist.length<2)return;const m=hist[hist.length-2],k=log.children;k[k.length-1].remove();k[k.length-1].remove();hist.splice(-2);const tail=m.content.slice((m.show||"").length);run(v,v+tail,m.att||[],m.imgs||[])}
-function toggleCode(box){if(box.classList.contains("expanded")){box.classList.remove("expanded");box.querySelector(".more").textContent="\u2922 Expand"}
- else{box.classList.add("expanded");box.querySelector(".more").textContent="\u2923 Collapse"}}
-const RUN_JS=`const AF=Object.getPrototypeOf(async function(){}).constructor;
-const fmt=a=>a.map(x=>typeof x==="string"?x:(()=>{try{return JSON.stringify(x,null,1)}catch(_){return String(x)}})()).join(" ");
-onmessage=async e=>{console.log=(...a)=>postMessage({t:"o",s:fmt(a)});console.info=console.log;console.warn=(...a)=>postMessage({t:"e",s:fmt(a)});console.error=console.warn;
- for(const k of ["fetch","XMLHttpRequest","WebSocket","EventSource","importScripts","indexedDB"]){try{self[k]=undefined}catch(_){}}
- try{const r=await new AF(e.data.code)();if(r!==undefined)postMessage({t:"o",s:"\\u2192 "+fmt([r])})}catch(err){postMessage({t:"e",s:String(err&&err.stack||err)})}
- postMessage({t:"d"})}`;
-const RUN_PY=`let py=null;
-onmessage=async e=>{try{
- if(!py){postMessage({t:"s",s:"Loading Python (one-time download, about 10 MB)..."});
-  importScripts("https://cdn.jsdelivr.net/pyodide/v0.29.4/full/pyodide.js");
-  py=await loadPyodide({indexURL:"https://cdn.jsdelivr.net/pyodide/v0.29.4/full/"})}
- py.setStdout({batched:s=>postMessage({t:"o",s})});py.setStderr({batched:s=>postMessage({t:"e",s})});
- postMessage({t:"r"});
- try{await py.loadPackagesFromImports(e.data.code)}catch(_){}
- const r=await py.runPythonAsync(e.data.code);if(r!==undefined&&r!==null)postMessage({t:"o",s:"\\u2192 "+String(r)})
- }catch(err){postMessage({t:"e",s:String(err&&err.message||err)})}
- postMessage({t:"d"})}`;
-let pyW=null;
-const mkW=src=>new Worker(URL.createObjectURL(new Blob([src],{type:"text/javascript"})));
-function runCode(box,kind,btn){
- if(box._stop){box._stop();return}
- let out=box.querySelector(".out");if(!out){out=document.createElement("div");out.className="out";box.appendChild(out)}
- out.textContent="";const code=box.querySelector("pre").textContent;
- let size=0,w,tm,done=false;
- const add=(cls,s)=>{size+=s.length;const sp=document.createElement("div");sp.className=cls;sp.textContent=s;out.appendChild(sp);out.scrollTop=out.scrollHeight};
- const end=note=>{if(done)return;done=true;clearTimeout(tm);if(note)add("o-s",note);btn.textContent="Run";box._stop=null;if(kind==="js"&&w){try{w.terminate()}catch(_){}}};
- const kill=note=>{try{w&&w.terminate()}catch(_){}if(kind==="py")pyW=null;end(note)};
- const arm=ms=>{clearTimeout(tm);tm=setTimeout(()=>kill("Stopped after "+Math.round(ms/1000)+" s."),ms)};
- btn.textContent="Stop";box._stop=()=>kill("Stopped.");
- if(kind==="py"){if(!pyW)pyW=mkW(RUN_PY);w=pyW}else w=mkW(RUN_JS);
- arm(kind==="py"?90000:10000);
- w.onmessage=ev=>{if(done)return;const m=ev.data||{};
-  if(m.t==="s")add("o-s",m.s);
-  else if(m.t==="r")arm(15000);
-  else if(m.t==="o"){if(size>20000){kill("Output limit reached.");return}add("o-o",m.s)}
-  else if(m.t==="e"){let s=m.s;if(kind==="py"&&/importScripts|Failed to fetch|NetworkError|Failed to load/i.test(s))s="Couldn't load Python. It needs an internet connection the first time.";add("o-e",s)}
-  else if(m.t==="d")end(out.childNodes.length?"":"(no output)")};
- w.onerror=()=>kill("Couldn't start the runner"+(kind==="py"?" (Python needs internet the first time).":"."));
- w.postMessage({code})}
-function readImg(f){return new Promise((ok,no)=>{const url=URL.createObjectURL(f),im=new Image();
- im.onload=()=>{try{const M=1024,k=Math.min(1,M/Math.max(im.width,im.height)),w=Math.max(1,Math.round(im.width*k)),h=Math.max(1,Math.round(im.height*k)),c=document.createElement("canvas");c.width=w;c.height=h;
-  const x=c.getContext("2d");x.fillStyle="#fff";x.fillRect(0,0,w,h);x.drawImage(im,0,0,w,h);const d=c.toDataURL("image/jpeg",.8);URL.revokeObjectURL(url);ok({mime:"image/jpeg",data:d.split(",")[1]})}catch(e){no(e)}};
- im.onerror=()=>{URL.revokeObjectURL(url);no(new Error("bad image"))};im.src=url})}
-$("img").onchange=async e=>{const fs=[...e.target.files];e.target.value="";
- for(const f of fs){if(tokensOut()&&!pro){toast("Tokens are out — uploads paused until tomorrow");break}
-  if(pending.length>=3){toast("Max 3 attachments");break}
-  if(!/^image\//.test(f.type)){toast("That isn't an image");continue}
-  try{const im=await readImg(f);if(im.data.length>1100000){toast("Image is too large");continue}pending.push({name:f.name||"image",img:im})}catch(_){toast("Couldn't read "+(f.name||"image"))}}
- renderAtts()};
-$("q").oninput=()=>renderList();
-$("burger").onclick=openD;$("scrim").onclick=closeD;$("closeD").onclick=closeD;$("newc").onclick=newChat;$("new").onclick=newChat;
-document.addEventListener("keydown",e=>{if(e.key==="Escape"){closeD();closePV();$("cv").classList.remove("on");$("modal").classList.remove("on");closeAuth()}});
-t.addEventListener("input",()=>{t.style.height="auto";t.style.height=Math.min(t.scrollHeight,170)+"px"});
-t.addEventListener("keydown",e=>{if(e.key==="Enter"&&!e.shiftKey&&!e.isComposing&&matchMedia("(hover:hover)").matches){e.preventDefault();if(!busy)$("f").requestSubmit()}});
-if(new URLSearchParams(location.search).get("auth")){openAuth("signin");history.replaceState(null,"",location.pathname)}
+ nowork:"The
