@@ -94,7 +94,7 @@ function boot(){
   const EYE_OFF='<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/>';
   {const eye=$("amEye"),icon=$("amEyeIcon"),pw=$("amPw");
    if(eye&&icon&&pw){
-     eye.onclick=()=>{
+     eye.onclick=function(){
        const showing=pw.type==="text";
        pw.type=showing?"password":"text";
        icon.innerHTML=showing?EYE_OPEN:EYE_OFF;
@@ -230,8 +230,10 @@ function boot(){
     const d=document.createElement("div");
     d.className="a";
     d.dataset.msgId=msgId;
+    // order: status chip on top, then think panel, then body
     d.innerHTML=
-      '<div class="think-live" hidden>'+
+      '<div class="status-chip" role="status"></div>'+
+      '<div class="think-live">'+
         '<button type="button" class="think-live-head" aria-expanded="true">'+
           '<span class="chev">›</span>'+
           '<span class="think-live-dot"></span>'+
@@ -239,15 +241,13 @@ function boot(){
         '</button>'+
         '<div class="think-live-body open"><div class="think-live-inner"></div></div>'+
       '</div>'+
-      '<div class="body"></div>'+
-      '<div class="status-chip" role="status"></div>';
+      '<div class="body"></div>';
     log.appendChild(d);
     return d;
   }
 
-  function thinkShow(d){const think=d.querySelector(".think-live");if(!think)return null;think.hidden=false;return think}
   function thinkUpdate(d,text){
-    const think=thinkShow(d);if(!think)return;
+    const think=d.querySelector(".think-live");if(!think)return;
     const inner=think.querySelector(".think-live-inner");
     if(inner){inner.textContent=text;inner.scrollTop=inner.scrollHeight}
     down();
@@ -255,17 +255,19 @@ function boot(){
   function thinkFinish(d,seconds,hadText){
     const think=d.querySelector(".think-live");
     if(!think)return;
-    if(!hadText){think.remove();return}
     think.classList.add("done");
     const dot=think.querySelector(".think-live-dot");if(dot)dot.remove();
-    const label=think.querySelector(".think-live-label");if(label)label.textContent="Thought for "+seconds+"s";
+    const label=think.querySelector(".think-live-label");
+    if(label)label.textContent=hadText?("Thought for "+seconds+"s"):("Completed in "+seconds+"s");
     const head=think.querySelector(".think-live-head");
     const panelBody=think.querySelector(".think-live-body");
+    // if no thoughts came, remove the panel entirely (nothing to expand)
+    if(!hadText){think.remove();return}
     if(head)head.setAttribute("aria-expanded","false");
     if(panelBody)panelBody.classList.remove("open");
     if(head&&panelBody&&!head.dataset.wired){
       head.dataset.wired="1";
-      head.addEventListener("click",()=>{
+      head.addEventListener("click",function(){
         const open=head.getAttribute("aria-expanded")==="true";
         head.setAttribute("aria-expanded",String(!open));
         panelBody.classList.toggle("open",!open);
@@ -284,7 +286,6 @@ function boot(){
     if(/<\/pre><\/div>$/.test(h))return h.replace(/<\/pre><\/div>$/,'<span class="caret"></span></pre></div>');
     return h+'<span class="caret"></span>'}
 
-  /* ---------- status chip — no tick, just "Done" ---------- */
   function startChip(chip){let i=0,tm;const n=++sid;
     chip.innerHTML='<span class="spark"><svg viewBox="0 0 24 24" aria-hidden="true"><defs><linearGradient id="sg'+n+'" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#d97757"/><stop offset=".55" stop-color="#f0b48a"/><stop offset="1" stop-color="#d97757"/></linearGradient></defs><path fill="url(#sg'+n+')" d="M12 2l2.6 7.4L22 12l-7.4 2.6L12 22l-2.6-7.4L2 12l7.4-2.6z"/></svg></span><span class="shimmer status-text">Thinking</span>';
     const label=chip.querySelector(".status-text");
@@ -312,10 +313,13 @@ function boot(){
   const todayStr=()=>new Date().toLocaleDateString("en",{weekday:"long",year:"numeric",month:"long",day:"numeric"});
   const needsSearch=s=>/\b(latest|newest|recent(ly)?|today|tonight|yesterday|tomorrow|this (week|month|year)|news|released?|launch(ed|es)?|new version|prices?|score|weather|who (is|won)|what'?s new|trending|202[4-9]|203\d)\b/i.test(s)||(/\b(claude|chatgpt|gpt-?\d+|openai|anthropic|gemini|grok|deepseek|llama|qwen|mistral|nvidia|iphone|pixel|galaxy|react|next\.?js|python)\b/i.test(s)&&/\b(models?|versions?|releases?|new|newest|latest|vs|versus|compare|comparison|pricing|price|available|exists?|sonnet|opus|haiku|\d+(\.\d+)?)\b/i.test(s));
 
-  function appFacts(){const d=getTokens(),pct=Math.min(100,Math.round(d.used/TOTAL*100)),out=tokensOut();
-    return "Today's date is "+todayStr()+". Your built-in knowledge ends before today, so you may not know newer products, model versions or events: never insist that old information is current, and never say something new doesn't exist just because you don't recognise it. If search results are provided, rely on them; if not and the topic is recent, say you may be out of date. Never claim to be another company's assistant; if asked which model powers you, say you are Zyro and don't know the exact model. About this app (answer how-it-works questions only from these facts, and say you are not sure about anything else): users attach up to 3 files or images per message with the + button (PDF, code or text files up to 8 MB, each trimmed to 12,000 characters; images are JPG, PNG or WebP and are shrunk before sending). A selector next to the mode picker switches study modes: Chat, Solver, Socratic and Exam prep. Python and JavaScript code blocks have a Run button, and code blocks are collapsible with an Expand button. The last message can be edited with the pencil icon, and chats can be searched and pinned in the sidebar. Users can optionally sign in with email to sync chats across devices; anonymous chats stay only on the device. There is a daily token meter (free: 100,000 tokens; Pro: 1,000,000) — used so far today: "+d.used.toLocaleString()+", "+pct+"%. When a free user's meter is full, file uploads, Thinking mode and building web pages are paused until it refills the next day, while short chats in Fast mode still work. Right now uploads are "+(out&&!pro?"PAUSED because the meter is full":"ON")+". If the server is very busy a reply can fail with a 'busy' message and work again after a minute. If the user asks why they can't send a file or message, explain using these facts and do not guess other reasons."+(out&&!pro?" IMPORTANT: The free token meter is FULL right now. You MUST keep every reply to 1-2 short sentences maximum. Do NOT write code. Do NOT write long explanations. Do NOT build web pages. Just answer briefly and remind them their tokens refill tomorrow.":"")}
-
-  const SYS=()=>"You are Zyro, a friendly expert AI assistant for ANY topic: coding, AI/ML, B.Tech subjects, writing, ideas, studies, plans, daily advice, fun. Mode: "+$("mode").value+". "+(MODES[$("mode").value]||"")+" "+appFacts()+" "+(STUDY[$("study").value]||"")+" IMPORTANT: if the user's message is only a greeting (hi, hey, hello, yo, good morning, how are you, etc.), reply with exactly ONE short friendly sentence introducing yourself as Zyro — never list features, subjects or abilities. Put all code in fenced blocks with a language tag. Write math in LaTeX using $...$ inline and $$...$$ for display. When the user asks you to BUILD/CREATE/MAKE a website, web page, landing page, app UI, dashboard, portfolio, store or form: output ONE complete self-contained HTML file inside a single ```html code block. Put ALL CSS inside <style> and ALL JS inside <script>. Write REALISTIC content (real-looking names, prices, hours, paragraphs) — NEVER use Lorem ipsum, placeholder, TODO or filler text. For photos use https://picsum.photos/seed/UNIQUEWORD/600/800 with a DIFFERENT word for each image. Make it visually polished, responsive, at least 150 lines, and NEVER abbreviate with '...' or 'rest of code'. Write the FULL file every time. Never invent other image URLs."+(getCI()?" The user's custom instructions: "+getCI().slice(0,1500):"");
+  /* ---------- SYSTEM PROMPT — no token talk, adds creator info ---------- */
+  function appFacts(){
+    return "Today's date is "+todayStr()+". Your built-in knowledge ends before today, so you may not know newer products, model versions or events: never insist that old information is current, and never say something new doesn't exist just because you don't recognise it. If search results are provided, rely on them; if not and the topic is recent, say you may be out of date. Never claim to be another company's assistant; if asked which model powers you, say you are Zyro and don't know the exact model. About this app (answer how-it-works questions only from these facts, and say you are not sure about anything else): users attach up to 3 files or images per message with the + button (PDF, code or text files up to 8 MB, each trimmed to 12,000 characters; images are JPG, PNG or WebP and are shrunk before sending). A selector next to the mode picker switches study modes: Chat, Solver, Socratic and Exam prep. Python and JavaScript code blocks have a Run button, and code blocks are collapsible with an Expand button. The last message can be edited with the pencil icon, and chats can be searched and pinned in the sidebar. Users can optionally sign in with email to sync chats across devices; anonymous chats stay only on the device. If the user asks about uploads being disabled or why a feature is unavailable, just say to try again later or that they should keep messages short; do NOT mention tokens, meters, quotas, limits, or pricing. IMPORTANT: Never bring up tokens, quotas, limits, or usage meters in any reply unless the user directly asks. Just answer the question normally."
+  }
+  const SYS=()=>"You are Zyro, a friendly expert AI assistant for ANY topic: coding, AI/ML, B.Tech subjects, writing, ideas, studies, plans, daily advice, fun. Mode: "+$("mode").value+". "+(MODES[$("mode").value]||"")+" "+appFacts()+" "+(STUDY[$("study").value]||"")+
+    " ABOUT YOUR CREATOR (only share when the user asks who made/created/built/developed you): You were created by Debasish Singha. If they ask more about him: he is 17 years old, a student currently studying at Reliance Senior Secondary School in Assam, India. Never bring him up unprompted — only when the user asks about your creator or who made you. "+
+    " IMPORTANT: if the user's message is only a greeting (hi, hey, hello, yo, good morning, how are you, etc.), reply with exactly ONE short friendly sentence introducing yourself as Zyro — never list features, subjects or abilities. Put all code in fenced blocks with a language tag. Write math in LaTeX using $...$ inline and $$...$$ for display. When the user asks you to BUILD/CREATE/MAKE a website, web page, landing page, app UI, dashboard, portfolio, store or form: output ONE complete self-contained HTML file inside a single ```html code block. Put ALL CSS inside <style> and ALL JS inside <script>. Write REALISTIC content (real-looking names, prices, hours, paragraphs) — NEVER use Lorem ipsum, placeholder, TODO or filler text. For photos use https://picsum.photos/seed/UNIQUEWORD/600/800 with a DIFFERENT word for each image. Make it visually polished, responsive, at least 150 lines, and NEVER abbreviate with '...' or 'rest of code'. Write the FULL file every time. Never invent other image URLs."+(getCI()?" The user's custom instructions: "+getCI().slice(0,1500):"");
 
   function addGround(d,src,sep){const ok=(src||[]).filter(x=>x&&/^https?:\/\//i.test(x.uri));if(!ok.length&&!sep)return;
     const w=document.createElement("div");w.className="ground";
@@ -379,7 +383,7 @@ function boot(){
   function send(text){const items=pending.slice();if(busy||(!text.trim()&&!items.length))return;
     const files=items.filter(f=>!f.img),imgs=items.filter(f=>f.img).map(f=>f.img);
     const out=tokensOut();
-    if(out&&!pro&&items.length){toast("Tokens are out — uploads are off until tomorrow");pending=[];renderAtts();t.value=text;t.dispatchEvent(new Event("input"));return}
+    if(out&&!pro&&items.length){toast("Uploads are paused — try again tomorrow");pending=[];renderAtts();t.value=text;t.dispatchEvent(new Event("input"));return}
     applyLimits();
     const show=text.trim()||(imgs.length&&!files.length?"Describe this image.":imgs.length?"Review the attached files.":"Review the attached file.");
     if(out&&!pro&&/\b(make|build|create|design|generate|develop)\b/i.test(show)){
@@ -387,7 +391,7 @@ function boot(){
       const d=addA();
       const sc=d.querySelector(".status-chip");if(sc)sc.remove();
       const tl=d.querySelector(".think-live");if(tl)tl.remove();
-      setH(d.querySelector(".body"),md("I'm sorry, your tokens are out for today ⚡\n\nEverything refills tomorrow at the same time. Until then, quick chats in Fast mode still work — but building, uploads and Thinking mode are paused."));
+      setH(d.querySelector(".body"),md("I'm sorry, but building is paused for now. Try a shorter question, or come back tomorrow."));
       return}
     const full=show+files.map(f=>"\n\n--- "+f.name+" ---\n"+f.text).join("");
     pending=[];renderAtts();return run(show,full,files.map(f=>f.name),imgs)}
@@ -418,11 +422,27 @@ function boot(){
     const d=addA();
     const body=d.querySelector(".body");
     const chip=d.querySelector(".status-chip");
+    const thinkEl=d.querySelector(".think-live");
+
+    // Only show the think panel if in Thinking mode OR if thoughts arrive
+    const inThinkingMode = $("mode").value === "Thinking";
+    if(!inThinkingMode && thinkEl) thinkEl.remove();
+
     const c=startChip(chip);
     down(1);
 
     let hadThought=false;
-    const onThought=th=>{hadThought=true;thinkUpdate(d,th)};
+    const onThought=th=>{
+      hadThought=true;
+      // if panel was removed, re-add it
+      if(!d.querySelector(".think-live")){
+        const w=document.createElement("div");
+        w.className="think-live";
+        w.innerHTML='<button type="button" class="think-live-head" aria-expanded="true"><span class="chev">›</span><span class="think-live-dot"></span><span class="think-live-label">Thinking…</span></button><div class="think-live-body open"><div class="think-live-inner"></div></div>';
+        d.insertBefore(w, body);
+      }
+      thinkUpdate(d,th);
+    };
 
     const search=needsSearch(show)&&!tokensOut(),meta={src:[],sep:""};
     const tw=typer(body,cheap);
@@ -530,7 +550,7 @@ function boot(){
     return await f.text()}
 
   $("file").onchange=async e=>{const fs=[...e.target.files];e.target.value="";
-    for(const f of fs){if(tokensOut()&&!pro){toast("Tokens are out — uploads paused until tomorrow");break}
+    for(const f of fs){if(tokensOut()&&!pro){toast("Uploads paused — try again tomorrow");break}
       if(pending.length>=3){toast("Max 3 files");break}
       if(f.size>8e6){toast(f.name+" is too big (max 8 MB)");continue}
       try{let x=(await readAny(f)).replace(/\r/g,"");
@@ -547,61 +567,4 @@ function boot(){
 
   function addEdit(u){if(!u||u.querySelector(".ed"))return;const e=document.createElement("button");e.type="button";e.className="ed";e.setAttribute("data-edit","");e.setAttribute("aria-label","Edit message");e.textContent="\u270E";u.insertBefore(e,u.firstChild)}
   function startEdit(u){if(busy){toast("Wait for the reply");return}const m=hist[hist.length-2];if(!m||m.role!=="user")return;
-    const b=u.querySelector(":scope>div"),old=m.show??m.content;u.classList.add("editing");b.textContent="";
-    const ta=document.createElement("textarea");ta.className="ei";ta.value=old;ta.rows=3;
-    const bar=document.createElement("div");bar.className="eb";
-    const cn=document.createElement("button");cn.type="button";cn.textContent="Cancel";cn.onclick=()=>{u.classList.remove("editing");fillBubble(b,old,m.att,m.imgs,m.nimg)};
-    const sv=document.createElement("button");sv.type="button";sv.className="go2";sv.textContent="Send";sv.onclick=()=>{const v=ta.value.trim();if(v)editLast(v)};
-    bar.append(cn,sv);b.append(ta,bar);ta.focus();ta.setSelectionRange(ta.value.length,ta.value.length)}
-  function editLast(v){if(busy||hist.length<2)return;const m=hist[hist.length-2],k=log.children;k[k.length-1].remove();k[k.length-1].remove();hist.splice(-2);const tail=m.content.slice((m.show||"").length);run(v,v+tail,m.att||[],m.imgs||[])}
-
-  function toggleCode(box){if(box.classList.contains("expanded")){box.classList.remove("expanded");box.querySelector(".more").textContent="\u2922 Expand"}
-    else{box.classList.add("expanded");box.querySelector(".more").textContent="\u2923 Collapse"}}
-
-  const RUN_JS="const AF=Object.getPrototypeOf(async function(){}).constructor;\nconst fmt=a=>a.map(x=>typeof x===\"string\"?x:(()=>{try{return JSON.stringify(x,null,1)}catch(_){return String(x)}})()).join(\" \");\nonmessage=async e=>{console.log=(...a)=>postMessage({t:\"o\",s:fmt(a)});console.info=console.log;console.warn=(...a)=>postMessage({t:\"e\",s:fmt(a)});console.error=console.warn;\n for(const k of [\"fetch\",\"XMLHttpRequest\",\"WebSocket\",\"EventSource\",\"importScripts\",\"indexedDB\"]){try{self[k]=undefined}catch(_){}}\n try{const r=await new AF(e.data.code)();if(r!==undefined)postMessage({t:\"o\",s:\"\\u2192 \"+fmt([r])})}catch(err){postMessage({t:\"e\",s:String(err&&err.stack||err)})}\n postMessage({t:\"d\"})}";
-  const RUN_PY="let py=null;\nonmessage=async e=>{try{\n if(!py){postMessage({t:\"s\",s:\"Loading Python (one-time download, about 10 MB)...\"});\n  importScripts(\"https://cdn.jsdelivr.net/pyodide/v0.29.4/full/pyodide.js\");\n  py=await loadPyodide({indexURL:\"https://cdn.jsdelivr.net/pyodide/v0.29.4/full/\"})}\n py.setStdout({batched:s=>postMessage({t:\"o\",s})});py.setStderr({batched:s=>postMessage({t:\"e\",s})});\n postMessage({t:\"r\"});\n try{await py.loadPackagesFromImports(e.data.code)}catch(_){}\n const r=await py.runPythonAsync(e.data.code);if(r!==undefined&&r!==null)postMessage({t:\"o\",s:\"\\u2192 \"+String(r)})\n }catch(err){postMessage({t:\"e\",s:String(err&&err.message||err)})}\n postMessage({t:\"d\"})}";
-  let pyW=null;
-  const mkW=src=>new Worker(URL.createObjectURL(new Blob([src],{type:"text/javascript"})));
-
-  function runCode(box,kind,btn){
-    if(box._stop){box._stop();return}
-    let out=box.querySelector(".out");if(!out){out=document.createElement("div");out.className="out";box.appendChild(out)}
-    out.textContent="";const code=box.querySelector("pre").textContent;
-    let size=0,w,tm,done=false;
-    const add=(cls,s)=>{size+=s.length;const sp=document.createElement("div");sp.className=cls;sp.textContent=s;out.appendChild(sp);out.scrollTop=out.scrollHeight};
-    const end=note=>{if(done)return;done=true;clearTimeout(tm);if(note)add("o-s",note);btn.textContent="Run";box._stop=null;if(kind==="js"&&w){try{w.terminate()}catch(_){}}};
-    const kill=note=>{try{w&&w.terminate()}catch(_){}if(kind==="py")pyW=null;end(note)};
-    const arm=ms=>{clearTimeout(tm);tm=setTimeout(()=>kill("Stopped after "+Math.round(ms/1000)+" s."),ms)};
-    btn.textContent="Stop";box._stop=()=>kill("Stopped.");
-    if(kind==="py"){if(!pyW)pyW=mkW(RUN_PY);w=pyW}else w=mkW(RUN_JS);
-    arm(kind==="py"?90000:10000);
-    w.onmessage=ev=>{if(done)return;const m=ev.data||{};
-      if(m.t==="s")add("o-s",m.s);
-      else if(m.t==="r")arm(15000);
-      else if(m.t==="o"){if(size>20000){kill("Output limit reached.");return}add("o-o",m.s)}
-      else if(m.t==="e"){let s=m.s;if(kind==="py"&&/importScripts|Failed to fetch|NetworkError|Failed to load/i.test(s))s="Couldn't load Python. It needs an internet connection the first time.";add("o-e",s)}
-      else if(m.t==="d")end(out.childNodes.length?"":"(no output)")};
-    w.onerror=()=>kill("Couldn't start the runner"+(kind==="py"?" (Python needs internet the first time).":"."));
-    w.postMessage({code})}
-
-  function readImg(f){return new Promise((ok,no)=>{const url=URL.createObjectURL(f),im=new Image();
-    im.onload=()=>{try{const M=1024,k=Math.min(1,M/Math.max(im.width,im.height)),w=Math.max(1,Math.round(im.width*k)),h=Math.max(1,Math.round(im.height*k)),c=document.createElement("canvas");c.width=w;c.height=h;
-      const x=c.getContext("2d");x.fillStyle="#fff";x.fillRect(0,0,w,h);x.drawImage(im,0,0,w,h);const d=c.toDataURL("image/jpeg",.8);URL.revokeObjectURL(url);ok({mime:"image/jpeg",data:d.split(",")[1]})}catch(e){no(e)}};
-    im.onerror=()=>{URL.revokeObjectURL(url);no(new Error("bad image"))};im.src=url})}
-
-  $("img").onchange=async e=>{const fs=[...e.target.files];e.target.value="";
-    for(const f of fs){if(tokensOut()&&!pro){toast("Tokens are out — uploads paused until tomorrow");break}
-      if(pending.length>=3){toast("Max 3 attachments");break}
-      if(!/^image\//.test(f.type)){toast("That isn't an image");continue}
-      try{const im=await readImg(f);if(im.data.length>1100000){toast("Image is too large");continue}pending.push({name:f.name||"image",img:im})}catch(_){toast("Couldn't read "+(f.name||"image"))}}
-    renderAtts()};
-
-  $("q").oninput=()=>renderList();
-  $("burger").onclick=openD;$("scrim").onclick=closeD;$("closeD").onclick=closeD;$("newc").onclick=newChat;$("new").onclick=newChat;
-  document.addEventListener("keydown",e=>{if(e.key==="Escape"){closeD();closePV();$("cv").classList.remove("on");$("modal").classList.remove("on");closeAuth()}});
-  t.addEventListener("input",()=>{t.style.height="auto";t.style.height=Math.min(t.scrollHeight,170)+"px"});
-  t.addEventListener("keydown",e=>{if(e.key==="Enter"&&!e.shiftKey&&!e.isComposing&&matchMedia("(hover:hover)").matches){e.preventDefault();if(!busy)$("f").requestSubmit()}});
-  if(new URLSearchParams(location.search).get("auth")){openAuth("signin");history.replaceState(null,"",location.pathname)}
-}
-
-if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",boot);}else{boot();}
+    const b=u.querySelector(":scope>div"),old=m.show??m.content;u.classList.add("editing
