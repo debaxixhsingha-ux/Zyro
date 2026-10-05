@@ -108,12 +108,22 @@ log.addEventListener("click",e=>{
  if(rg){if(rg.closest(".a")===log.lastElementChild)regen();else toast("Only the last reply can be regenerated");return}
  const lk=e.target.closest("[data-like]");if(lk){addFeedback(lk.closest(".a").dataset.msgId,"like");lk.classList.add("active");lk.parentElement.querySelector("[data-dislike]").classList.remove("active");toast("Thanks for the feedback!");return}
  const dk=e.target.closest("[data-dislike]");if(dk){addFeedback(dk.closest(".a").dataset.msgId,"dislike");dk.classList.add("active");dk.parentElement.querySelector("[data-like]").classList.remove("active");toast("Thanks for the feedback!")}});
-const SYS=()=>`You are Zyro, a friendly expert AI assistant for ANY topic: coding, AI/ML, B.Tech subjects, writing, ideas, studies, plans, daily advice, fun. Mode: ${$("mode").value}. ${MODES[$("mode").value]} IMPORTANT: if the user's message is only a greeting (hi, hey, hello, yo, good morning, how are you, etc.), reply with exactly ONE short friendly sentence introducing yourself as Zyro — never list features, subjects or abilities. Put all code in fenced blocks with a language tag. Write math in LaTeX using $...$ inline and $$...$$ for display. For any web page or UI request, give one complete self-contained HTML file with inline CSS and JS in a single html code block. For product, fashion, food or storefront websites, use real photos from https://picsum.photos/seed/WORD/600/800 (use a different WORD for each item) inside clean cards with names and prices. Never invent other image URLs, and never represent products with abstract 3D shapes or colored boxes.${getCI()?" The user's custom instructions: "+getCI().slice(0,1500):""}`;
+const todayStr=()=>new Date().toLocaleDateString("en",{weekday:"long",year:"numeric",month:"long",day:"numeric"});
+const needsSearch=s=>/\b(latest|newest|recent(ly)?|today|tonight|yesterday|tomorrow|this (week|month|year)|news|released?|launch(ed|es)?|new version|prices?|score|weather|who (is|won)|what'?s new|trending|202[4-9]|203\d)\b/i.test(s)||(/\b(claude|chatgpt|gpt-?\d+|openai|anthropic|gemini|grok|deepseek|llama|qwen|mistral|nvidia|iphone|pixel|galaxy|react|next\.?js|python)\b/i.test(s)&&/\b(models?|versions?|releases?|new|newest|latest|vs|versus|compare|comparison|pricing|price|available|exists?|sonnet|opus|haiku|\d+(\.\d+)?)\b/i.test(s));
+function appFacts(){const d=getTokens(),pct=Math.min(100,Math.round(d.used/TOTAL*100)),out=tokensOut();
+ return "Today's date is "+todayStr()+". Your built-in knowledge ends before today, so you may not know newer products, model versions or events: never insist that old information is current, and never say something new doesn't exist just because you don't recognise it. If search results are provided, rely on them; if not and the topic is recent, say you may be out of date. Never claim to be another company's assistant; if asked which model powers you, say you are Zyro and don't know the exact model. About this app (answer how-it-works questions only from these facts, and say you are not sure about anything else): users attach up to 3 files per message with the + button (PDF, code or text files up to 8 MB, each trimmed to 12,000 characters); images are not supported yet. There is a daily token meter of 100,000 tokens (used so far today: "+d.used.toLocaleString()+", "+pct+"%). When it is full, file uploads, Thinking mode and building web pages are paused until it refills the next day, while short chats in Fast mode still work. Right now uploads are "+(out?"PAUSED because the meter is full":"ON")+". If the server is very busy a reply can fail with a 'busy' message and work again after a minute. If the user asks why they can't send a file or message, explain using these facts and do not guess other reasons."}
+const SYS=()=>`You are Zyro, a friendly expert AI assistant for ANY topic: coding, AI/ML, B.Tech subjects, writing, ideas, studies, plans, daily advice, fun. Mode: ${$("mode").value}. ${MODES[$("mode").value]} ${appFacts()} IMPORTANT: if the user's message is only a greeting (hi, hey, hello, yo, good morning, how are you, etc.), reply with exactly ONE short friendly sentence introducing yourself as Zyro — never list features, subjects or abilities. Put all code in fenced blocks with a language tag. Write math in LaTeX using $...$ inline and $$...$$ for display. For any web page or UI request, give one complete self-contained HTML file with inline CSS and JS in a single html code block. For product, fashion, food or storefront websites, use real photos from https://picsum.photos/seed/WORD/600/800 (use a different WORD for each item) inside clean cards with names and prices. Never invent other image URLs, and never represent products with abstract 3D shapes or colored boxes.${getCI()?" The user's custom instructions: "+getCI().slice(0,1500):""}`;
+function addGround(d,src,sep){const ok=(src||[]).filter(x=>x&&/^https?:\/\//i.test(x.uri));if(!ok.length&&!sep)return;
+ const w=document.createElement("div");w.className="ground";
+ if(ok.length){const s=document.createElement("div");s.className="srcs";const l=document.createElement("span");l.textContent="Sources";s.appendChild(l);
+  ok.slice(0,6).forEach(x=>{const a=document.createElement("a");a.href=x.uri;a.target="_blank";a.rel="noopener noreferrer";a.textContent=(x.title||x.uri).slice(0,40);s.appendChild(a)});w.appendChild(s)}
+ if(sep){const f=document.createElement("iframe");f.className="sep";f.setAttribute("sandbox","allow-popups allow-popups-to-escape-sandbox");f.title="Google Search suggestions";f.srcdoc=sep;w.appendChild(f)}
+ d.appendChild(w)}
 const ARROW=go.innerHTML,STOPI='<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><rect x="5" y="5" width="14" height="14" rx="3"/></svg>';
 function setGo(on){go.innerHTML=on?STOPI:ARROW;go.setAttribute("aria-label",on?"Stop":"Send")}
-async function workerStream(messages,onText,signal,fast,onThought){
+async function workerStream(messages,onText,signal,fast,onThought,search,meta){
  let r;
- try{r=await fetch(WORKER_URL,{method:"POST",signal,headers:{"Content-Type":"application/json"},body:JSON.stringify({messages,mode:$("mode").value,fast})})}
+ try{r=await fetch(WORKER_URL,{method:"POST",signal,headers:{"Content-Type":"application/json"},body:JSON.stringify({messages,mode:$("mode").value,fast,search:!!search})})}
  catch(e){if(e&&e.name==="AbortError")return"";throw{code:"net",info:"can't reach the server"}}
  if(!r.ok){let m="";try{const j=await r.json();m=(j.error&&j.error.message)||""}catch(_){}
   throw{code:r.status===429?"rate":r.status===403?"origin":r.status===413?"big":"http",info:r.status+(m?" "+m.slice(0,100):"")}}
@@ -122,11 +132,14 @@ async function workerStream(messages,onText,signal,fast,onThought){
  try{for(;;){const{done,value}=await rd.read();if(done)break;buf+=dec.decode(value,{stream:true});
   const lines=buf.split("\n");buf=lines.pop();
   for(const ln of lines){if(!ln.startsWith("data:"))continue;const d=ln.slice(5).trim();
-   try{const j=JSON.parse(d);
-    if(j.candidates&&j.candidates[0]&&j.candidates[0].content&&j.candidates[0].content.parts){
-     for(const p of j.candidates[0].content.parts){if(!p.text)continue;
+   try{const j=JSON.parse(d),cd=j.candidates&&j.candidates[0];
+    if(cd&&cd.content&&cd.content.parts){
+     for(const p of cd.content.parts){if(!p.text)continue;
       if(p.thought){th+=p.text;if(onThought)onThought(th)}
       else{full+=p.text;onText(full)}}}
+    if(cd&&cd.groundingMetadata&&meta){const g=cd.groundingMetadata;
+     (g.groundingChunks||[]).forEach(c=>{const w=c&&c.web;if(w&&w.uri&&!meta.src.some(x=>x.uri===w.uri))meta.src.push({uri:w.uri,title:w.title||""})});
+     if(g.searchEntryPoint&&g.searchEntryPoint.renderedContent)meta.sep=g.searchEntryPoint.renderedContent}
     if(j.usageMetadata){used=j.usageMetadata.totalTokenCount||used}}catch(_){}}}}
  catch(e){if(e&&e.name==="AbortError")aborted=true;else throw e}
  if(used>0)addTokens(used);else if(full)addTokens(Math.ceil(full.length/4));
@@ -183,22 +196,23 @@ async function run(show,full,names){if(busy)return;busy=true;skip=false;streamin
  let thinkEl=null;
  const onThought=th=>{if(!thinkEl){thinkEl=document.createElement("details");thinkEl.className="think";thinkEl.innerHTML='<summary>Thinking…</summary><div class="think-body"></div>';d.insertBefore(thinkEl,body)}
   thinkEl.querySelector(".think-body").textContent=th};
+const search=needsSearch(show)&&!tokensOut(),meta={src:[],sep:""};
 const tw=typer(body,cheap);try{let out;const emit=x=>{c.write();tw.set(x);paintBar(baseUsed+Math.round(x.length/4),0)};
   if(typeof claude==="undefined"){
    if(!WORKER_URL)throw{code:"nowork"};
    const msgs=[{role:"system",content:SYS()},...api(hist),{role:"user",content:full}];
-   out=await workerStream(msgs,emit,ctrl.signal,cheap||$("mode").value==="Fast",onThought)}
+   out=await workerStream(msgs,emit,ctrl.signal,cheap||$("mode").value==="Fast",onThought,search,meta)}
   else{if(!sample)sample=await claude.use("sample").catch(()=>null);
    if(!sample)throw{code:"na"};
    const r=await sample([...api(hist),{role:"user",content:"["+SYS()+"]\n\n"+full}],{cache:false,modelTier:"default",onText:({text})=>emit(text)});out=r.text}
-  out=out||(skip?"(stopped)":"(empty response)");streaming=false;await tw.finish(out);setH(body,md(out));
+  out=out||(skip?"(stopped)":"(empty response)");streaming=false;await tw.finish(out);setH(body,md(out));addGround(d,meta.src,meta.sep.length<=6000?meta.sep:"");
   const secs=((Date.now()-t0)/1000).toFixed(1);
   if(thinkEl)thinkEl.querySelector("summary").textContent="Thought for "+secs+"s";
   const acts=document.createElement("div");acts.className="acts";acts.innerHTML=actsHTML(false);d.appendChild(acts);
   const rt=document.createElement("div");rt.className="rt";rt.textContent="responded in "+secs+"s";d.appendChild(rt);
   if(!cur){cur={id:Date.now().toString(36),title:(show||names[0]).replace(/\s+/g," ").slice(0,40),msgs:hist,ts:Date.now()};chats.unshift(cur)}
   cur.ts=Date.now();
-  hist.push({role:"user",content:full,show,att:names},{role:"assistant",content:out});if(hist.length>60)hist.splice(0,hist.length-60);chats=[cur,...chats.filter(x=>x!==cur)];save();c.done()}
+  hist.push({role:"user",content:full,show,att:names},{role:"assistant",content:out,src:meta.src,sep:meta.sep.length<=6000?meta.sep:""});if(hist.length>60)hist.splice(0,hist.length-60);chats=[cur,...chats.filter(x=>x!==cur)];save();c.done()}
  catch(e){streaming=false;tw.kill();c.stop();
   if(e&&e.name==="AbortError"){body.innerHTML='<span class="err">(stopped)</span>'}
   else{const na=e&&e.code==="na";if(!na){t.value=show;t.dispatchEvent(new Event("input"))}
@@ -219,7 +233,7 @@ const openD=()=>{renderList();markTh();updateTokenUI();$("drawer").classList.add
 const closeD=()=>{$("drawer").classList.remove("on");$("scrim").classList.remove("on")};
 function newChat(){if(busy){toast("Wait for the reply");return}cur=null;hist=[];log.innerHTML="";$("hero").style.display="";closeD();t.focus()}
 function openChat(id){if(busy){toast("Wait for the reply");return}const c=chats.find(x=>x.id===id);if(!c)return;cur=c;hist=c.msgs;log.innerHTML="";$("hero").style.display="none";
- c.msgs.forEach((m,i)=>{if(m.role==="user")addU(m.show??m.content,m.att);else{const d=addA();d.lastChild.remove();setH(d.firstChild,md(m.content));const acts=document.createElement("div");acts.className="acts";acts.innerHTML=actsHTML(i!==c.msgs.length-1);d.appendChild(acts)}});closeD();down(1)}
+ c.msgs.forEach((m,i)=>{if(m.role==="user")addU(m.show??m.content,m.att);else{const d=addA();d.lastChild.remove();setH(d.firstChild,md(m.content));addGround(d,m.src,m.sep);const acts=document.createElement("div");acts.className="acts";acts.innerHTML=actsHTML(i!==c.msgs.length-1);d.appendChild(acts)}});closeD();down(1)}
 function delChat(id){if(busy){toast("Wait for the reply");return}if(!confirm("Delete this chat?"))return;const c=chats.find(x=>x.id===id);chats=chats.filter(x=>x.id!==id);save();if(c===cur){cur=null;hist=[];log.innerHTML="";$("hero").style.display=""}renderList()}
 function renderList(){const l=$("list");l.innerHTML="";if(!chats.length){l.innerHTML='<div class="empty-l">No chats yet</div>';return}
  chats.forEach(c=>{const d=document.createElement("div");d.className="it"+(c===cur?" on":"");
