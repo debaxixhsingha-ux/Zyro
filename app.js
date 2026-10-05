@@ -44,8 +44,8 @@ function boot(){
   const esc=s=>s.replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
   const escA=s=>esc(s).replace(/"/g,"&quot;");
   const sleep=ms=>new Promise(r=>setTimeout(r,ms));
-
   const getCI=()=>{try{return localStorage.getItem(CI)||""}catch(_){return""}};
+
   function getTokens(){try{const d=JSON.parse(localStorage.getItem(TOKEN_KEY)||"null");const now=Date.now();
     if(!d||!d.reset||now-d.reset>86400000)return{used:0,last:0,reset:now};
     if(typeof d.used!=="number"){let s=0;for(const k in d.used)s+=+d.used[k]||0;d.used=s;try{localStorage.setItem(TOKEN_KEY,JSON.stringify(d))}catch(_){}}
@@ -58,15 +58,14 @@ function boot(){
     $("tPct").textContent=p+"% of 100% used";
     const f=$("fTotal");
     if(f){f.style.width=pct+"%";f.className="token-fill"+(pct>=95?" danger":pct>=80?" warn":"")}
-    if(last)$("tLast").textContent="last "+last.toLocaleString()+" · "+(last<2000?"light":last<8000?"medium":"heavy")}
+    if(last)$("tLast").textContent="last "+last.toLocaleString()}
   function updateTokenUI(){const d=getTokens();paintBar(d.used,d.last);
-    $("tNote").textContent=tokensOut()?"Tokens out — refills tomorrow."+(pro?" Pro members keep Thinking & uploads on.":" Quick chats still work; Thinking, uploads & building are paused."):"Counts your messages + replies · refills daily"+(pro?" · PRO limits active":"");
+    $("tNote").textContent="Counts your messages + replies · refills daily";
     applyLimits()}
   function applyLimits(){const out=tokensOut();
     const th=$("mode").querySelector("option[value=Thinking]");if(th)th.disabled=out&&!pro;
     const up=$("upb");if(up)up.disabled=out&&!pro;const ib=$("imb");if(ib)ib.disabled=out&&!pro;
     if(out&&!pro&&$("mode").value==="Thinking")$("mode").value="Fast"}
-
   function toast(m){const e=$("toast");e.textContent=m;e.classList.add("on");setTimeout(()=>e.classList.remove("on"),1600)}
 
   const MODES={Fast:"Quick short answer, minimal thinking.",Auto:"Balanced speed and depth.",Thinking:"Deep analysis, long detailed answer."};
@@ -99,7 +98,6 @@ function boot(){
        pw.type=showing?"password":"text";
        icon.innerHTML=showing?EYE_OPEN:EYE_OFF;
        eye.setAttribute("aria-label",showing?"Show password":"Hide password");
-       eye.title=showing?"Show password":"Hide password";
      };
    }}
 
@@ -115,16 +113,13 @@ function boot(){
   renderAuth();
 
   function renderAuth(){
-    const d=$("authsec");
-    if(!d)return;
+    const d=$("authsec");if(!d)return;
     if(user){
       d.innerHTML='<div class="arow"><span class="ava">'+esc((user.email||"Z").toUpperCase()[0])+'</span><span class="amail">'+esc(user.email||"")+'</span>'+(pro?'<em class="pro">PRO</em>':'')+'<button class="icon" id="signout" aria-label="Sign out" title="Sign out">⎋</button></div>';
-      const so=$("signout");if(so)so.onclick=async()=>{const s=await sbClient();if(s){try{await s.auth.signOut()}catch(_){}}user=null;pro=false;TOTAL=100000;renderAuth();updateTokenUI();toast("Signed out — chats stay on this device")};
+      const so=$("signout");if(so)so.onclick=async()=>{const s=await sbClient();if(s){try{await s.auth.signOut()}catch(_){}}user=null;pro=false;TOTAL=100000;renderAuth();updateTokenUI();toast("Signed out")};
       const ab=$("authBtn");if(ab)ab.title="Account";
-    }else{
-      d.innerHTML="";
-      const ab=$("authBtn");if(ab)ab.title="Sign in";
-    }}
+    }else{d.innerHTML="";const ab=$("authBtn");if(ab)ab.title="Sign in"}
+  }
 
   let authMode="signin";
   function setAuthMode(m){
@@ -137,9 +132,9 @@ function boot(){
   }
   function openAuth(m){setAuthMode(m||"signin");$("authModal").classList.add("on");setTimeout(()=>$("amEmail").focus(),60)}
   function closeAuth(){$("authModal").classList.remove("on");$("amPw").value="";$("amMsg").textContent=""}
-  {const ab=$("authBtn");if(ab)ab.onclick=()=>openAuth("signin");}
-  {const c=$("amCancel");if(c)c.onclick=closeAuth;}
-  {const s=$("amSwitch");if(s)s.onclick=e=>{e.preventDefault();setAuthMode(authMode==="signin"?"signup":"signin")};}
+  {const ab=$("authBtn");if(ab)ab.onclick=()=>openAuth("signin")}
+  {const c=$("amCancel");if(c)c.onclick=closeAuth}
+  {const s=$("amSwitch");if(s)s.onclick=e=>{e.preventDefault();setAuthMode(authMode==="signin"?"signup":"signin")}}
   {const g=$("amGo");if(g)g.onclick=async()=>{
     const em=$("amEmail").value.trim(),pw=$("amPw").value,msg=$("amMsg"),btn=$("amGo");
     if(!em||pw.length<6){msg.style.color="#e5484d";msg.textContent="Enter an email and a password with 6+ characters.";return}
@@ -152,9 +147,8 @@ function boot(){
     btn.disabled=false;
     if(r.error){msg.style.color="#e5484d";msg.textContent=r.error.message;return}
     if(authMode==="signup"&&r.data&&!r.data.session){msg.style.color="#3ecf8e";msg.textContent="✅ Check your email to confirm, then sign in.";return}
-    closeAuth();
-    toast(authMode==="signup"?"Account created 🎉":"Signed in");
-  };}
+    closeAuth();toast(authMode==="signup"?"Account created 🎉":"Signed in");
+  }}
 
   async function loadProfile(){try{const s=await sbClient();const {data}=await s.from("profiles").select("pro").eq("id",user.id).maybeSingle();
     pro=!!(data&&data.pro);TOTAL=pro?1000000:100000;updateTokenUI()}catch(_){}}
@@ -172,7 +166,7 @@ function boot(){
     for(const r of data){const ex=chats.find(c=>c.id===r.id);
       if(!ex){chats.push({id:r.id,title:r.title,pin:r.pin,ts:r.ts,msgs:r.msgs});changed=true}
       else if((r.ts||0)>(ex.ts||0)){ex.title=r.title;ex.pin=r.pin;ex.ts=r.ts;ex.msgs=r.msgs;changed=true}}
-    if(changed){save();renderList();toast("Chats synced from cloud")}}catch(_){}}
+    if(changed){save();renderList();toast("Chats synced")}}catch(_){}}
   function cloudUsage(n){if(!user)return;uAcc+=n;clearTimeout(uT);uT=setTimeout(async()=>{try{const s=await sbClient();if(!s||!uAcc)return;const a=uAcc;uAcc=0;await s.rpc("add_usage",{amt:a})}catch(_){}},15000)}
   async function afterSignIn(){renderAuth();await loadProfile();await pullCloud();await syncUsageFromCloud();renderAuth()}
   (async()=>{let s;try{s=await sbClient()}catch(_){}
@@ -230,10 +224,9 @@ function boot(){
     const d=document.createElement("div");
     d.className="a";
     d.dataset.msgId=msgId;
-    // order: status chip on top, then think panel, then body
     d.innerHTML=
       '<div class="status-chip" role="status"></div>'+
-      '<div class="think-live">'+
+      '<div class="think-live" hidden>'+
         '<button type="button" class="think-live-head" aria-expanded="true">'+
           '<span class="chev">›</span>'+
           '<span class="think-live-dot"></span>'+
@@ -245,29 +238,30 @@ function boot(){
     log.appendChild(d);
     return d;
   }
-
+  function thinkShow(d,show){
+    const el=d.querySelector(".think-live");if(!el)return null;
+    if(show)el.hidden=false;
+    return el;
+  }
   function thinkUpdate(d,text){
-    const think=d.querySelector(".think-live");if(!think)return;
-    const inner=think.querySelector(".think-live-inner");
+    const el=thinkShow(d,true);if(!el)return;
+    const inner=el.querySelector(".think-live-inner");
     if(inner){inner.textContent=text;inner.scrollTop=inner.scrollHeight}
     down();
   }
   function thinkFinish(d,seconds,hadText){
-    const think=d.querySelector(".think-live");
-    if(!think)return;
-    think.classList.add("done");
-    const dot=think.querySelector(".think-live-dot");if(dot)dot.remove();
-    const label=think.querySelector(".think-live-label");
-    if(label)label.textContent=hadText?("Thought for "+seconds+"s"):("Completed in "+seconds+"s");
-    const head=think.querySelector(".think-live-head");
-    const panelBody=think.querySelector(".think-live-body");
-    // if no thoughts came, remove the panel entirely (nothing to expand)
-    if(!hadText){think.remove();return}
+    const el=d.querySelector(".think-live");if(!el)return;
+    if(!hadText){el.remove();return}
+    el.classList.add("done");
+    const dot=el.querySelector(".think-live-dot");if(dot)dot.remove();
+    const label=el.querySelector(".think-live-label");if(label)label.textContent="Thought for "+seconds+"s";
+    const head=el.querySelector(".think-live-head");
+    const panelBody=el.querySelector(".think-live-body");
     if(head)head.setAttribute("aria-expanded","false");
     if(panelBody)panelBody.classList.remove("open");
     if(head&&panelBody&&!head.dataset.wired){
       head.dataset.wired="1";
-      head.addEventListener("click",function(){
+      head.addEventListener("click",()=>{
         const open=head.getAttribute("aria-expanded")==="true";
         head.setAttribute("aria-expanded",String(!open));
         panelBody.classList.toggle("open",!open);
@@ -313,9 +307,8 @@ function boot(){
   const todayStr=()=>new Date().toLocaleDateString("en",{weekday:"long",year:"numeric",month:"long",day:"numeric"});
   const needsSearch=s=>/\b(latest|newest|recent(ly)?|today|tonight|yesterday|tomorrow|this (week|month|year)|news|released?|launch(ed|es)?|new version|prices?|score|weather|who (is|won)|what'?s new|trending|202[4-9]|203\d)\b/i.test(s)||(/\b(claude|chatgpt|gpt-?\d+|openai|anthropic|gemini|grok|deepseek|llama|qwen|mistral|nvidia|iphone|pixel|galaxy|react|next\.?js|python)\b/i.test(s)&&/\b(models?|versions?|releases?|new|newest|latest|vs|versus|compare|comparison|pricing|price|available|exists?|sonnet|opus|haiku|\d+(\.\d+)?)\b/i.test(s));
 
-  /* ---------- SYSTEM PROMPT — no token talk, adds creator info ---------- */
   function appFacts(){
-    return "Today's date is "+todayStr()+". Your built-in knowledge ends before today, so you may not know newer products, model versions or events: never insist that old information is current, and never say something new doesn't exist just because you don't recognise it. If search results are provided, rely on them; if not and the topic is recent, say you may be out of date. Never claim to be another company's assistant; if asked which model powers you, say you are Zyro and don't know the exact model. About this app (answer how-it-works questions only from these facts, and say you are not sure about anything else): users attach up to 3 files or images per message with the + button (PDF, code or text files up to 8 MB, each trimmed to 12,000 characters; images are JPG, PNG or WebP and are shrunk before sending). A selector next to the mode picker switches study modes: Chat, Solver, Socratic and Exam prep. Python and JavaScript code blocks have a Run button, and code blocks are collapsible with an Expand button. The last message can be edited with the pencil icon, and chats can be searched and pinned in the sidebar. Users can optionally sign in with email to sync chats across devices; anonymous chats stay only on the device. If the user asks about uploads being disabled or why a feature is unavailable, just say to try again later or that they should keep messages short; do NOT mention tokens, meters, quotas, limits, or pricing. IMPORTANT: Never bring up tokens, quotas, limits, or usage meters in any reply unless the user directly asks. Just answer the question normally."
+    return "Today's date is "+todayStr()+". Your built-in knowledge ends before today, so you may not know newer products, model versions or events: never insist that old information is current, and never say something new doesn't exist just because you don't recognise it. If search results are provided, rely on them; if not and the topic is recent, say you may be out of date. Never claim to be another company's assistant; if asked which model powers you, say you are Zyro and don't know the exact model. About this app (answer how-it-works questions only from these facts, and say you are not sure about anything else): users attach up to 3 files or images per message with the + button (PDF, code or text files up to 8 MB, each trimmed to 12,000 characters; images are JPG, PNG or WebP and are shrunk before sending). A selector next to the mode picker switches study modes: Chat, Solver, Socratic and Exam prep. Python and JavaScript code blocks have a Run button, and code blocks are collapsible with an Expand button. The last message can be edited with the pencil icon, and chats can be searched and pinned in the sidebar. Users can optionally sign in with email to sync chats across devices; anonymous chats stay only on the device. IMPORTANT: Never bring up tokens, quotas, limits, or usage meters in any reply unless the user directly asks. Just answer the question normally."
   }
   const SYS=()=>"You are Zyro, a friendly expert AI assistant for ANY topic: coding, AI/ML, B.Tech subjects, writing, ideas, studies, plans, daily advice, fun. Mode: "+$("mode").value+". "+(MODES[$("mode").value]||"")+" "+appFacts()+" "+(STUDY[$("study").value]||"")+
     " ABOUT YOUR CREATOR (only share when the user asks who made/created/built/developed you): You were created by Debasish Singha. If they ask more about him: he is 17 years old, a student currently studying at Reliance Senior Secondary School in Assam, India. Never bring him up unprompted — only when the user asks about your creator or who made you. "+
@@ -383,7 +376,7 @@ function boot(){
   function send(text){const items=pending.slice();if(busy||(!text.trim()&&!items.length))return;
     const files=items.filter(f=>!f.img),imgs=items.filter(f=>f.img).map(f=>f.img);
     const out=tokensOut();
-    if(out&&!pro&&items.length){toast("Uploads are paused — try again tomorrow");pending=[];renderAtts();t.value=text;t.dispatchEvent(new Event("input"));return}
+    if(out&&!pro&&items.length){toast("Uploads paused — try again tomorrow");pending=[];renderAtts();t.value=text;t.dispatchEvent(new Event("input"));return}
     applyLimits();
     const show=text.trim()||(imgs.length&&!files.length?"Describe this image.":imgs.length?"Review the attached files.":"Review the attached file.");
     if(out&&!pro&&/\b(make|build|create|design|generate|develop)\b/i.test(show)){
@@ -391,7 +384,7 @@ function boot(){
       const d=addA();
       const sc=d.querySelector(".status-chip");if(sc)sc.remove();
       const tl=d.querySelector(".think-live");if(tl)tl.remove();
-      setH(d.querySelector(".body"),md("I'm sorry, but building is paused for now. Try a shorter question, or come back tomorrow."));
+      setH(d.querySelector(".body"),md("Building is paused right now. Try a shorter question, or come back tomorrow."));
       return}
     const full=show+files.map(f=>"\n\n--- "+f.name+" ---\n"+f.text).join("");
     pending=[];renderAtts();return run(show,full,files.map(f=>f.name),imgs)}
@@ -399,11 +392,11 @@ function boot(){
   function actsHTML(noRegen){return '<button type="button" data-like title="Helpful"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/></svg></button><button type="button" data-dislike title="Not helpful"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h2.67A2.31 2.31 0 0 1 22 4v7a2.31 2.31 0 0 1-2.33 2H17"/></svg></button>'+(noRegen?'':'<button type="button" data-regen>\u21bb Regenerate</button>')}
 
   const ERR={
-    nowork:"The server address isn't set. Add your Worker URL as WORKER_URL in app.js.",
-    rate:"Zyro is busy right now (free limit reached). Try again in a minute.",
-    origin:"This site isn't allowed to use the server. Check ALLOWED_ORIGINS in your Worker.",
+    nowork:"The server address isn't set.",
+    rate:"Zyro is busy right now. Try again in a minute.",
+    origin:"This site isn't allowed to use the server.",
     big:"That message or file is too large. Try a smaller one.",
-    empty:"Zyro sent back nothing (the reply may have been blocked). Try rephrasing.",
+    empty:"Zyro sent back nothing. Try rephrasing.",
     net:"Can't reach the server. Check your connection and retry."};
 
   async function run(show,full,names,imgs){
@@ -422,27 +415,11 @@ function boot(){
     const d=addA();
     const body=d.querySelector(".body");
     const chip=d.querySelector(".status-chip");
-    const thinkEl=d.querySelector(".think-live");
-
-    // Only show the think panel if in Thinking mode OR if thoughts arrive
-    const inThinkingMode = $("mode").value === "Thinking";
-    if(!inThinkingMode && thinkEl) thinkEl.remove();
-
     const c=startChip(chip);
     down(1);
 
     let hadThought=false;
-    const onThought=th=>{
-      hadThought=true;
-      // if panel was removed, re-add it
-      if(!d.querySelector(".think-live")){
-        const w=document.createElement("div");
-        w.className="think-live";
-        w.innerHTML='<button type="button" class="think-live-head" aria-expanded="true"><span class="chev">›</span><span class="think-live-dot"></span><span class="think-live-label">Thinking…</span></button><div class="think-live-body open"><div class="think-live-inner"></div></div>';
-        d.insertBefore(w, body);
-      }
-      thinkUpdate(d,th);
-    };
+    const onThought=th=>{hadThought=true;thinkUpdate(d,th)};
 
     const search=needsSearch(show)&&!tokensOut(),meta={src:[],sep:""};
     const tw=typer(body,cheap);
@@ -525,9 +502,9 @@ function boot(){
       const sp=document.createElement("span");sp.textContent=c.title;
       const sm=document.createElement("small");sm.textContent=fmtDate(c.ts);
       meta.append(sp,sm);meta.onclick=()=>openChat(c.id);
-      const pn=document.createElement("button");pn.type="button";pn.className="icon pin"+(c.pin?" on":"");pn.textContent=c.pin?"\u2605":"\u2606";pn.setAttribute("aria-label",c.pin?"Unpin chat":"Pin chat");pn.onclick=()=>{c.pin=!c.pin;save();renderList()};
-      const rn=document.createElement("button");rn.type="button";rn.className="icon";rn.textContent="\u270E";rn.setAttribute("aria-label","Rename chat");rn.onclick=()=>renChat(c.id);
-      const x=document.createElement("button");x.type="button";x.className="icon";x.textContent="\u2715";x.setAttribute("aria-label","Delete chat");x.onclick=()=>delChat(c.id);
+      const pn=document.createElement("button");pn.type="button";pn.className="icon pin"+(c.pin?" on":"");pn.textContent=c.pin?"\u2605":"\u2606";pn.onclick=()=>{c.pin=!c.pin;save();renderList()};
+      const rn=document.createElement("button");rn.type="button";rn.className="icon";rn.textContent="\u270E";rn.onclick=()=>renChat(c.id);
+      const x=document.createElement("button");x.type="button";x.className="icon";x.textContent="\u2715";x.onclick=()=>delChat(c.id);
       d.append(meta,pn,rn,x);l.appendChild(d)})}
   function regen(){if(busy||hist.length<2)return;const m=hist[hist.length-2],k=log.children;k[k.length-1].remove();k[k.length-1].remove();hist.splice(-2);run(m.show??m.content,m.content,m.att||[],m.imgs||[])}
 
@@ -539,7 +516,7 @@ function boot(){
   function renderAtts(){const a=$("atts");a.innerHTML="";pending.forEach((f,i)=>{const c=document.createElement("span");c.className="att";
     if(f.img){const im=document.createElement("img");im.alt="";im.src="data:"+f.img.mime+";base64,"+f.img.data;c.appendChild(im)}
     const n=document.createElement("span");n.textContent=f.name;c.appendChild(n);
-    const x=document.createElement("button");x.type="button";x.textContent="\u2715";x.setAttribute("aria-label","Remove attachment");x.onclick=()=>{pending.splice(i,1);renderAtts()};c.appendChild(x);a.appendChild(c)})}
+    const x=document.createElement("button");x.type="button";x.textContent="\u2715";x.onclick=()=>{pending.splice(i,1);renderAtts()};c.appendChild(x);a.appendChild(c)})}
 
   async function readAny(f){
     if(/\.pdf$/i.test(f.name)||f.type==="application/pdf"){
@@ -567,4 +544,61 @@ function boot(){
 
   function addEdit(u){if(!u||u.querySelector(".ed"))return;const e=document.createElement("button");e.type="button";e.className="ed";e.setAttribute("data-edit","");e.setAttribute("aria-label","Edit message");e.textContent="\u270E";u.insertBefore(e,u.firstChild)}
   function startEdit(u){if(busy){toast("Wait for the reply");return}const m=hist[hist.length-2];if(!m||m.role!=="user")return;
-    const b=u.querySelector(":scope>div"),old=m.show??m.content;u.classList.add("editing
+    const b=u.querySelector(":scope>div"),old=m.show??m.content;u.classList.add("editing");b.textContent="";
+    const ta=document.createElement("textarea");ta.className="ei";ta.value=old;ta.rows=3;
+    const bar=document.createElement("div");bar.className="eb";
+    const cn=document.createElement("button");cn.type="button";cn.textContent="Cancel";cn.onclick=()=>{u.classList.remove("editing");fillBubble(b,old,m.att,m.imgs,m.nimg)};
+    const sv=document.createElement("button");sv.type="button";sv.className="go2";sv.textContent="Send";sv.onclick=()=>{const v=ta.value.trim();if(v)editLast(v)};
+    bar.append(cn,sv);b.append(ta,bar);ta.focus();ta.setSelectionRange(ta.value.length,ta.value.length)}
+  function editLast(v){if(busy||hist.length<2)return;const m=hist[hist.length-2],k=log.children;k[k.length-1].remove();k[k.length-1].remove();hist.splice(-2);const tail=m.content.slice((m.show||"").length);run(v,v+tail,m.att||[],m.imgs||[])}
+
+  function toggleCode(box){if(box.classList.contains("expanded")){box.classList.remove("expanded");box.querySelector(".more").textContent="\u2922 Expand"}
+    else{box.classList.add("expanded");box.querySelector(".more").textContent="\u2923 Collapse"}}
+
+  const RUN_JS="const AF=Object.getPrototypeOf(async function(){}).constructor;\nconst fmt=a=>a.map(x=>typeof x===\"string\"?x:(()=>{try{return JSON.stringify(x,null,1)}catch(_){return String(x)}})()).join(\" \");\nonmessage=async e=>{console.log=(...a)=>postMessage({t:\"o\",s:fmt(a)});console.info=console.log;console.warn=(...a)=>postMessage({t:\"e\",s:fmt(a)});console.error=console.warn;\n for(const k of [\"fetch\",\"XMLHttpRequest\",\"WebSocket\",\"EventSource\",\"importScripts\",\"indexedDB\"]){try{self[k]=undefined}catch(_){}}\n try{const r=await new AF(e.data.code)();if(r!==undefined)postMessage({t:\"o\",s:\"\\u2192 \"+fmt([r])})}catch(err){postMessage({t:\"e\",s:String(err&&err.stack||err)})}\n postMessage({t:\"d\"})}";
+  const RUN_PY="let py=null;\nonmessage=async e=>{try{\n if(!py){postMessage({t:\"s\",s:\"Loading Python (one-time download, about 10 MB)...\"});\n  importScripts(\"https://cdn.jsdelivr.net/pyodide/v0.29.4/full/pyodide.js\");\n  py=await loadPyodide({indexURL:\"https://cdn.jsdelivr.net/pyodide/v0.29.4/full/\"})}\n py.setStdout({batched:s=>postMessage({t:\"o\",s})});py.setStderr({batched:s=>postMessage({t:\"e\",s})});\n postMessage({t:\"r\"});\n try{await py.loadPackagesFromImports(e.data.code)}catch(_){}\n const r=await py.runPythonAsync(e.data.code);if(r!==undefined&&r!==null)postMessage({t:\"o\",s:\"\\u2192 \"+String(r)})\n }catch(err){postMessage({t:\"e\",s:String(err&&err.message||err)})}\n postMessage({t:\"d\"})}";
+  let pyW=null;
+  const mkW=src=>new Worker(URL.createObjectURL(new Blob([src],{type:"text/javascript"})));
+
+  function runCode(box,kind,btn){
+    if(box._stop){box._stop();return}
+    let out=box.querySelector(".out");if(!out){out=document.createElement("div");out.className="out";box.appendChild(out)}
+    out.textContent="";const code=box.querySelector("pre").textContent;
+    let size=0,w,tm,done=false;
+    const add=(cls,s)=>{size+=s.length;const sp=document.createElement("div");sp.className=cls;sp.textContent=s;out.appendChild(sp);out.scrollTop=out.scrollHeight};
+    const end=note=>{if(done)return;done=true;clearTimeout(tm);if(note)add("o-s",note);btn.textContent="Run";box._stop=null;if(kind==="js"&&w){try{w.terminate()}catch(_){}}};
+    const kill=note=>{try{w&&w.terminate()}catch(_){}if(kind==="py")pyW=null;end(note)};
+    const arm=ms=>{clearTimeout(tm);tm=setTimeout(()=>kill("Stopped after "+Math.round(ms/1000)+" s."),ms)};
+    btn.textContent="Stop";box._stop=()=>kill("Stopped.");
+    if(kind==="py"){if(!pyW)pyW=mkW(RUN_PY);w=pyW}else w=mkW(RUN_JS);
+    arm(kind==="py"?90000:10000);
+    w.onmessage=ev=>{if(done)return;const m=ev.data||{};
+      if(m.t==="s")add("o-s",m.s);
+      else if(m.t==="r")arm(15000);
+      else if(m.t==="o"){if(size>20000){kill("Output limit reached.");return}add("o-o",m.s)}
+      else if(m.t==="e"){let s=m.s;if(kind==="py"&&/importScripts|Failed to fetch|NetworkError|Failed to load/i.test(s))s="Couldn't load Python. It needs an internet connection the first time.";add("o-e",s)}
+      else if(m.t==="d")end(out.childNodes.length?"":"(no output)")};
+    w.onerror=()=>kill("Couldn't start the runner"+(kind==="py"?" (Python needs internet the first time).":"."));
+    w.postMessage({code})}
+
+  function readImg(f){return new Promise((ok,no)=>{const url=URL.createObjectURL(f),im=new Image();
+    im.onload=()=>{try{const M=1024,k=Math.min(1,M/Math.max(im.width,im.height)),w=Math.max(1,Math.round(im.width*k)),h=Math.max(1,Math.round(im.height*k)),c=document.createElement("canvas");c.width=w;c.height=h;
+      const x=c.getContext("2d");x.fillStyle="#fff";x.fillRect(0,0,w,h);x.drawImage(im,0,0,w,h);const d=c.toDataURL("image/jpeg",.8);URL.revokeObjectURL(url);ok({mime:"image/jpeg",data:d.split(",")[1]})}catch(e){no(e)}};
+    im.onerror=()=>{URL.revokeObjectURL(url);no(new Error("bad image"))};im.src=url})}
+
+  $("img").onchange=async e=>{const fs=[...e.target.files];e.target.value="";
+    for(const f of fs){if(tokensOut()&&!pro){toast("Uploads paused — try again tomorrow");break}
+      if(pending.length>=3){toast("Max 3 attachments");break}
+      if(!/^image\//.test(f.type)){toast("That isn't an image");continue}
+      try{const im=await readImg(f);if(im.data.length>1100000){toast("Image is too large");continue}pending.push({name:f.name||"image",img:im})}catch(_){toast("Couldn't read "+(f.name||"image"))}}
+    renderAtts()};
+
+  $("q").oninput=()=>renderList();
+  $("burger").onclick=openD;$("scrim").onclick=closeD;$("closeD").onclick=closeD;$("newc").onclick=newChat;$("new").onclick=newChat;
+  document.addEventListener("keydown",e=>{if(e.key==="Escape"){closeD();closePV();$("cv").classList.remove("on");$("modal").classList.remove("on");closeAuth()}});
+  t.addEventListener("input",()=>{t.style.height="auto";t.style.height=Math.min(t.scrollHeight,170)+"px"});
+  t.addEventListener("keydown",e=>{if(e.key==="Enter"&&!e.shiftKey&&!e.isComposing&&matchMedia("(hover:hover)").matches){e.preventDefault();if(!busy)$("f").requestSubmit()}});
+  if(new URLSearchParams(location.search).get("auth")){openAuth("signin");history.replaceState(null,"",location.pathname)}
+}
+
+if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",boot);}else{boot();}
