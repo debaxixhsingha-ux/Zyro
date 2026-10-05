@@ -21,7 +21,6 @@ window.addEventListener("unhandledrejection",function(ev){
   showErr("Promise rejection: "+(ev.reason&&(ev.reason.stack||ev.reason.message||ev.reason)||String(ev.reason)));
 });
 
-/* ============ CONFIG ============ */
 const WORKER_URL="https://zyro-ai.debaxixhsingha.workers.dev/";
 const SUPABASE_URL="https://opeyjksuklfmeicmnxsh.supabase.co";
 const SUPABASE_ANON_KEY="sb_publishable_LC3DrFcQAsG3HSILCekaFw_SOVVDxjA";
@@ -37,7 +36,6 @@ let pending=[];
 let sid=0,follow=true,uAcc=0,uT=null,syncT=null;
 const LIM=12000;
 
-/* ============ BOOT ============ */
 function boot(){
   const $=id=>document.getElementById(id);
   const log=$("log"),t=$("t"),go=$("go"),main=$("main");
@@ -47,7 +45,6 @@ function boot(){
   const escA=s=>esc(s).replace(/"/g,"&quot;");
   const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 
-  /* ---------- tokens ---------- */
   const getCI=()=>{try{return localStorage.getItem(CI)||""}catch(_){return""}};
   function getTokens(){try{const d=JSON.parse(localStorage.getItem(TOKEN_KEY)||"null");const now=Date.now();
     if(!d||!d.reset||now-d.reset>86400000)return{used:0,last:0,reset:now};
@@ -72,7 +69,6 @@ function boot(){
 
   function toast(m){const e=$("toast");e.textContent=m;e.classList.add("on");setTimeout(()=>e.classList.remove("on"),1600)}
 
-  /* ---------- modes + quick chips ---------- */
   const MODES={Fast:"Quick short answer, minimal thinking.",Auto:"Balanced speed and depth.",Thinking:"Deep analysis, long detailed answer."};
   const SOON=["Connect GitHub","Voice input"];
   const STAGES=["Thinking","Analyzing","Planning steps"];
@@ -92,6 +88,20 @@ function boot(){
   SOON.forEach(s=>{const b=document.createElement("button");b.type="button";b.innerHTML="<span>"+s+"</span><em>Soon</em>";b.onclick=()=>{toast(s+" is coming soon");$("menu").classList.remove("open")};$("menu").appendChild(b)});
   $("plus").onclick=e=>{e.stopPropagation();const cb=$("cib");if(cb)cb.lastChild.textContent=getCI()?"On":"Add";$("menu").classList.toggle("open")};
   document.addEventListener("click",()=>$("menu").classList.remove("open"));
+
+  /* ---------- password eye toggle ---------- */
+  const EYE_OPEN='<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/>';
+  const EYE_OFF='<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/>';
+  {const eye=$("amEye"),icon=$("amEyeIcon"),pw=$("amPw");
+   if(eye&&icon&&pw){
+     eye.onclick=()=>{
+       const showing=pw.type==="text";
+       pw.type=showing?"password":"text";
+       icon.innerHTML=showing?EYE_OPEN:EYE_OFF;
+       eye.setAttribute("aria-label",showing?"Show password":"Hide password");
+       eye.title=showing?"Show password":"Hide password";
+     };
+   }}
 
   /* ---------- Supabase auth ---------- */
   function sbClient(){if(!SUPABASE_URL)return Promise.resolve(null);
@@ -209,7 +219,6 @@ function boot(){
       else{p.split(/\n{2,}/).forEach(bl=>{const s=bl.trim();if(s)h+='<p>'+esc(s).replace(/\n/g,"<br>")+'</p>'})}}
     return h}
 
-  /* ---------- message rendering ---------- */
   function fillBubble(b,txt,names,imgs,nimg){b.textContent=txt;
     if(imgs&&imgs.length){const w=document.createElement("div");w.className="th";imgs.forEach(im=>{const i=document.createElement("img");i.alt="attached image";i.src="data:"+im.mime+";base64,"+im.data;w.appendChild(i)});b.appendChild(w)}
     else if(nimg){const f=document.createElement("div");f.className="fl";f.textContent="\u{1F5BC} "+nimg+" image"+(nimg>1?"s":"")+" (not saved)";b.appendChild(f)}
@@ -236,16 +245,9 @@ function boot(){
     return d;
   }
 
-  /* ---------- thinking panel helpers ---------- */
-  function thinkShow(d){
-    const think=d.querySelector(".think-live");
-    if(!think)return null;
-    think.hidden=false;
-    return think;
-  }
+  function thinkShow(d){const think=d.querySelector(".think-live");if(!think)return null;think.hidden=false;return think}
   function thinkUpdate(d,text){
-    const think=thinkShow(d);
-    if(!think)return;
+    const think=thinkShow(d);if(!think)return;
     const inner=think.querySelector(".think-live-inner");
     if(inner){inner.textContent=text;inner.scrollTop=inner.scrollHeight}
     down();
@@ -282,13 +284,14 @@ function boot(){
     if(/<\/pre><\/div>$/.test(h))return h.replace(/<\/pre><\/div>$/,'<span class="caret"></span></pre></div>');
     return h+'<span class="caret"></span>'}
 
+  /* ---------- status chip — no tick, just "Done" ---------- */
   function startChip(chip){let i=0,tm;const n=++sid;
     chip.innerHTML='<span class="spark"><svg viewBox="0 0 24 24" aria-hidden="true"><defs><linearGradient id="sg'+n+'" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#d97757"/><stop offset=".55" stop-color="#f0b48a"/><stop offset="1" stop-color="#d97757"/></linearGradient></defs><path fill="url(#sg'+n+')" d="M12 2l2.6 7.4L22 12l-7.4 2.6L12 22l-2.6-7.4L2 12l7.4-2.6z"/></svg></span><span class="shimmer status-text">Thinking</span>';
     const label=chip.querySelector(".status-text");
     const setL=x=>{label.style.opacity=0;clearTimeout(tm);tm=setTimeout(()=>{label.textContent=x;label.style.opacity=1},170)};
     const iv=setInterval(()=>{i=(i+1)%STAGES.length;setL(STAGES[i])},1400);
     return{write(){if(chip.dataset.w)return;chip.dataset.w=1;clearInterval(iv);setL("Writing")},
-      done(){clearInterval(iv);clearTimeout(tm);label.classList.remove("shimmer");label.style.opacity=1;label.innerHTML='<span class="check">✓</span> Done';chip.classList.add("done");setTimeout(()=>chip.classList.add("fade-out"),900);setTimeout(()=>chip.remove(),1500)},
+      done(){clearInterval(iv);clearTimeout(tm);label.classList.remove("shimmer");label.style.opacity=1;label.textContent="Done";chip.classList.add("done");setTimeout(()=>chip.classList.add("fade-out"),900);setTimeout(()=>chip.remove(),1500)},
       stop(){clearInterval(iv);clearTimeout(tm);chip.remove()}}}
 
   function copy(txt,btn){const ok=()=>{btn.textContent="Copied";setTimeout(()=>btn.textContent="Copy",1200)};
@@ -419,10 +422,7 @@ function boot(){
     down(1);
 
     let hadThought=false;
-    const onThought=th=>{
-      hadThought=true;
-      thinkUpdate(d,th);
-    };
+    const onThought=th=>{hadThought=true;thinkUpdate(d,th)};
 
     const search=needsSearch(show)&&!tokensOut(),meta={src:[],sep:""};
     const tw=typer(body,cheap);
@@ -466,7 +466,6 @@ function boot(){
 
   $("f").onsubmit=e=>{e.preventDefault();if(busy){skip=true;if(ctrl)ctrl.abort();return}const v=t.value;t.value="";t.style.height="auto";send(v)};
 
-  /* ---------- chats ---------- */
   try{chats=JSON.parse(localStorage.getItem(CK)||"[]")}catch(_){chats=[]}
   function save(){chats=[...chats.filter(c=>c.pin),...chats.filter(c=>!c.pin)].slice(0,40);
     chats.forEach(c=>{let seen=false;for(let i=c.msgs.length-1;i>=0;i--){const m=c.msgs[i];if(m.imgs&&m.imgs.length){if(seen){m.nimg=m.imgs.length;delete m.imgs}else seen=true}}});
