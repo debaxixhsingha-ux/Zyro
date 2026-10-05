@@ -116,6 +116,8 @@ pre{margin:0;padding:14px;overflow-x:auto;max-width:100%;font:13px/1.55 'JetBrai
 .token-info{display:flex;justify-content:space-between;font-size:12px;margin-bottom:6px;color:var(--dim)}
 .token-progress{height:6px;background:var(--line);border-radius:3px;overflow:hidden}
 .token-fill{height:100%;background:var(--acc);transition:width .3s}
+.token-fill.warn{background:#eab308}
+.token-fill.danger{background:#e5484d}
 .tn{font-size:11px;color:var(--dim);margin-top:6px}
 .ground{margin-top:8px}
 .srcs{display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:12.5px;color:var(--dim)}
@@ -172,11 +174,23 @@ select option{color:#000}
 .toast{position:fixed;left:50%;bottom:110px;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:8px 14px;border-radius:20px;font-size:13px;opacity:0;pointer-events:none;transition:opacity .25s}
 .toast.on{opacity:1}
 .note{text-align:center;font-size:11.5px;color:var(--dim);margin-top:7px}
+.authsec:empty{display:none}
+.arow{display:flex;gap:8px;align-items:center;margin:2px 0 8px}
+.ava{width:30px;height:30px;border-radius:50%;background:var(--acc);color:#fff;display:grid;place-items:center;font-weight:600;flex:none}
+.amail{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px;color:var(--dim)}
+.pro{border:1px solid var(--acc);color:var(--acc);border-radius:10px;padding:1px 8px;font:600 10px 'Space Grotesk';font-style:normal}
 </style>
 </head>
 <body>
-<header><button class="icon" id="burger" aria-label="Menu" style="color:var(--ink)"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
-<button class="icon" id="new" aria-label="New chat"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button></header>
+<header>
+  <button class="icon" id="burger" aria-label="Menu" style="color:var(--ink)"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
+  <div style="display:flex;gap:6px;align-items:center">
+    <button class="icon" id="authBtn" aria-label="Sign in" title="Sign in">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+    </button>
+    <button class="icon" id="new" aria-label="New chat"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button>
+  </div>
+</header>
 <div class="scrim" id="scrim"></div>
 <aside class="drawer" id="drawer">
 <div class="dh"><button class="newc" id="newc">+ New chat</button><button class="icon" id="closeD" aria-label="Close">✕</button></div>
@@ -210,6 +224,20 @@ select option{color:#000}
 <button class="jump" id="jump" aria-label="Scroll to bottom">↓</button>
 <div class="pv" id="pv"><div class="pvh"><span>Preview</span><button class="icon" id="pvx" aria-label="Close">✕</button></div><iframe id="pvf" sandbox="allow-scripts" title="Preview"></iframe></div>
 <div class="modal" id="modal"><div class="mb"><h3>Custom instructions</h3><p>Tell Zyro how to answer. Saved only on this device.</p><textarea id="ci" placeholder="e.g. Keep answers short. Explain like I am a beginner."></textarea><div class="mr"><button id="ciCancel" type="button">Cancel</button><button id="ciSave" type="button">Save</button></div></div></div>
+<div class="modal" id="authModal"><div class="mb" style="max-width:380px">
+  <h3 id="amTitle" style="margin:0 0 4px;font-weight:600">Sign in</h3>
+  <p id="amSub" style="margin:0 0 14px;color:var(--dim);font-size:14px">Sync your chats across devices.</p>
+  <input id="amEmail" type="email" placeholder="you@example.com" class="sq" autocomplete="email">
+  <input id="amPw" type="password" placeholder="Password (6+ characters)" class="sq" style="margin-top:8px" autocomplete="current-password">
+  <div class="mr">
+    <button id="amCancel" type="button">Cancel</button>
+    <button id="amGo" type="button" style="background:var(--ink);color:var(--bg);border-color:var(--ink)">Sign in</button>
+  </div>
+  <div style="text-align:center;margin-top:14px;font-size:13.5px;color:var(--dim)">
+    <span id="amSwitchWrap">No account? <a href="#" id="amSwitch" style="color:var(--acc);text-decoration:none">Create one</a></span>
+  </div>
+  <div id="amMsg" style="margin-top:10px;font-size:13px;text-align:center;color:var(--dim);min-height:18px"></div>
+</div></div>
 <div class="cv" id="cv"><div class="cvh"><span id="cvl">code</span><span><button type="button" id="cvc">Copy</button><button class="icon" id="cvx" aria-label="Close">✕</button></span></div><pre id="cvp"></pre></div>
 <div class="toast" id="toast"></div>
 <script src="app.js?v=20"></script>
