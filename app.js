@@ -1,4 +1,4 @@
-/* ============ HOISTED HELPERS (must be defined before anything uses them) ============ */
+/* ============ HOISTED HELPERS ============ */
 function loadJS(u){
   return new Promise(function(ok,no){
     var e=document.createElement("script");
@@ -21,7 +21,7 @@ window.addEventListener("unhandledrejection",function(ev){
   showErr("Promise rejection: "+(ev.reason&&(ev.reason.stack||ev.reason.message||ev.reason)||String(ev.reason)));
 });
 
-/* ============ GLOBALS (declared early so nothing is in TDZ) ============ */
+/* ============ CONFIG ============ */
 const WORKER_URL="https://zyro-ai.debaxixhsingha.workers.dev/";
 const SUPABASE_URL="https://opeyjksuklfmeicmnxsh.supabase.co";
 const SUPABASE_ANON_KEY="sb_publishable_LC3DrFcQAsG3HSILCekaFw_SOVVDxjA";
@@ -41,7 +41,6 @@ const LIM=12000;
 function boot(){
   const $=id=>document.getElementById(id);
   const log=$("log"),t=$("t"),go=$("go"),main=$("main");
-
   if(!log||!t||!go||!main){showErr("Core elements missing from app.html");return;}
 
   const esc=s=>s.replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
@@ -71,10 +70,9 @@ function boot(){
     const up=$("upb");if(up)up.disabled=out&&!pro;const ib=$("imb");if(ib)ib.disabled=out&&!pro;
     if(out&&!pro&&$("mode").value==="Thinking")$("mode").value="Fast"}
 
-  /* ---------- toast ---------- */
   function toast(m){const e=$("toast");e.textContent=m;e.classList.add("on");setTimeout(()=>e.classList.remove("on"),1600)}
 
-  /* ---------- modes + study + quick chips ---------- */
+  /* ---------- modes + quick chips ---------- */
   const MODES={Fast:"Quick short answer, minimal thinking.",Auto:"Balanced speed and depth.",Thinking:"Deep analysis, long detailed answer."};
   const SOON=["Connect GitHub","Voice input"];
   const STAGES=["Thinking","Analyzing","Planning steps"];
@@ -95,7 +93,7 @@ function boot(){
   $("plus").onclick=e=>{e.stopPropagation();const cb=$("cib");if(cb)cb.lastChild.textContent=getCI()?"On":"Add";$("menu").classList.toggle("open")};
   document.addEventListener("click",()=>$("menu").classList.remove("open"));
 
-  /* ---------- Supabase ---------- */
+  /* ---------- Supabase auth ---------- */
   function sbClient(){if(!SUPABASE_URL)return Promise.resolve(null);
     if(sb)return Promise.resolve(sb);
     if(!sbP)sbP=loadJS("https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2").then(()=>{sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);return sb});
@@ -173,7 +171,7 @@ function boot(){
     s.auth.onAuthStateChange((_e,ses)=>{user=(ses&&ses.user)||null;if(!user){pro=false;TOTAL=100000;renderAuth();updateTokenUI()}else afterSignIn()});
     if(user)await afterSignIn();else renderAuth()})();
 
-  /* ---------- markdown / code highlight ---------- */
+  /* ---------- markdown ---------- */
   const MR=/\$\$([\s\S]+?)\$\$|\\\[([\s\S]+?)\\\]|\\\(([\s\S]+?)\\\)|\$([^\s$](?:[^$\n]*?[^\s$])?)\$(?!\d)/g;
   const inl=x=>{const st=[],tk=h=>"\u0001"+(st.push(h)-1)+"\u0002";
     x=x.replace(/`([^`]+)`/g,(_,c)=>tk('<code class="i">'+esc(c)+'</code>'));
@@ -217,7 +215,61 @@ function boot(){
     else if(nimg){const f=document.createElement("div");f.className="fl";f.textContent="\u{1F5BC} "+nimg+" image"+(nimg>1?"s":"")+" (not saved)";b.appendChild(f)}
     if(names&&names.length){const f=document.createElement("div");f.className="fl";f.textContent="\u{1F4CE} "+names.join(", ");b.appendChild(f)}}
   function addU(txt,names,imgs,nimg){const d=document.createElement("div");d.className="u";const b=document.createElement("div");fillBubble(b,txt,names,imgs,nimg);d.appendChild(b);log.appendChild(d);return d}
-  function addA(){const msgId=Date.now().toString(36);const d=document.createElement("div");d.className="a";d.dataset.msgId=msgId;d.innerHTML='<div class="body"></div><div class="status-chip" role="status"></div>';log.appendChild(d);return d}
+
+  function addA(){
+    const msgId=Date.now().toString(36);
+    const d=document.createElement("div");
+    d.className="a";
+    d.dataset.msgId=msgId;
+    d.innerHTML=
+      '<div class="think-live" hidden>'+
+        '<button type="button" class="think-live-head" aria-expanded="true">'+
+          '<span class="chev">›</span>'+
+          '<span class="think-live-dot"></span>'+
+          '<span class="think-live-label">Thinking…</span>'+
+        '</button>'+
+        '<div class="think-live-body open"><div class="think-live-inner"></div></div>'+
+      '</div>'+
+      '<div class="body"></div>'+
+      '<div class="status-chip" role="status"></div>';
+    log.appendChild(d);
+    return d;
+  }
+
+  /* ---------- thinking panel helpers ---------- */
+  function thinkShow(d){
+    const think=d.querySelector(".think-live");
+    if(!think)return null;
+    think.hidden=false;
+    return think;
+  }
+  function thinkUpdate(d,text){
+    const think=thinkShow(d);
+    if(!think)return;
+    const inner=think.querySelector(".think-live-inner");
+    if(inner){inner.textContent=text;inner.scrollTop=inner.scrollHeight}
+    down();
+  }
+  function thinkFinish(d,seconds,hadText){
+    const think=d.querySelector(".think-live");
+    if(!think)return;
+    if(!hadText){think.remove();return}
+    think.classList.add("done");
+    const dot=think.querySelector(".think-live-dot");if(dot)dot.remove();
+    const label=think.querySelector(".think-live-label");if(label)label.textContent="Thought for "+seconds+"s";
+    const head=think.querySelector(".think-live-head");
+    const panelBody=think.querySelector(".think-live-body");
+    if(head)head.setAttribute("aria-expanded","false");
+    if(panelBody)panelBody.classList.remove("open");
+    if(head&&panelBody&&!head.dataset.wired){
+      head.dataset.wired="1";
+      head.addEventListener("click",()=>{
+        const open=head.getAttribute("aria-expanded")==="true";
+        head.setAttribute("aria-expanded",String(!open));
+        panelBody.classList.toggle("open",!open);
+      });
+    }
+  }
 
   const distB=()=>main.scrollHeight-main.scrollTop-main.clientHeight;
   const syncPill=()=>$("jump").classList.toggle("on",distB()>140);
@@ -260,7 +312,7 @@ function boot(){
   function appFacts(){const d=getTokens(),pct=Math.min(100,Math.round(d.used/TOTAL*100)),out=tokensOut();
     return "Today's date is "+todayStr()+". Your built-in knowledge ends before today, so you may not know newer products, model versions or events: never insist that old information is current, and never say something new doesn't exist just because you don't recognise it. If search results are provided, rely on them; if not and the topic is recent, say you may be out of date. Never claim to be another company's assistant; if asked which model powers you, say you are Zyro and don't know the exact model. About this app (answer how-it-works questions only from these facts, and say you are not sure about anything else): users attach up to 3 files or images per message with the + button (PDF, code or text files up to 8 MB, each trimmed to 12,000 characters; images are JPG, PNG or WebP and are shrunk before sending). A selector next to the mode picker switches study modes: Chat, Solver, Socratic and Exam prep. Python and JavaScript code blocks have a Run button, and code blocks are collapsible with an Expand button. The last message can be edited with the pencil icon, and chats can be searched and pinned in the sidebar. Users can optionally sign in with email to sync chats across devices; anonymous chats stay only on the device. There is a daily token meter (free: 100,000 tokens; Pro: 1,000,000) — used so far today: "+d.used.toLocaleString()+", "+pct+"%. When a free user's meter is full, file uploads, Thinking mode and building web pages are paused until it refills the next day, while short chats in Fast mode still work. Right now uploads are "+(out&&!pro?"PAUSED because the meter is full":"ON")+". If the server is very busy a reply can fail with a 'busy' message and work again after a minute. If the user asks why they can't send a file or message, explain using these facts and do not guess other reasons."+(out&&!pro?" IMPORTANT: The free token meter is FULL right now. You MUST keep every reply to 1-2 short sentences maximum. Do NOT write code. Do NOT write long explanations. Do NOT build web pages. Just answer briefly and remind them their tokens refill tomorrow.":"")}
 
-  const SYS=()=>"You are Zyro, a friendly expert AI assistant for ANY topic: coding, AI/ML, B.Tech subjects, writing, ideas, studies, plans, daily advice, fun. Mode: "+$("mode").value+". "+(MODES[$("mode").value]||"")+" "+appFacts()+" "+(STUDY[$("study").value]||"")+" IMPORTANT: if the user's message is only a greeting (hi, hey, hello, yo, good morning, how are you, etc.), reply with exactly ONE short friendly sentence introducing yourself as Zyro — never list features, subjects or abilities. Put all code in fenced blocks with a language tag. Write math in LaTeX using $...$ inline and $$...$$ for display. When the user asks you to BUILD/CREATE/MAKE a website, web page, landing page, app UI, dashboard, portfolio, store, blog or form: output ONE complete self-contained HTML file inside a single ```html code block. Put ALL CSS inside <style> and ALL JS inside <script>. Write REALISTIC content (real-looking names, prices, hours, paragraphs) — NEVER use Lorem ipsum, placeholder, TODO or filler text. For photos use https://picsum.photos/seed/UNIQUEWORD/600/800 with a DIFFERENT word for each image. Make it visually polished, responsive, at least 150 lines, and NEVER abbreviate with '...' or 'rest of code'. Write the FULL file every time. Never invent other image URLs."+(getCI()?" The user's custom instructions: "+getCI().slice(0,1500):"");
+  const SYS=()=>"You are Zyro, a friendly expert AI assistant for ANY topic: coding, AI/ML, B.Tech subjects, writing, ideas, studies, plans, daily advice, fun. Mode: "+$("mode").value+". "+(MODES[$("mode").value]||"")+" "+appFacts()+" "+(STUDY[$("study").value]||"")+" IMPORTANT: if the user's message is only a greeting (hi, hey, hello, yo, good morning, how are you, etc.), reply with exactly ONE short friendly sentence introducing yourself as Zyro — never list features, subjects or abilities. Put all code in fenced blocks with a language tag. Write math in LaTeX using $...$ inline and $$...$$ for display. When the user asks you to BUILD/CREATE/MAKE a website, web page, landing page, app UI, dashboard, portfolio, store or form: output ONE complete self-contained HTML file inside a single ```html code block. Put ALL CSS inside <style> and ALL JS inside <script>. Write REALISTIC content (real-looking names, prices, hours, paragraphs) — NEVER use Lorem ipsum, placeholder, TODO or filler text. For photos use https://picsum.photos/seed/UNIQUEWORD/600/800 with a DIFFERENT word for each image. Make it visually polished, responsive, at least 150 lines, and NEVER abbreviate with '...' or 'rest of code'. Write the FULL file every time. Never invent other image URLs."+(getCI()?" The user's custom instructions: "+getCI().slice(0,1500):"");
 
   function addGround(d,src,sep){const ok=(src||[]).filter(x=>x&&/^https?:\/\//i.test(x.uri));if(!ok.length&&!sep)return;
     const w=document.createElement("div");w.className="ground";
@@ -329,8 +381,10 @@ function boot(){
     const show=text.trim()||(imgs.length&&!files.length?"Describe this image.":imgs.length?"Review the attached files.":"Review the attached file.");
     if(out&&!pro&&/\b(make|build|create|design|generate|develop)\b/i.test(show)){
       $("hero").style.display="none";addU(show);
-      const d=addA();d.lastChild.remove();
-      setH(d.firstChild,md("I'm sorry, your tokens are out for today ⚡\n\nEverything refills tomorrow at the same time. Until then, quick chats in Fast mode still work — but building, uploads and Thinking mode are paused."));
+      const d=addA();
+      const sc=d.querySelector(".status-chip");if(sc)sc.remove();
+      const tl=d.querySelector(".think-live");if(tl)tl.remove();
+      setH(d.querySelector(".body"),md("I'm sorry, your tokens are out for today ⚡\n\nEverything refills tomorrow at the same time. Until then, quick chats in Fast mode still work — but building, uploads and Thinking mode are paused."));
       return}
     const full=show+files.map(f=>"\n\n--- "+f.name+" ---\n"+f.text).join("");
     pending=[];renderAtts();return run(show,full,files.map(f=>f.name),imgs)}
@@ -345,36 +399,70 @@ function boot(){
     empty:"Zyro sent back nothing (the reply may have been blocked). Try rephrasing.",
     net:"Can't reach the server. Check your connection and retry."};
 
-  async function run(show,full,names,imgs){imgs=imgs||[];if(busy)return;busy=true;skip=false;streaming=true;ctrl=new AbortController();setGo(1);log.querySelectorAll("[data-regen]").forEach(x=>x.remove());
-    $("hero").style.display="none";log.querySelectorAll(".ed").forEach(x=>x.remove());const ub=addU(show,names,imgs);
+  async function run(show,full,names,imgs){
+    imgs=imgs||[];if(busy)return;
+    busy=true;skip=false;streaming=true;
+    ctrl=new AbortController();
+    setGo(1);
+    log.querySelectorAll("[data-regen]").forEach(x=>x.remove());
+    $("hero").style.display="none";
+    log.querySelectorAll(".ed").forEach(x=>x.remove());
+    const ub=addU(show,names,imgs);
     const t0=Date.now();
     const cheap=full.trim().length<60||tokensOut();
     const baseUsed=getTokens().used;
-    const d=addA(),body=d.firstChild,c=startChip(d.lastChild);down(1);
-    let thinkEl=null;
-    const onThought=th=>{if(!thinkEl){thinkEl=document.createElement("details");thinkEl.className="think";thinkEl.innerHTML='<summary>Thinking…</summary><div class="think-body"></div>';d.insertBefore(thinkEl,body)}
-      thinkEl.querySelector(".think-body").textContent=th};
+
+    const d=addA();
+    const body=d.querySelector(".body");
+    const chip=d.querySelector(".status-chip");
+    const c=startChip(chip);
+    down(1);
+
+    let hadThought=false;
+    const onThought=th=>{
+      hadThought=true;
+      thinkUpdate(d,th);
+    };
+
     const search=needsSearch(show)&&!tokensOut(),meta={src:[],sep:""};
     const tw=typer(body,cheap);
-    try{let out;const emit=x=>{c.write();tw.set(x);paintBar(baseUsed+Math.round(x.length/4),0)};
+    try{
+      let out;
+      const emit=x=>{c.write();tw.set(x);paintBar(baseUsed+Math.round(x.length/4),0)};
       if(!WORKER_URL)throw{code:"nowork"};
       const msgs=[{role:"system",content:SYS()},...api(hist,imgs.length===0),imgs.length?{role:"user",content:full,images:imgs}:{role:"user",content:full}];
       try{out=await workerStream(msgs,emit,ctrl.signal,cheap||$("mode").value==="Fast",onThought,search,meta)}
       catch(e1){if(e1&&e1.code==="empty"&&!ctrl.signal.aborted){toast("Retrying…");out=await workerStream(msgs,emit,ctrl.signal,cheap||$("mode").value==="Fast",onThought,search,meta)}else throw e1}
-      out=out||(skip?"(stopped)":"(empty response)");streaming=false;await tw.finish(out);setH(body,md(out));addGround(d,meta.src,meta.sep.length<=6000?meta.sep:"");
+      out=out||(skip?"(stopped)":"(empty response)");
+      streaming=false;
+      await tw.finish(out);
+      setH(body,md(out));
+      addGround(d,meta.src,meta.sep.length<=6000?meta.sep:"");
       const secs=((Date.now()-t0)/1000).toFixed(1);
-      if(thinkEl)thinkEl.querySelector("summary").textContent="Thought for "+secs+"s";
+
+      thinkFinish(d,secs,hadThought);
+
       const acts=document.createElement("div");acts.className="acts";acts.innerHTML=actsHTML(false);d.appendChild(acts);
       const rt=document.createElement("div");rt.className="rt";rt.textContent="responded in "+secs+"s";d.appendChild(rt);addEdit(ub);
       if(!cur){cur={id:Date.now().toString(36),title:(show||names[0]).replace(/\s+/g," ").slice(0,40),msgs:hist,ts:Date.now()};chats.unshift(cur)}
       cur.ts=Date.now();
-      hist.push({role:"user",content:full,show,att:names,imgs:imgs.length?imgs:undefined},{role:"assistant",content:out,src:meta.src,sep:meta.sep.length<=6000?meta.sep:""});if(hist.length>60)hist.splice(0,hist.length-60);chats=[cur,...chats.filter(x=>x!==cur)];save();c.done()}
-    catch(e){streaming=false;tw.kill();c.stop();
+      hist.push({role:"user",content:full,show,att:names,imgs:imgs.length?imgs:undefined},{role:"assistant",content:out,src:meta.src,sep:meta.sep.length<=6000?meta.sep:""});
+      if(hist.length>60)hist.splice(0,hist.length-60);
+      chats=[cur,...chats.filter(x=>x!==cur)];
+      save();
+      c.done();
+    }catch(e){
+      streaming=false;tw.kill();c.stop();
       if(e&&e.name==="AbortError"){body.innerHTML='<span class="err">(stopped)</span>'}
-      else{if(e&&e.code!=="na"){t.value=show;t.dispatchEvent(new Event("input"))}
+      else{
+        if(e&&e.code!=="na"){t.value=show;t.dispatchEvent(new Event("input"))}
         const msg=(e&&ERR[e.code])||("Failed: "+(e&&e.info||e&&e.message||"network problem")+". Your message is back in the box.");
-        body.innerHTML='<span class="err"></span>';body.firstChild.textContent=msg}}
-    busy=false;ctrl=null;setGo(0);syncPill();down()}
+        body.innerHTML='<span class="err"></span>';body.firstChild.textContent=msg;
+      }
+      thinkFinish(d,"0",hadThought);
+    }
+    busy=false;ctrl=null;setGo(0);syncPill();down();
+  }
 
   $("f").onsubmit=e=>{e.preventDefault();if(busy){skip=true;if(ctrl)ctrl.abort();return}const v=t.value;t.value="";t.style.height="auto";send(v)};
 
@@ -394,8 +482,20 @@ function boot(){
   const closeD=()=>{$("drawer").classList.remove("on");$("scrim").classList.remove("on")};
   function newChat(){if(busy){toast("Wait for the reply");return}cur=null;hist=[];log.innerHTML="";$("hero").style.display="";closeD();t.focus()}
   function openChat(id){if(busy){toast("Wait for the reply");return}const c=chats.find(x=>x.id===id);if(!c)return;cur=c;hist=c.msgs;log.innerHTML="";$("hero").style.display="none";
-    c.msgs.forEach((m,i)=>{if(m.role==="user")addU(m.show??m.content,m.att,m.imgs,m.nimg);else{const d=addA();d.lastChild.remove();setH(d.firstChild,md(m.content));addGround(d,m.src,m.sep);const acts=document.createElement("div");acts.className="acts";acts.innerHTML=actsHTML(i!==c.msgs.length-1);d.appendChild(acts)}});
-    const us=log.querySelectorAll(".u");if(c.msgs.length>=2&&c.msgs[c.msgs.length-1].role==="assistant"&&us.length)addEdit(us[us.length-1]);closeD();down(1)}
+    c.msgs.forEach((m,i)=>{
+      if(m.role==="user"){addU(m.show??m.content,m.att,m.imgs,m.nimg)}
+      else{
+        const d=addA();
+        const sc=d.querySelector(".status-chip");if(sc)sc.remove();
+        const tl=d.querySelector(".think-live");if(tl)tl.remove();
+        setH(d.querySelector(".body"),md(m.content));
+        addGround(d,m.src,m.sep);
+        const acts=document.createElement("div");acts.className="acts";acts.innerHTML=actsHTML(i!==c.msgs.length-1);d.appendChild(acts);
+      }
+    });
+    const us=log.querySelectorAll(".u");
+    if(c.msgs.length>=2&&c.msgs[c.msgs.length-1].role==="assistant"&&us.length)addEdit(us[us.length-1]);
+    closeD();down(1)}
   function delChat(id){if(busy){toast("Wait for the reply");return}if(!confirm("Delete this chat?"))return;const c=chats.find(x=>x.id===id);chats=chats.filter(x=>x.id!==id);save();cloudDelete(id);if(c===cur){cur=null;hist=[];log.innerHTML="";$("hero").style.display=""}renderList()}
   function renderList(){const l=$("list");l.innerHTML="";const q=(($("q")&&$("q").value)||"").trim().toLowerCase();
     let arr=chats.filter(c=>!q||c.title.toLowerCase().includes(q)||c.msgs.some(m=>(m.show||m.content||"").toLowerCase().includes(q)));
@@ -505,5 +605,4 @@ function boot(){
   if(new URLSearchParams(location.search).get("auth")){openAuth("signin");history.replaceState(null,"",location.pathname)}
 }
 
-/* ============ RUN ============ */
 if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",boot);}else{boot();}
