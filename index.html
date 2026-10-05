@@ -126,11 +126,6 @@ nav .wrap{display:flex;align-items:center;justify-content:space-between;height:6
 :root[data-theme="light"] .btn.pri:hover{background:#000;box-shadow:0 0 30px rgba(0,0,0,.15)}
 .btn.sec{background:none}
 .btn.sm{padding:8px 16px;font-size:14px}
-.btn.acc{
-  background:var(--acc);color:#fff;border-color:var(--acc);
-  box-shadow:0 0 24px var(--acc-glow);
-}
-.btn.acc:hover{background:#e88562;border-color:#e88562;box-shadow:0 0 34px var(--acc-glow)}
 
 /* ===== hero ===== */
 .hero{position:relative;padding:80px 0 40px;text-align:center;isolation:isolate}
@@ -362,18 +357,77 @@ footer a:hover{color:var(--ink)}
 .foot-links{display:flex;gap:20px;flex-wrap:wrap}
 .foot-links a{color:var(--dim);transition:color .2s}
 
-/* ===== responsive ===== */
+/* ===== responsive — MOBILE ===== */
 @media(max-width:640px){
-  .hero{padding-top:56px}
-  section{padding:64px 0}
+  .hero{padding:34px 0 20px}
+  h1{font-size:clamp(30px,7.8vw,42px);margin:18px auto 14px;letter-spacing:-.04em}
+  .pill{padding:6px 12px;font-size:12.5px}
+  .sub{font-size:15px;margin-bottom:22px;line-height:1.5}
+  .cta{flex-direction:column;gap:10px;width:100%;max-width:340px;margin:0 auto}
+  .cta .btn{width:100%;justify-content:center;font-size:15.5px;padding:13px 20px}
+  .note{font-size:12.5px;margin-top:12px;line-height:1.5}
+  .demo{margin-top:30px;border-radius:18px}
+  .dh{padding:11px 14px}
+  .dh span{font-size:11.5px}
+  .chat{padding:16px;min-height:220px;gap:12px}
+  .u{font-size:14px;padding:9px 14px}
+  .a{font-size:14.5px}
+
+  section{padding:52px 0}
+  section.tight{padding:40px 0}
+  h2{font-size:clamp(24px,6.4vw,32px);line-height:1.15}
+  .lead{font-size:15px;margin-bottom:28px}
+  .eyebrow{font-size:11.5px;margin-bottom:10px}
+
+  .strip{padding:20px 0}
+  .strip p{font-size:10.5px;margin-bottom:12px}
+  .strip-row{gap:8px 22px}
+  .strip-row span{font-size:13px}
+
+  .use{grid-template-columns:28px 1fr;gap:12px;padding:14px 16px;border-radius:14px}
+  .use .num{font-size:12px}
+  .use .txt b{font-size:15px;margin-bottom:2px}
+  .use .txt span{font-size:13.5px;line-height:1.5}
+  .use .arr{display:none}
+
+  .steps{grid-template-columns:1fr;gap:12px}
+  .step{padding:20px 18px;border-radius:16px}
+  .step h3{font-size:16.5px}
+
+  .grid{gap:10px}
+  .card{padding:18px;border-radius:16px}
+  .card h3{font-size:16.5px}
+  .card p{font-size:14px}
+  .card .ci{width:38px;height:38px;border-radius:11px;margin-bottom:14px}
+
+  details.qa summary{padding:15px 18px;font-size:14.5px}
+  details.qa .answer{padding:0 18px 18px;font-size:13.5px}
+
+  .band{padding:32px 20px;border-radius:22px;margin:10px 0 40px}
+  .band h2{font-size:24px;margin-bottom:10px}
+  .band p{font-size:14.5px;margin-bottom:22px}
+  .band .cta{flex-direction:column;max-width:320px}
+  .band .btn{width:100%;justify-content:center;font-size:15px !important;padding:13px 22px !important}
+
+  footer{padding:26px 0 40px}
+  footer .wrap{flex-direction:column;align-items:flex-start;gap:16px}
+  .foot-links{gap:14px}
+
   .nr .btn.sec{display:none}
   .nr .btn{padding:8px 14px;font-size:13.5px}
-  .use{grid-template-columns:32px 1fr;gap:12px}
-  .use .arr{display:none}
-  .dh{padding:11px 14px}
-  .chat{padding:18px;min-height:250px}
-  .demo{margin-top:40px}
+  .nr .ic{width:36px;height:36px}
+  .logo{font-size:18px}
 }
+
+/* very small phones */
+@media(max-width:380px){
+  h1{font-size:28px}
+  .sub{font-size:14.5px}
+  .cta .btn{font-size:15px;padding:12px 18px}
+  .chat{min-height:190px;padding:14px}
+  section{padding:44px 0}
+}
+
 @media(prefers-reduced-motion:reduce){
   *{animation:none!important;scroll-behavior:auto!important;transition:none!important}
 }
@@ -744,7 +798,6 @@ footer a:hover{color:var(--ink)}
       await type($("dq"), s.q);
       await wait(300);
 
-      // orange spark chip
       $("da").innerHTML =
         '<div class="chip">' + SPARK + '<span class="sh">' + stages[0] + '</span></div>';
       const label = $("da").querySelector(".sh");
@@ -758,7 +811,6 @@ footer a:hover{color:var(--ink)}
       await wait(1800);
       clearInterval(cyc);
 
-      // type answer
       $("da").innerHTML = '<p style="margin:0" id="dp"></p>';
       await type($("dp"), s.a);
 
