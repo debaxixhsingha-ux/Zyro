@@ -1,4 +1,4 @@
-const WORKER_URL="https://zyro-ai.debaxixhsingha.workers.dev/"; // your Cloudflare Worker (visitors need no keys)
+const WORKER_URL="https://zyro-ai.debaxixhsingha.workers.dev/";
 const TOKEN_KEY="zyro_tokens";
 const FEEDBACK_KEY="zyro_feedback";
 const TOTAL=100000;
@@ -20,20 +20,28 @@ function updateTokenUI(){const d=getTokens();paintBar(d.used,d.last);
  applyLimits()}
 function applyLimits(){const out=tokensOut();
  const th=$("mode").querySelector("option[value=Thinking]");if(th)th.disabled=out;
- const up=$("upb");if(up)up.disabled=out;
+ const up=$("upb");if(up)up.disabled=out;const ib=$("imb");if(ib)ib.disabled=out;
  if(out&&$("mode").value==="Thinking")$("mode").value="Fast"}
 function getFeedback(){try{return JSON.parse(localStorage.getItem(FEEDBACK_KEY)||"[]")}catch(_){return[]}}
 function addFeedback(msgId,action){const fb=getFeedback();fb.push({id:msgId,action,time:Date.now()});try{localStorage.setItem(FEEDBACK_KEY,JSON.stringify(fb))}catch(_){}}
 const MODES={Fast:"Quick short answer, minimal thinking.",Auto:"Balanced speed and depth.",Thinking:"Deep analysis, long detailed answer."};
-const SOON=["Add image","Connect GitHub","Voice input"];
+const SOON=["Connect GitHub","Voice input"];
 const STAGES=["Thinking","Analyzing","Planning"];
+const STUDY={Chat:"",Solver:"STUDY MODE Solver: solve the problem step by step with clear numbered steps, show the formulas you use, put the final answer in bold, and finish with one line naming the key concept.",Socratic:"STUDY MODE Socratic tutor: do NOT give the final answer straight away. Guide the student with one short question or hint at a time, check their reasoning, and reveal the answer only if they ask for it or are stuck twice.",Exam:"STUDY MODE Exam prep: ask ONE question at a time on the topic the student names (a mix of multiple-choice and short answer), wait for their answer, mark it correct or incorrect with a brief explanation, then ask the next one. After 5 questions give the score and the weak topics."};
+const QUICK=[["Explain this code","Explain this code step by step:\n\n","Chat"],["Fix my error","Fix this error and explain what caused it:\n\n","Chat"],["Solve a problem","","Solver"],["Quiz me","Quiz me on ","Exam"],["Teach me step by step","Teach me ","Socratic"],["Notes from my PDF","Make short revision notes from the attached PDF.","Chat",1],["Viva questions","Give me 10 viva questions with short answers on ","Chat"],["Build a web page","Build a web page for ","Chat"]];
 let skip=false,ctrl=null,hist=[],busy=false,sample=null,streaming=false;
 const $=id=>document.getElementById(id),log=$("log"),t=$("t"),go=$("go"),main=$("main");
 const esc=s=>s.replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
 Object.keys(MODES).forEach(m=>$("mode").add(new Option(m)));
 $("mode").value="Auto";
+[["Chat","Chat"],["Solver","Solver"],["Socratic","Socratic"],["Exam","Exam prep"]].forEach(([v,l])=>$("study").add(new Option(l,v)));
+try{const sv=localStorage.getItem("zyro_study");if(sv&&STUDY[sv]!==undefined)$("study").value=sv}catch(_){}
+$("study").onchange=()=>{try{localStorage.setItem("zyro_study",$("study").value)}catch(_){}};
+QUICK.forEach(([label,pre,st,pdf])=>{const b=document.createElement("button");b.type="button";b.textContent=label;
+ b.onclick=()=>{$("study").value=st;try{localStorage.setItem("zyro_study",st)}catch(_){}t.value=pre;t.dispatchEvent(new Event("input"));t.focus();t.setSelectionRange(t.value.length,t.value.length);if(pdf)$("file").click()};$("chips").appendChild(b)});
 {const b=document.createElement("button");b.id="cib";b.type="button";b.innerHTML="<span>Instructions</span><em>"+(getCI()?"On":"Add")+"</em>";b.onclick=()=>{$("ci").value=getCI();$("modal").classList.add("on")};$("menu").appendChild(b)}
 {const b=document.createElement("button");b.id="upb";b.type="button";b.innerHTML="<span>Upload file or PDF</span><em>Code, PDF</em>";b.onclick=()=>$("file").click();$("menu").appendChild(b)}
+{const b=document.createElement("button");b.id="imb";b.type="button";b.innerHTML="<span>Add image</span><em>Photo</em>";b.onclick=()=>$("img").click();$("menu").appendChild(b)}
 SOON.forEach(s=>{const b=document.createElement("button");b.type="button";b.innerHTML=`<span>${s}</span><em>Soon</em>`;b.onclick=()=>{toast(s+" is coming soon");$("menu").classList.remove("open")};$("menu").appendChild(b)});
 $("plus").onclick=e=>{e.stopPropagation();const cb=$("cib");if(cb)cb.lastChild.textContent=getCI()?"On":"Add";$("menu").classList.toggle("open")};
 document.addEventListener("click",()=>$("menu").classList.remove("open"));
@@ -69,14 +77,19 @@ function typeset(root){if(!window.katex||streaming)return;root.querySelectorAll(
 function setH(el,h){el.innerHTML=h;typeset(el)}
 function typesetAll(){typeset(document)}
 function md(src){let h="";src.split(/```/).forEach((p,i)=>{if(i%2){const nl=p.indexOf("\n"),l=nl>-1?p.slice(0,nl).trim():"",c=nl>-1?p.slice(nl+1):p;
- h+=`<div class="cb"><div class="ch"><span>${esc(l||"code")}</span><span>${/^html?$/i.test(l)||(!l&&/<!doctype|<html/i.test(c))?'<button type="button" data-p>Preview</button>':''}<button type="button" data-c>Copy</button></span></div><pre>${hl(c.replace(/\n$/,""),l)}</pre></div>`}
+ const code=c.replace(/\n$/,""),ln=code.split("\n").length,isH=/^html?$/i.test(l)||(!l&&/<!doctype|<html/i.test(c)),rn=/^(js|javascript|node|mjs)$/i.test(l)?"js":/^(py|python|python3)$/i.test(l)?"py":"";
+ h+=`<div class="cb col" data-lang="${escA(l)}"><div class="ch"><span>${esc(l||"code")}</span><span>${rn?'<button type="button" data-run="'+rn+'">Run</button>':''}${isH?'<button type="button" data-p>Preview</button>':''}<button type="button" data-c>Copy</button><button type="button" class="more" data-v>\u2922 Expand</button></span></div><pre>${hl(code,l)}</pre></div>`}
  else h+=txt(p)});return h}
 function liteMd(src){let h="";const parts=src.split(/```/);
  for(let i=0;i<parts.length;i++){const p=parts[i];
-  if(i%2){const nl=p.indexOf("\n"),c=nl>-1?p.slice(nl+1):p;h+='<div class="cb"><pre>'+esc(c)+'</pre></div>'}
+  if(i%2){const nl=p.indexOf("\n"),c=nl>-1?p.slice(nl+1):p;h+='<div class="cb live col"><pre>'+esc(c)+'</pre></div>'}
   else{p.split(/\n{2,}/).forEach(bl=>{const s=bl.trim();if(s)h+='<p>'+esc(s).replace(/\n/g,"<br>")+'</p>'})}}
  return h}
-function addU(txt,names){const d=document.createElement("div");d.className="u";const b=document.createElement("div");b.textContent=txt;if(names&&names.length){const f=document.createElement("div");f.className="fl";f.textContent="\u{1F4CE} "+names.join(", ");b.appendChild(f)}d.appendChild(b);log.appendChild(d)}
+function fillBubble(b,txt,names,imgs,nimg){b.textContent=txt;
+ if(imgs&&imgs.length){const w=document.createElement("div");w.className="th";imgs.forEach(im=>{const i=document.createElement("img");i.alt="attached image";i.src="data:"+im.mime+";base64,"+im.data;w.appendChild(i)});b.appendChild(w)}
+ else if(nimg){const f=document.createElement("div");f.className="fl";f.textContent="\u{1F5BC} "+nimg+" image"+(nimg>1?"s":"")+" (not saved)";b.appendChild(f)}
+ if(names&&names.length){const f=document.createElement("div");f.className="fl";f.textContent="\u{1F4CE} "+names.join(", ");b.appendChild(f)}}
+function addU(txt,names,imgs,nimg){const d=document.createElement("div");d.className="u";const b=document.createElement("div");fillBubble(b,txt,names,imgs,nimg);d.appendChild(b);log.appendChild(d);return d}
 function addA(){const msgId=Date.now().toString(36);const d=document.createElement("div");d.className="a";d.dataset.msgId=msgId;d.innerHTML='<div class="body"></div><div class="status-chip" role="status"></div>';log.appendChild(d);return d}
 let follow=true;
 const distB=()=>main.scrollHeight-main.scrollTop-main.clientHeight;
@@ -102,6 +115,9 @@ function copy(txt,btn){const ok=()=>{btn.textContent="Copied";setTimeout(()=>btn
  const fb=()=>{const a=document.createElement("textarea");a.value=txt;a.style.cssText="position:fixed;opacity:0";document.body.appendChild(a);a.select();try{document.execCommand("copy");ok()}catch(_){}a.remove()};
  navigator.clipboard?navigator.clipboard.writeText(txt).then(ok).catch(fb):fb()}
 log.addEventListener("click",e=>{
+ const vw=e.target.closest("[data-v]");if(vw)return toggleCode(vw.closest(".cb"));
+ const rb=e.target.closest("[data-run]");if(rb)return runCode(rb.closest(".cb"),rb.dataset.run,rb);
+ const eb=e.target.closest("[data-edit]");if(eb)return startEdit(eb.closest(".u"));
  const cb=e.target.closest("[data-c]");if(cb)return copy(cb.closest(".cb").querySelector("pre").textContent,cb);
  const pv=e.target.closest("[data-p]");if(pv){$("pvf").srcdoc=pv.closest(".cb").querySelector("pre").textContent;$("pv").classList.add("on");return}
  const rg=e.target.closest("[data-regen]");
@@ -111,8 +127,8 @@ log.addEventListener("click",e=>{
 const todayStr=()=>new Date().toLocaleDateString("en",{weekday:"long",year:"numeric",month:"long",day:"numeric"});
 const needsSearch=s=>/\b(latest|newest|recent(ly)?|today|tonight|yesterday|tomorrow|this (week|month|year)|news|released?|launch(ed|es)?|new version|prices?|score|weather|who (is|won)|what'?s new|trending|202[4-9]|203\d)\b/i.test(s)||(/\b(claude|chatgpt|gpt-?\d+|openai|anthropic|gemini|grok|deepseek|llama|qwen|mistral|nvidia|iphone|pixel|galaxy|react|next\.?js|python)\b/i.test(s)&&/\b(models?|versions?|releases?|new|newest|latest|vs|versus|compare|comparison|pricing|price|available|exists?|sonnet|opus|haiku|\d+(\.\d+)?)\b/i.test(s));
 function appFacts(){const d=getTokens(),pct=Math.min(100,Math.round(d.used/TOTAL*100)),out=tokensOut();
- return "Today's date is "+todayStr()+". Your built-in knowledge ends before today, so you may not know newer products, model versions or events: never insist that old information is current, and never say something new doesn't exist just because you don't recognise it. If search results are provided, rely on them; if not and the topic is recent, say you may be out of date. Never claim to be another company's assistant; if asked which model powers you, say you are Zyro and don't know the exact model. About this app (answer how-it-works questions only from these facts, and say you are not sure about anything else): users attach up to 3 files per message with the + button (PDF, code or text files up to 8 MB, each trimmed to 12,000 characters); images are not supported yet. There is a daily token meter of 100,000 tokens (used so far today: "+d.used.toLocaleString()+", "+pct+"%). When it is full, file uploads, Thinking mode and building web pages are paused until it refills the next day, while short chats in Fast mode still work. Right now uploads are "+(out?"PAUSED because the meter is full":"ON")+". If the server is very busy a reply can fail with a 'busy' message and work again after a minute. If the user asks why they can't send a file or message, explain using these facts and do not guess other reasons."}
-const SYS=()=>`You are Zyro, a friendly expert AI assistant for ANY topic: coding, AI/ML, B.Tech subjects, writing, ideas, studies, plans, daily advice, fun. Mode: ${$("mode").value}. ${MODES[$("mode").value]} ${appFacts()} IMPORTANT: if the user's message is only a greeting (hi, hey, hello, yo, good morning, how are you, etc.), reply with exactly ONE short friendly sentence introducing yourself as Zyro — never list features, subjects or abilities. Put all code in fenced blocks with a language tag. Write math in LaTeX using $...$ inline and $$...$$ for display. For any web page or UI request, give one complete self-contained HTML file with inline CSS and JS in a single html code block. For product, fashion, food or storefront websites, use real photos from https://picsum.photos/seed/WORD/600/800 (use a different WORD for each item) inside clean cards with names and prices. Never invent other image URLs, and never represent products with abstract 3D shapes or colored boxes.${getCI()?" The user's custom instructions: "+getCI().slice(0,1500):""}`;
+ return "Today's date is "+todayStr()+". Your built-in knowledge ends before today, so you may not know newer products, model versions or events: never insist that old information is current, and never say something new doesn't exist just because you don't recognise it. If search results are provided, rely on them; if not and the topic is recent, say you may be out of date. Never claim to be another company's assistant; if asked which model powers you, say you are Zyro and don't know the exact model. About this app (answer how-it-works questions only from these facts, and say you are not sure about anything else): users attach up to 3 files or images per message with the + button (PDF, code or text files up to 8 MB, each trimmed to 12,000 characters; images are JPG, PNG or WebP and are shrunk before sending). A selector next to the mode picker switches study modes: Chat, Solver, Socratic and Exam prep. Python and JavaScript code blocks have a Run button, and code blocks are collapsible with an Expand button. The last message can be edited with the pencil icon, and chats can be searched and pinned in the sidebar. There is a daily token meter of 100,000 tokens (used so far today: "+d.used.toLocaleString()+", "+pct+"%). When it is full, file uploads, Thinking mode and building web pages are paused until it refills the next day, while short chats in Fast mode still work. Right now uploads are "+(out?"PAUSED because the meter is full":"ON")+". If the server is very busy a reply can fail with a 'busy' message and work again after a minute. If the user asks why they can't send a file or message, explain using these facts and do not guess other reasons."}
+const SYS=()=>`You are Zyro, a friendly expert AI assistant for ANY topic: coding, AI/ML, B.Tech subjects, writing, ideas, studies, plans, daily advice, fun. Mode: ${$("mode").value}. ${MODES[$("mode").value]} ${appFacts()} ${STUDY[$("study").value]||""} IMPORTANT: if the user's message is only a greeting (hi, hey, hello, yo, good morning, how are you, etc.), reply with exactly ONE short friendly sentence introducing yourself as Zyro — never list features, subjects or abilities. Put all code in fenced blocks with a language tag. Write math in LaTeX using $...$ inline and $$...$$ for display. For any web page or UI request, give one complete self-contained HTML file with inline CSS and JS in a single html code block. For product, fashion, food or storefront websites, use real photos from https://picsum.photos/seed/WORD/600/800 (use a different WORD for each item) inside clean cards with names and prices. Never invent other image URLs, and never represent products with abstract 3D shapes or colored boxes.${getCI()?" The user's custom instructions: "+getCI().slice(0,1500):""}`;
 function addGround(d,src,sep){const ok=(src||[]).filter(x=>x&&/^https?:\/\//i.test(x.uri));if(!ok.length&&!sep)return;
  const w=document.createElement("div");w.className="ground";
  if(ok.length){const s=document.createElement("div");s.className="srcs";const l=document.createElement("span");l.textContent="Sources";s.appendChild(l);
@@ -148,7 +164,7 @@ async function workerStream(messages,onText,signal,fast,onThought,search,meta){
 function typer(body,cheap){let target="",shown=0,tm=0,fin=false,res=null,lastDraw=0;
  const fast=cheap||$("mode").value==="Fast";
  const draw=force=>{const now=performance.now();if(!force&&now-lastDraw<180)return;lastDraw=now;
-  setH(body,withCaret(liteMd(target.slice(0,shown))));down()};
+  setH(body,withCaret(liteMd(target.slice(0,shown))));body.querySelectorAll(".cb.live pre").forEach(p=>{p.scrollTop=p.scrollHeight});down()};
  function tick(){tm=0;const back=target.length-shown;
   if(back<=0){if(fin&&res)res();return}
   if(skip){shown=target.length;draw(true);if(fin&&res)res();return}
@@ -165,20 +181,23 @@ function typer(body,cheap){let target="",shown=0,tm=0,fin=false,res=null,lastDra
  return{set(x){target=x;if(!tm)tm=setTimeout(tick,0)},
   finish(x){target=x;fin=true;return new Promise(r=>{res=r;if(!tm)tm=setTimeout(tick,0)})},
   kill(){clearTimeout(tm);tm=0}}}
-const api=h=>{const out=[];let n=0;for(let i=h.length-1;i>=0&&out.length<20;i--){const c=h[i].content||"";if(out.length&&n+c.length>30000)break;n+=c.length;out.unshift({role:h[i].role,content:c})}
- while(out.length&&out[0].role!=="user")out.shift();return out};
-function send(text){const files=pending.slice();if(busy||(!text.trim()&&!files.length))return;
+const api=(h,keep)=>{const out=[];let n=0;for(let i=h.length-1;i>=0&&out.length<20;i--){const c=h[i].content||"";if(out.length&&n+c.length>30000)break;n+=c.length;out.unshift({role:h[i].role,content:c,imgs:h[i].imgs})}
+ while(out.length&&out[0].role!=="user")out.shift();
+ let seen=keep===false;for(let i=out.length-1;i>=0;i--){if(!seen&&out[i].imgs&&out[i].imgs.length)seen=true;else delete out[i].imgs}
+ return out.map(m=>m.imgs?{role:m.role,content:m.content,images:m.imgs}:{role:m.role,content:m.content})};
+function send(text){const items=pending.slice();if(busy||(!text.trim()&&!items.length))return;
+ const files=items.filter(f=>!f.img),imgs=items.filter(f=>f.img).map(f=>f.img);
  const out=tokensOut();
- if(out&&files.length){toast("Tokens are out — uploads are off until tomorrow");pending=[];renderAtts();return}
+ if(out&&items.length){toast("Tokens are out — uploads are off until tomorrow");pending=[];renderAtts();t.value=text;t.dispatchEvent(new Event("input"));return}
  applyLimits();
- const show=text.trim()||"Review the attached file.";
+ const show=text.trim()||(imgs.length&&!files.length?"Describe this image.":imgs.length?"Review the attached files.":"Review the attached file.");
  if(out&&/\b(make|build|create|design|generate|develop)\b/i.test(show)){
   $("hero").style.display="none";addU(show);
   const d=addA();d.lastChild.remove();
   setH(d.firstChild,md("I'm sorry, your tokens are out for today ⚡\n\nEverything refills tomorrow at the same time. Until then, quick chats in Fast mode still work — but building, uploads and Thinking mode are paused."));
   return}
  const full=show+files.map(f=>"\n\n--- "+f.name+" ---\n"+f.text).join("");
- pending=[];renderAtts();return run(show,full,files.map(f=>f.name))}
+ pending=[];renderAtts();return run(show,full,files.map(f=>f.name),imgs)}
 function actsHTML(noRegen){return '<button type="button" data-like title="Helpful">'+THUMB_UP+'</button><button type="button" data-dislike title="Not helpful">'+THUMB_DOWN+'</button>'+(noRegen?'':'<button type="button" data-regen>\u21bb Regenerate</button>')}
 const ERR={
  nowork:"The server address isn't set. Add your Worker URL as WORKER_URL in app.js.",
@@ -187,8 +206,8 @@ const ERR={
  big:"That message or file is too large. Try a smaller one.",
  empty:"Zyro sent back nothing (the reply may have been blocked). Try rephrasing.",
  net:"Can't reach the server. Check your connection and retry."};
-async function run(show,full,names){if(busy)return;busy=true;skip=false;streaming=true;ctrl=new AbortController();setGo(1);log.querySelectorAll("[data-regen]").forEach(x=>x.remove());
- $("hero").style.display="none";addU(show,names);
+async function run(show,full,names,imgs){imgs=imgs||[];if(busy)return;busy=true;skip=false;streaming=true;ctrl=new AbortController();setGo(1);log.querySelectorAll("[data-regen]").forEach(x=>x.remove());
+ $("hero").style.display="none";log.querySelectorAll(".ed").forEach(x=>x.remove());const ub=addU(show,names,imgs);
  const t0=Date.now();
  const cheap=full.trim().length<60||tokensOut();
  const baseUsed=getTokens().used;
@@ -200,19 +219,19 @@ const search=needsSearch(show)&&!tokensOut(),meta={src:[],sep:""};
 const tw=typer(body,cheap);try{let out;const emit=x=>{c.write();tw.set(x);paintBar(baseUsed+Math.round(x.length/4),0)};
   if(typeof claude==="undefined"){
    if(!WORKER_URL)throw{code:"nowork"};
-   const msgs=[{role:"system",content:SYS()},...api(hist),{role:"user",content:full}];
+   const msgs=[{role:"system",content:SYS()},...api(hist,imgs.length===0),imgs.length?{role:"user",content:full,images:imgs}:{role:"user",content:full}];
    out=await workerStream(msgs,emit,ctrl.signal,cheap||$("mode").value==="Fast",onThought,search,meta)}
   else{if(!sample)sample=await claude.use("sample").catch(()=>null);
    if(!sample)throw{code:"na"};
-   const r=await sample([...api(hist),{role:"user",content:"["+SYS()+"]\n\n"+full}],{cache:false,modelTier:"default",onText:({text})=>emit(text)});out=r.text}
+   const r=await sample([...api(hist).map(({role,content})=>({role,content})),{role:"user",content:"["+SYS()+"]\n\n"+full}],{cache:false,modelTier:"default",onText:({text})=>emit(text)});out=r.text}
   out=out||(skip?"(stopped)":"(empty response)");streaming=false;await tw.finish(out);setH(body,md(out));addGround(d,meta.src,meta.sep.length<=6000?meta.sep:"");
   const secs=((Date.now()-t0)/1000).toFixed(1);
   if(thinkEl)thinkEl.querySelector("summary").textContent="Thought for "+secs+"s";
   const acts=document.createElement("div");acts.className="acts";acts.innerHTML=actsHTML(false);d.appendChild(acts);
-  const rt=document.createElement("div");rt.className="rt";rt.textContent="responded in "+secs+"s";d.appendChild(rt);
+  const rt=document.createElement("div");rt.className="rt";rt.textContent="responded in "+secs+"s";d.appendChild(rt);addEdit(ub);
   if(!cur){cur={id:Date.now().toString(36),title:(show||names[0]).replace(/\s+/g," ").slice(0,40),msgs:hist,ts:Date.now()};chats.unshift(cur)}
   cur.ts=Date.now();
-  hist.push({role:"user",content:full,show,att:names},{role:"assistant",content:out,src:meta.src,sep:meta.sep.length<=6000?meta.sep:""});if(hist.length>60)hist.splice(0,hist.length-60);chats=[cur,...chats.filter(x=>x!==cur)];save();c.done()}
+  hist.push({role:"user",content:full,show,att:names,imgs:imgs.length?imgs:undefined},{role:"assistant",content:out,src:meta.src,sep:meta.sep.length<=6000?meta.sep:""});if(hist.length>60)hist.splice(0,hist.length-60);chats=[cur,...chats.filter(x=>x!==cur)];save();c.done()}
  catch(e){streaming=false;tw.kill();c.stop();
   if(e&&e.name==="AbortError"){body.innerHTML='<span class="err">(stopped)</span>'}
   else{const na=e&&e.code==="na";if(!na){t.value=show;t.dispatchEvent(new Event("input"))}
@@ -222,7 +241,9 @@ const tw=typer(body,cheap);try{let out;const emit=x=>{c.write();tw.set(x);paintB
 $("f").onsubmit=e=>{e.preventDefault();if(busy){skip=true;if(ctrl)ctrl.abort();return}const v=t.value;t.value="";t.style.height="auto";send(v)};
 const CK="zyro_chats";let chats=[],cur=null;
 try{chats=JSON.parse(localStorage.getItem(CK)||"[]")}catch(_){chats=[]}
-const save=()=>{chats=chats.slice(0,40);for(;;){try{localStorage.setItem(CK,JSON.stringify(chats));return}catch(_){if(chats.length<=1)return;chats.pop()}}};
+const save=()=>{chats=[...chats.filter(c=>c.pin),...chats.filter(c=>!c.pin)].slice(0,40);
+ chats.forEach(c=>{let seen=false;for(let i=c.msgs.length-1;i>=0;i--){const m=c.msgs[i];if(m.imgs&&m.imgs.length){if(seen){m.nimg=m.imgs.length;delete m.imgs}else seen=true}}});
+ for(;;){try{localStorage.setItem(CK,JSON.stringify(chats));return}catch(_){if(chats.length<=1)return;chats.pop()}}};
 function fmtDate(ts){if(!ts)return"";const d=new Date(ts),now=new Date();
  const hms=String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0");
  if(d.toDateString()===now.toDateString())return"Today "+hms;
@@ -233,24 +254,31 @@ const openD=()=>{renderList();markTh();updateTokenUI();$("drawer").classList.add
 const closeD=()=>{$("drawer").classList.remove("on");$("scrim").classList.remove("on")};
 function newChat(){if(busy){toast("Wait for the reply");return}cur=null;hist=[];log.innerHTML="";$("hero").style.display="";closeD();t.focus()}
 function openChat(id){if(busy){toast("Wait for the reply");return}const c=chats.find(x=>x.id===id);if(!c)return;cur=c;hist=c.msgs;log.innerHTML="";$("hero").style.display="none";
- c.msgs.forEach((m,i)=>{if(m.role==="user")addU(m.show??m.content,m.att);else{const d=addA();d.lastChild.remove();setH(d.firstChild,md(m.content));addGround(d,m.src,m.sep);const acts=document.createElement("div");acts.className="acts";acts.innerHTML=actsHTML(i!==c.msgs.length-1);d.appendChild(acts)}});closeD();down(1)}
+ c.msgs.forEach((m,i)=>{if(m.role==="user")addU(m.show??m.content,m.att,m.imgs,m.nimg);else{const d=addA();d.lastChild.remove();setH(d.firstChild,md(m.content));addGround(d,m.src,m.sep);const acts=document.createElement("div");acts.className="acts";acts.innerHTML=actsHTML(i!==c.msgs.length-1);d.appendChild(acts)}});{const us=log.querySelectorAll(".u");if(c.msgs.length>=2&&c.msgs[c.msgs.length-1].role==="assistant"&&us.length)addEdit(us[us.length-1])}closeD();down(1)}
 function delChat(id){if(busy){toast("Wait for the reply");return}if(!confirm("Delete this chat?"))return;const c=chats.find(x=>x.id===id);chats=chats.filter(x=>x.id!==id);save();if(c===cur){cur=null;hist=[];log.innerHTML="";$("hero").style.display=""}renderList()}
-function renderList(){const l=$("list");l.innerHTML="";if(!chats.length){l.innerHTML='<div class="empty-l">No chats yet</div>';return}
- chats.forEach(c=>{const d=document.createElement("div");d.className="it"+(c===cur?" on":"");
+function renderList(){const l=$("list");l.innerHTML="";const q=(($("q")&&$("q").value)||"").trim().toLowerCase();
+ let arr=chats.filter(c=>!q||c.title.toLowerCase().includes(q)||c.msgs.some(m=>(m.show||m.content||"").toLowerCase().includes(q)));
+ arr=[...arr.filter(c=>c.pin),...arr.filter(c=>!c.pin)];
+ if(!arr.length){l.innerHTML='<div class="empty-l">'+(q?"No chats match":"No chats yet")+'</div>';return}
+ arr.forEach(c=>{const d=document.createElement("div");d.className="it"+(c===cur?" on":"");
   const meta=document.createElement("div");meta.className="meta";
   const sp=document.createElement("span");sp.textContent=c.title;
   const sm=document.createElement("small");sm.textContent=fmtDate(c.ts);
   meta.append(sp,sm);meta.onclick=()=>openChat(c.id);
+  const pn=document.createElement("button");pn.type="button";pn.className="icon pin"+(c.pin?" on":"");pn.textContent=c.pin?"\u2605":"\u2606";pn.setAttribute("aria-label",c.pin?"Unpin chat":"Pin chat");pn.onclick=()=>{c.pin=!c.pin;save();renderList()};
   const rn=document.createElement("button");rn.type="button";rn.className="icon";rn.textContent="\u270E";rn.setAttribute("aria-label","Rename chat");rn.onclick=()=>renChat(c.id);
   const x=document.createElement("button");x.type="button";x.className="icon";x.textContent="\u2715";x.setAttribute("aria-label","Delete chat");x.onclick=()=>delChat(c.id);
-  d.append(meta,rn,x);l.appendChild(d)})}
-function regen(){if(busy||hist.length<2)return;const m=hist[hist.length-2],k=log.children;k[k.length-1].remove();k[k.length-1].remove();hist.splice(-2);run(m.show??m.content,m.content,m.att||[])}
+  d.append(meta,pn,rn,x);l.appendChild(d)})}
+function regen(){if(busy||hist.length<2)return;const m=hist[hist.length-2],k=log.children;k[k.length-1].remove();k[k.length-1].remove();hist.splice(-2);run(m.show??m.content,m.content,m.att||[],m.imgs||[])}
 const closePV=()=>{$("pv").classList.remove("on");$("pvf").srcdoc=""};
 $("pvx").onclick=closePV;
 $("ciSave").onclick=()=>{try{localStorage.setItem(CI,$("ci").value.trim())}catch(_){}$("modal").classList.remove("on");toast("Instructions saved")};
 $("ciCancel").onclick=()=>$("modal").classList.remove("on");
 let pending=[];const LIM=12000;
-function renderAtts(){const a=$("atts");a.innerHTML="";pending.forEach((f,i)=>{const c=document.createElement("span");c.className="att";c.textContent=f.name;const x=document.createElement("button");x.type="button";x.textContent="\u2715";x.setAttribute("aria-label","Remove file");x.onclick=()=>{pending.splice(i,1);renderAtts()};c.appendChild(x);a.appendChild(c)})}
+function renderAtts(){const a=$("atts");a.innerHTML="";pending.forEach((f,i)=>{const c=document.createElement("span");c.className="att";
+ if(f.img){const im=document.createElement("img");im.alt="";im.src="data:"+f.img.mime+";base64,"+f.img.data;c.appendChild(im)}
+ const n=document.createElement("span");n.textContent=f.name;c.appendChild(n);
+ const x=document.createElement("button");x.type="button";x.textContent="\u2715";x.setAttribute("aria-label","Remove attachment");x.onclick=()=>{pending.splice(i,1);renderAtts()};c.appendChild(x);a.appendChild(c)})}
 const loadJS=u=>new Promise((ok,no)=>{const e=document.createElement("script");e.src=u;e.onload=ok;e.onerror=no;document.head.appendChild(e)});
 async function readAny(f){
  if(/\.pdf$/i.test(f.name)||f.type==="application/pdf"){
@@ -273,6 +301,67 @@ function curTheme(){return document.documentElement.getAttribute("data-theme")||
 function markTh(){document.querySelectorAll("[data-th]").forEach(b=>b.classList.toggle("on",b.dataset.th===curTheme()))}
 document.querySelectorAll("[data-th]").forEach(b=>b.onclick=()=>{document.documentElement.setAttribute("data-theme",b.dataset.th);try{localStorage.setItem("zyro_theme",b.dataset.th)}catch(_){}markTh()});
 markTh();updateTokenUI();
+function addEdit(u){if(!u||u.querySelector(".ed"))return;const e=document.createElement("button");e.type="button";e.className="ed";e.setAttribute("data-edit","");e.setAttribute("aria-label","Edit message");e.textContent="\u270E";u.insertBefore(e,u.firstChild)}
+function startEdit(u){if(busy){toast("Wait for the reply");return}const m=hist[hist.length-2];if(!m||m.role!=="user")return;
+ const b=u.querySelector(":scope>div"),old=m.show??m.content;u.classList.add("editing");b.textContent="";
+ const ta=document.createElement("textarea");ta.className="ei";ta.value=old;ta.rows=3;
+ const bar=document.createElement("div");bar.className="eb";
+ const cn=document.createElement("button");cn.type="button";cn.textContent="Cancel";cn.onclick=()=>{u.classList.remove("editing");fillBubble(b,old,m.att,m.imgs,m.nimg)};
+ const sv=document.createElement("button");sv.type="button";sv.className="go2";sv.textContent="Send";sv.onclick=()=>{const v=ta.value.trim();if(v)editLast(v)};
+ bar.append(cn,sv);b.append(ta,bar);ta.focus();ta.setSelectionRange(ta.value.length,ta.value.length)}
+function editLast(v){if(busy||hist.length<2)return;const m=hist[hist.length-2],k=log.children;k[k.length-1].remove();k[k.length-1].remove();hist.splice(-2);const tail=m.content.slice((m.show||"").length);run(v,v+tail,m.att||[],m.imgs||[])}
+function toggleCode(box){if(box.classList.contains("expanded")){box.classList.remove("expanded");box.querySelector(".more").textContent="\u2922 Expand"}
+ else{box.classList.add("expanded");box.querySelector(".more").textContent="\u2923 Collapse"}}
+const RUN_JS=`const AF=Object.getPrototypeOf(async function(){}).constructor;
+const fmt=a=>a.map(x=>typeof x==="string"?x:(()=>{try{return JSON.stringify(x,null,1)}catch(_){return String(x)}})()).join(" ");
+onmessage=async e=>{console.log=(...a)=>postMessage({t:"o",s:fmt(a)});console.info=console.log;console.warn=(...a)=>postMessage({t:"e",s:fmt(a)});console.error=console.warn;
+ for(const k of ["fetch","XMLHttpRequest","WebSocket","EventSource","importScripts","indexedDB"]){try{self[k]=undefined}catch(_){}}
+ try{const r=await new AF(e.data.code)();if(r!==undefined)postMessage({t:"o",s:"\\u2192 "+fmt([r])})}catch(err){postMessage({t:"e",s:String(err&&err.stack||err)})}
+ postMessage({t:"d"})}`;
+const RUN_PY=`let py=null;
+onmessage=async e=>{try{
+ if(!py){postMessage({t:"s",s:"Loading Python (one-time download, about 10 MB)..."});
+  importScripts("https://cdn.jsdelivr.net/pyodide/v0.29.4/full/pyodide.js");
+  py=await loadPyodide({indexURL:"https://cdn.jsdelivr.net/pyodide/v0.29.4/full/"})}
+ py.setStdout({batched:s=>postMessage({t:"o",s})});py.setStderr({batched:s=>postMessage({t:"e",s})});
+ postMessage({t:"r"});
+ try{await py.loadPackagesFromImports(e.data.code)}catch(_){}
+ const r=await py.runPythonAsync(e.data.code);if(r!==undefined&&r!==null)postMessage({t:"o",s:"\\u2192 "+String(r)})
+ }catch(err){postMessage({t:"e",s:String(err&&err.message||err)})}
+ postMessage({t:"d"})}`;
+let pyW=null;
+const mkW=src=>new Worker(URL.createObjectURL(new Blob([src],{type:"text/javascript"})));
+function runCode(box,kind,btn){
+ if(box._stop){box._stop();return}
+ let out=box.querySelector(".out");if(!out){out=document.createElement("div");out.className="out";box.appendChild(out)}
+ out.textContent="";const code=box.querySelector("pre").textContent;
+ let size=0,w,tm,done=false;
+ const add=(cls,s)=>{size+=s.length;const sp=document.createElement("div");sp.className=cls;sp.textContent=s;out.appendChild(sp);out.scrollTop=out.scrollHeight};
+ const end=note=>{if(done)return;done=true;clearTimeout(tm);if(note)add("o-s",note);btn.textContent="Run";box._stop=null;if(kind==="js"&&w){try{w.terminate()}catch(_){}}};
+ const kill=note=>{try{w&&w.terminate()}catch(_){}if(kind==="py")pyW=null;end(note)};
+ const arm=ms=>{clearTimeout(tm);tm=setTimeout(()=>kill("Stopped after "+Math.round(ms/1000)+" s."),ms)};
+ btn.textContent="Stop";box._stop=()=>kill("Stopped.");
+ if(kind==="py"){if(!pyW)pyW=mkW(RUN_PY);w=pyW}else w=mkW(RUN_JS);
+ arm(kind==="py"?90000:10000);
+ w.onmessage=ev=>{if(done)return;const m=ev.data||{};
+  if(m.t==="s")add("o-s",m.s);
+  else if(m.t==="r")arm(15000);
+  else if(m.t==="o"){if(size>20000){kill("Output limit reached.");return}add("o-o",m.s)}
+  else if(m.t==="e"){let s=m.s;if(kind==="py"&&/importScripts|Failed to fetch|NetworkError|Failed to load/i.test(s))s="Couldn't load Python. It needs an internet connection the first time.";add("o-e",s)}
+  else if(m.t==="d")end(out.childNodes.length?"":"(no output)")};
+ w.onerror=()=>kill("Couldn't start the runner"+(kind==="py"?" (Python needs internet the first time).":"."));
+ w.postMessage({code})}
+function readImg(f){return new Promise((ok,no)=>{const url=URL.createObjectURL(f),im=new Image();
+ im.onload=()=>{try{const M=1024,k=Math.min(1,M/Math.max(im.width,im.height)),w=Math.max(1,Math.round(im.width*k)),h=Math.max(1,Math.round(im.height*k)),c=document.createElement("canvas");c.width=w;c.height=h;
+  const x=c.getContext("2d");x.fillStyle="#fff";x.fillRect(0,0,w,h);x.drawImage(im,0,0,w,h);const d=c.toDataURL("image/jpeg",.8);URL.revokeObjectURL(url);ok({mime:"image/jpeg",data:d.split(",")[1]})}catch(e){no(e)}};
+ im.onerror=()=>{URL.revokeObjectURL(url);no(new Error("bad image"))};im.src=url})}
+$("img").onchange=async e=>{const fs=[...e.target.files];e.target.value="";
+ for(const f of fs){if(tokensOut()){toast("Tokens are out — uploads paused until tomorrow");break}
+  if(pending.length>=3){toast("Max 3 attachments");break}
+  if(!/^image\//.test(f.type)){toast("That isn't an image");continue}
+  try{const im=await readImg(f);if(im.data.length>1100000){toast("Image is too large");continue}pending.push({name:f.name||"image",img:im})}catch(_){toast("Couldn't read "+(f.name||"image"))}}
+ renderAtts()};
+$("q").oninput=()=>renderList();
 $("burger").onclick=openD;$("scrim").onclick=closeD;$("closeD").onclick=closeD;$("newc").onclick=newChat;$("new").onclick=newChat;
 document.addEventListener("keydown",e=>{if(e.key==="Escape"){closeD();closePV();$("modal").classList.remove("on")}});
 t.addEventListener("input",()=>{t.style.height="auto";t.style.height=Math.min(t.scrollHeight,170)+"px"});
