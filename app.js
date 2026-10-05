@@ -1,9 +1,10 @@
 const WORKER_URL="https://zyro-ai.debaxixhsingha.workers.dev/";
-const SUPABASE_URL="https://opeyjksuklfmeicmnxsh.supabase.co"; // ← paste https://xxxx.supabase.co
-const SUPABASE_ANON_KEY="sb_publishable_LC3DrFcQAsG3HSILCekaFw_SOVVDxjA"; // ← paste anon public key
+const SUPABASE_URL="https://opeyjksuklfmeicmnxsh.supabase.co";
+const SUPABASE_ANON_KEY="sb_publishable_LC3DrFcQAsG3HSILCekaFw_SOVVDxjA";
 const TOKEN_KEY="zyro_tokens";
 const FEEDBACK_KEY="zyro_feedback";
 let TOTAL=100000;
+let sb=null,sbP=null,user=null,pro=false;
 const CI="zyro_ci";
 const getCI=()=>{try{return localStorage.getItem(CI)||""}catch(_){return""}};
 function getTokens(){try{const d=JSON.parse(localStorage.getItem(TOKEN_KEY)||"null");const now=Date.now();
@@ -14,8 +15,10 @@ function saveTokens(d){try{localStorage.setItem(TOKEN_KEY,JSON.stringify(d))}cat
 function addTokens(n){const d=getTokens();d.used+=n;d.last=n;saveTokens(d);updateTokenUI();cloudUsage(n)}
 const tokensOut=()=>getTokens().used>=TOTAL;
 function paintBar(used,last){const pct=Math.min(100,(used/TOTAL)*100);
- $("tPct").textContent=(used>0&&pct<0.1?"<0.1":pct<10?+(pct.toFixed(1)):Math.floor(pct))+"% of "+(TOTAL>=1000000?"1M":"100k")+" used";
- $("fTotal").style.width=pct+"%";
+ const p=used>0&&pct<0.1?"<0.1":pct<10?pct.toFixed(1):Math.floor(pct);
+ $("tPct").textContent=p+"% of 100% used";
+ const f=$("fTotal");
+ if(f){f.style.width=pct+"%";f.className="token-fill"+(pct>=95?" danger":pct>=80?" warn":"")}
  if(last)$("tLast").textContent="last "+last.toLocaleString()+" · "+(last<2000?"light":last<8000?"medium":"heavy")}
 function updateTokenUI(){const d=getTokens();paintBar(d.used,d.last);
  $("tNote").textContent=tokensOut()?"Tokens out — refills tomorrow."+(pro?" Pro members keep Thinking & uploads on.":" Quick chats still work; Thinking, uploads & building are paused."):"Counts your messages + replies · refills daily"+(pro?" · PRO limits active":"");
@@ -48,33 +51,65 @@ SOON.forEach(s=>{const b=document.createElement("button");b.type="button";b.inne
 $("plus").onclick=e=>{e.stopPropagation();const cb=$("cib");if(cb)cb.lastChild.textContent=getCI()?"On":"Add";$("menu").classList.toggle("open")};
 document.addEventListener("click",()=>$("menu").classList.remove("open"));
 function toast(m){const e=$("toast");e.textContent=m;e.classList.add("on");setTimeout(()=>e.classList.remove("on"),1600)}
+
 /* ---------- Supabase auth + cloud sync ---------- */
-let sb=null,sbP=null,user=null,pro=false;
 function sbClient(){if(!SUPABASE_URL)return Promise.resolve(null);
  if(sb)return Promise.resolve(sb);
  if(!sbP)sbP=loadJS("https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2").then(()=>{sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);return sb});
  return sbP}
-(function(){const st=document.createElement("style");st.textContent=".authsec{margin:2px 0 8px}.arow{display:flex;gap:8px;align-items:center}.ava{width:30px;height:30px;border-radius:50%;background:var(--acc);color:#fff;display:grid;place-items:center;font-weight:600;flex:none}.amail{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px;color:var(--dim)}.pro{border:1px solid var(--acc);color:var(--acc);border-radius:10px;padding:1px 8px;font:600 10px 'Space Grotesk';font-style:normal}.abtn{flex:1;border:1px solid var(--line);background:var(--box);border-radius:12px;padding:9px 10px;font-size:13.5px;color:var(--ink);text-align:center}.abtn:hover{background:var(--hover)}.aform{display:flex;flex-direction:column;gap:6px;margin-top:8px}.aform .sq{margin:0}";document.head.appendChild(st)})();
+
 const authsec=document.createElement("div");authsec.id="authsec";authsec.className="authsec";
 $("drawer").querySelector(".dh").insertAdjacentElement("afterend",authsec);
 renderAuth();
+
 function renderAuth(){const d=$("authsec");
- if(user){d.innerHTML='<div class="arow"><span class="ava">'+esc((user.email||"Z")[0].toUpperCase())+'</span><span class="amail">'+esc(user.email||"")+'</span>'+(pro?'<em class="pro">PRO</em>':'')+'<button class="icon" id="signout" aria-label="Sign out">⎋</button></div>';
-  $("signout").onclick=async()=>{const s=await sbClient();if(s){await s.auth.signOut();user=null;pro=false;TOTAL=100000;renderAuth();updateTokenUI();toast("Signed out — chats stay on this device")}};
- }else{d.innerHTML='<div class="arow"><button class="abtn" id="sing"><b>🐙</b>&nbsp; Continue with GitHub</button><button class="abtn" id="sein">Email</button></div><div class="aform" id="aform" hidden><input id="aem" type="email" placeholder="Email" class="sq"><input id="apw" type="password" placeholder="Password" class="sq"><div class="arow"><button class="abtn" id="alog">Sign in</button><button class="abtn" id="asig">Create account</button></div></div>';
-  $("sing").onclick=signInGitHub;
-  $("sein").onclick=()=>{$("aform").hidden=!$("aform").hidden};
-  $("alog").onclick=()=>signInEmail($("aem").value.trim(),$("apw").value,false);
-  $("asig").onclick=()=>signInEmail($("aem").value.trim(),$("apw").value,true)}}
-async function signInGitHub(){const s=await sbClient();if(!s)return toast("Add Supabase keys in app.js first");
- const {error}=await s.auth.signInWithOAuth({provider:"github",options:{redirectTo:location.origin+location.pathname}});
- if(error)toast(error.message)}
-async function signInEmail(em,pw,signup){if(!em||pw.length<6)return toast("Enter email + 6+ char password");
- const s=await sbClient();if(!s)return toast("Add Supabase keys in app.js first");
- const r=signup?await s.auth.signUp({email:em,password:pw}):await s.auth.signInWithPassword({email:em,password:pw});
- if(r.error)toast(r.error.message);else toast(signup?"Account created — check your email to confirm!":"Signed in")}
+ if(user){
+  d.innerHTML='<div class="arow"><span class="ava">'+esc((user.email||"Z")[0].toUpperCase())+'</span><span class="amail">'+esc(user.email||"")+'</span>'+(pro?'<em class="pro">PRO</em>':'')+'<button class="icon" id="signout" aria-label="Sign out" title="Sign out">⎋</button></div>';
+  $("signout").onclick=async()=>{const s=await sbClient();if(s){await s.auth.signOut()}
+   user=null;pro=false;TOTAL=100000;renderAuth();updateTokenUI();toast("Signed out — chats stay on this device")};
+  const ab=$("authBtn");if(ab)ab.title="Account";
+ }else{
+  d.innerHTML="";
+  const ab=$("authBtn");if(ab)ab.title="Sign in";
+ }}
+
+let authMode="signin";
+function setAuthMode(m){
+ authMode=m;
+ const amTitle=$("amTitle"),amSub=$("amSub"),amGo=$("amGo"),amSwitch=$("amSwitch");
+ if(m==="signup"){amTitle.textContent="Create your account";amSub.textContent="Sync chats across devices. Free.";amGo.textContent="Create account";amSwitch.previousSibling.textContent="Already have an account? ";amSwitch.textContent="Sign in"}
+ else{amTitle.textContent="Sign in";amSub.textContent="Sync your chats across devices.";amGo.textContent="Sign in";amSwitch.previousSibling.textContent="No account? ";amSwitch.textContent="Create one"}
+ $("amMsg").textContent="";
+}
+function openAuth(m){setAuthMode(m||"signin");$("authModal").classList.add("on");setTimeout(()=>$("amEmail").focus(),60)}
+function closeAuth(){$("authModal").classList.remove("on");$("amPw").value="";$("amMsg").textContent=""}
+$("authBtn").onclick=()=>openAuth("signin");
+$("amCancel").onclick=closeAuth;
+$("amSwitch").onclick=e=>{e.preventDefault();setAuthMode(authMode==="signin"?"signup":"signin")};
+$("amGo").onclick=async()=>{
+ const em=$("amEmail").value.trim(),pw=$("amPw").value,msg=$("amMsg"),btn=$("amGo");
+ if(!em||pw.length<6){msg.style.color="#e5484d";msg.textContent="Enter an email and a password with 6+ characters.";return}
+ msg.style.color="var(--dim)";msg.textContent="Working…";btn.disabled=true;
+ const s=await sbClient();
+ if(!s){btn.disabled=false;msg.style.color="#e5484d";msg.textContent="Supabase isn't configured.";return}
+ const r=authMode==="signup"?await s.auth.signUp({email:em,password:pw}):await s.auth.signInWithPassword({email:em,password:pw});
+ btn.disabled=false;
+ if(r.error){msg.style.color="#e5484d";msg.textContent=r.error.message;return}
+ if(authMode==="signup"&&r.data&&!r.data.session){
+  msg.style.color="#3ecf8e";msg.textContent="✅ Check your email to confirm, then sign in.";
+  return;
+ }
+ closeAuth();
+ toast(authMode==="signup"?"Account created 🎉":"Signed in");
+};
+
 async function loadProfile(){try{const s=await sbClient();const {data}=await s.from("profiles").select("pro").eq("id",user.id).maybeSingle();
  pro=!!(data&&data.pro);TOTAL=pro?1000000:100000;updateTokenUI()}catch(_){}}
+async function syncUsageFromCloud(){if(!user)return;try{const s=await sbClient();if(!s)return;
+ const day=new Date().toISOString().slice(0,10);
+ const {data}=await s.from("usage").select("total").eq("user_id",user.id).eq("day",day).maybeSingle();
+ if(data&&typeof data.total==="number"){const d=getTokens();if(data.total>d.used){d.used=data.total;saveTokens(d);updateTokenUI()}}
+}catch(_){}}
 let syncT=null;
 function cloudSave(){if(!user||!cur)return;clearTimeout(syncT);syncT=setTimeout(async()=>{try{const s=await sbClient();if(!s)return;
  const msgs=JSON.parse(JSON.stringify(cur.msgs));msgs.forEach(m=>{delete m.imgs});
@@ -88,12 +123,13 @@ async function pullCloud(){try{const s=await sbClient();if(!s)return;const {data
  if(changed){save();renderList();toast("Chats synced from cloud")}}catch(_){}}
 let uAcc=0,uT=null;
 function cloudUsage(n){if(!user)return;uAcc+=n;clearTimeout(uT);uT=setTimeout(async()=>{try{const s=await sbClient();if(!s||!uAcc)return;const a=uAcc;uAcc=0;await s.rpc("add_usage",{amt:a})}catch(_){}},15000)}
-async function afterSignIn(){renderAuth();await loadProfile();await pullCloud();renderAuth()}
+async function afterSignIn(){renderAuth();await loadProfile();await pullCloud();await syncUsageFromCloud();renderAuth()}
 (async()=>{let s;try{s=await sbClient()}catch(_){}if(!s){renderAuth();return}
  try{const {data}=await s.auth.getSession();user=(data&&data.session&&data.session.user)||null}catch(_){}
  s.auth.onAuthStateChange((_e,ses)=>{user=(ses&&ses.user)||null;if(!user){pro=false;TOTAL=100000;renderAuth();updateTokenUI()}else afterSignIn()});
  if(user)await afterSignIn();else renderAuth()})();
 /* ---------- end auth ---------- */
+
 const THUMB_UP='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/></svg>';
 const THUMB_DOWN='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h2.67A2.31 2.31 0 0 1 22 4v7a2.31 2.31 0 0 1-2.33 2H17"/></svg>';
 const escA=s=>esc(s).replace(/"/g,"&quot;");
@@ -157,8 +193,8 @@ function startChip(chip){let i=0,tm;const n=++sid;
  const setL=x=>{label.style.opacity=0;clearTimeout(tm);tm=setTimeout(()=>{label.textContent=x;label.style.opacity=1},170)};
  const iv=setInterval(()=>{i=(i+1)%STAGES.length;setL(STAGES[i])},1400);
  return{write(){if(chip.dataset.w)return;chip.dataset.w=1;clearInterval(iv);setL("Writing")},
- done(){clearInterval(iv);clearTimeout(tm);label.classList.remove("shimmer");label.style.opacity=1;label.textContent="Done";chip.classList.add("done");setTimeout(()=>chip.classList.add("fade-out"),900);setTimeout(()=>chip.remove(),1500)},
- stop(){clearInterval(iv);clearTimeout(tm);chip.remove()}}}
+  done(){clearInterval(iv);clearTimeout(tm);label.classList.remove("shimmer");label.style.opacity=1;label.textContent="Done";chip.classList.add("done");setTimeout(()=>chip.classList.add("fade-out"),900);setTimeout(()=>chip.remove(),1500)},
+  stop(){clearInterval(iv);clearTimeout(tm);chip.remove()}}}
 function copy(txt,btn){const ok=()=>{btn.textContent="Copied";setTimeout(()=>btn.textContent="Copy",1200)};
  const fb=()=>{const a=document.createElement("textarea");a.value=txt;a.style.cssText="position:fixed;opacity:0";document.body.appendChild(a);a.select();try{document.execCommand("copy");ok()}catch(_){}a.remove()};
  navigator.clipboard?navigator.clipboard.writeText(txt).then(ok).catch(fb):fb()}
@@ -413,7 +449,6 @@ $("img").onchange=async e=>{const fs=[...e.target.files];e.target.value="";
  renderAtts()};
 $("q").oninput=()=>renderList();
 $("burger").onclick=openD;$("scrim").onclick=closeD;$("closeD").onclick=closeD;$("newc").onclick=newChat;$("new").onclick=newChat;
-document.addEventListener("keydown",e=>{if(e.key==="Escape"){closeD();closePV();$("cv").classList.remove("on");$("modal").classList.remove("on")}});
+document.addEventListener("keydown",e=>{if(e.key==="Escape"){closeD();closePV();$("cv").classList.remove("on");$("modal").classList.remove("on");closeAuth()}});
 t.addEventListener("input",()=>{t.style.height="auto";t.style.height=Math.min(t.scrollHeight,170)+"px"});
 t.addEventListener("keydown",e=>{if(e.key==="Enter"&&!e.shiftKey&&!e.isComposing&&matchMedia("(hover:hover)").matches){e.preventDefault();if(!busy)$("f").requestSubmit()}});
-if(new URLSearchParams(location.search).get("auth")){openD();const af=$("aform");if(af)af.hidden=false;history.replaceState(null,"",location.pathname)}
