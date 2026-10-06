@@ -1,3 +1,19 @@
+/* ============ TABLE STYLES (injected at load) ============ */
+(function(){
+  if (document.getElementById("zyro-table-style")) return;
+  const s = document.createElement("style");
+  s.id = "zyro-table-style";
+  s.textContent =
+    ".body .table-wrap{overflow-x:auto;margin:12px 0;border:1px solid var(--line);border-radius:12px;background:var(--box)}"+
+    ".body table{border-collapse:collapse;width:100%;font-size:14px;min-width:100%}"+
+    ".body th,.body td{padding:10px 14px;text-align:left;border-bottom:1px solid var(--line);vertical-align:top}"+
+    ".body th{background:var(--box-2);color:var(--ink);font-weight:600;font-size:13px;white-space:nowrap}"+
+    ".body tr:last-child td{border-bottom:0}"+
+    ".body td{color:var(--ink-2)}"+
+    ".body tr:hover td{background:var(--hover)}";
+  document.head.appendChild(s);
+})();
+
 /* ============ HOISTED HELPERS ============ */
 function loadJS(u){
   return new Promise(function(ok,no){
@@ -25,13 +41,12 @@ const WORKER_URL="https://zyro-ai.debaxixhsingha.workers.dev/";
 const SUPABASE_URL="https://opeyjksuklfmeicmnxsh.supabase.co";
 const SUPABASE_ANON_KEY="sb_publishable_LC3DrFcQAsG3HSILCekaFw_SOVVDxjA";
 const TOKEN_KEY="zyro_tokens";
-const FEEDBACK_KEY="zyro_feedback";
 const CI="zyro_ci";
 const CK="zyro_chats";
 let TOTAL=100000;
 let sb=null,sbP=null,user=null,pro=false;
 let chats=[],cur=null;
-let skip=false,ctrl=null,hist=[],busy=false,sample=null,streaming=false;
+let ctrl=null,hist=[],busy=false,streaming=false;
 let pending=[];
 let sid=0,follow=true,uAcc=0,uT=null,syncT=null;
 const LIM=12000;
@@ -284,15 +299,69 @@ function boot(){
     x=x.replace(/`([^`]+)`/g,(_,c)=>tk('<code class="i">'+esc(c)+'</code>'));
     x=x.replace(MR,(m,a,b,c,d)=>{if(d!==undefined&&!/[\\^_=+\-*\/<>{}()]|^[A-Za-z]$|\d/.test(d))return m;return tk('<span class="mx" data-d="'+(a!==undefined||b!==undefined?1:0)+'" data-tex="'+escA(a??b??c??d)+'">'+esc(m)+'</span>')});
     return esc(x).replace(/\*\*([^*]+)\*\*/g,"<b>$1</b>").replace(/\u0001(\d+)\u0002/g,(_,i)=>st[i])};
-  function txt(p){let h="",l=null,pa=[];const fp=()=>{if(pa.length){h+="<p>"+inl(pa.join("\n"))+"</p>";pa=[]}},fl=()=>{if(l){h+="</"+l+">";l=null}};
-    for(const ln of p.split("\n")){let m;
-      if(m=ln.match(/^\s{0,3}(#{1,6})\s+(.*)/)){fp();fl();const n=Math.min(m[1].length+1,4);h+="<h"+n+">"+inl(m[2])+"</h"+n+">"}
-      else if(/^\s*([-*_])\1{2,}\s*$/.test(ln)){fp();fl();h+="<hr>"}
-      else if(m=ln.match(/^\s*[-*]\s+(.*)/)){fp();if(l!=="ul"){fl();h+="<ul>";l="ul"}h+="<li>"+inl(m[1])+"</li>"}
-      else if(m=ln.match(/^\s*\d+[.)]\s+(.*)/)){fp();if(l!=="ol"){fl();h+="<ol>";l="ol"}h+="<li>"+inl(m[1])+"</li>"}
-      else if(!ln.trim()){fp();fl()}
-      else{fl();pa.push(ln)}}
-    fp();fl();return h}
+
+  function renderTable(rows){
+    if(!rows.length) return "";
+    const splitRow = r => r.replace(/^\s*\|/,"").replace(/\|\s*$/,"").split("|").map(c=>c.trim());
+    const head = splitRow(rows[0]);
+    let h = '<div class="table-wrap"><table><thead><tr>';
+    head.forEach(c => h += "<th>" + inl(c) + "</th>");
+    h += "</tr></thead><tbody>";
+    for (let r = 1; r < rows.length; r++){
+      h += "<tr>";
+      splitRow(rows[r]).forEach(c => h += "<td>" + inl(c) + "</td>");
+      h += "</tr>";
+    }
+    h += "</tbody></table></div>";
+    return h;
+  }
+
+  function txt(p){
+    const lines = p.split("\n");
+    let h = "", l = null, pa = [];
+    const fp = () => { if (pa.length){ h += "<p>" + inl(pa.join("\n")) + "</p>"; pa = []; } };
+    const fl = () => { if (l){ h += "</" + l + ">"; l = null } };
+    const isTableRow = s => /^\s*\|.+\|\s*$/.test(s);
+    const isTableSep = s => /^\s*\|[\s\-:|]+\|\s*$/.test(s) && /-/.test(s);
+
+    let i = 0;
+    while (i < lines.length){
+      const ln = lines[i];
+      let m;
+
+      if (isTableRow(ln) && i + 1 < lines.length && isTableSep(lines[i+1])){
+        fp(); fl();
+        const rows = [ln];
+        i += 2;
+        while (i < lines.length && isTableRow(lines[i])){ rows.push(lines[i]); i++ }
+        h += renderTable(rows);
+        continue;
+      }
+
+      if (m = ln.match(/^\s{0,3}(#{1,6})\s+(.*)/)){
+        fp(); fl();
+        const n = Math.min(m[1].length + 1, 4);
+        h += "<h" + n + ">" + inl(m[2]) + "</h" + n + ">";
+      }
+      else if (/^\s*([-*_])\1{2,}\s*$/.test(ln)){ fp(); fl(); h += "<hr>" }
+      else if (m = ln.match(/^\s*[-*]\s+(.*)/)){
+        fp();
+        if (l !== "ul"){ fl(); h += "<ul>"; l = "ul" }
+        h += "<li>" + inl(m[1]) + "</li>";
+      }
+      else if (m = ln.match(/^\s*\d+[.)]\s+(.*)/)){
+        fp();
+        if (l !== "ol"){ fl(); h += "<ol>"; l = "ol" }
+        h += "<li>" + inl(m[1]) + "</li>";
+      }
+      else if (!ln.trim()){ fp(); fl() }
+      else { fl(); pa.push(ln) }
+      i++;
+    }
+    fp(); fl();
+    return h;
+  }
+
   const KW=new Set("abstract and as assert async await break case catch class const continue def default del do elif else enum except export extends final finally for from fn func function if implements import in interface is lambda let loop match mod mut namespace new not null None nil of or package pass private protected pub public raise return self static struct super switch this throw throws trait true True false False try type typeof union unsafe use using var void while with yield select insert update delete create table where join group order by limit values SELECT INSERT UPDATE DELETE CREATE TABLE WHERE JOIN GROUP ORDER BY LIMIT VALUES FROM AS AND OR NOT NULL INTO SET".split(" "));
   const HASH=/^(py|python|bash|sh|shell|zsh|ruby|rb|yaml|yml|toml|r|perl|dockerfile|makefile|ini|conf|powershell|ps1)$/i;
   const CM={h:/#[^\n]*/,q:/--[^\n]*|\/\*[\s\S]*?\*\//,s:/\/\/[^\n]*|\/\*[\s\S]*?\*\/|<!--[\s\S]*?-->/};
@@ -408,7 +477,7 @@ function boot(){
   const todayStr=()=>new Date().toLocaleDateString("en",{weekday:"long",year:"numeric",month:"long",day:"numeric"});
   const needsSearch=s=>/\b(latest|newest|recent(ly)?|today|tonight|yesterday|tomorrow|this (week|month|year)|news|released?|launch(ed|es)?|new version|prices?|score|weather|who (is|won)|what'?s new|trending|202[4-9]|203\d)\b/i.test(s)||(/\b(claude|chatgpt|gpt-?\d+|openai|anthropic|gemini|grok|deepseek|llama|qwen|mistral|nvidia|iphone|pixel|galaxy|react|next\.?js|python)\b/i.test(s)&&/\b(models?|versions?|releases?|new|newest|latest|vs|versus|compare|comparison|pricing|price|available|exists?|sonnet|opus|haiku|\d+(\.\d+)?)\b/i.test(s));
 
-  /* ============ SLIM SYSTEM PROMPT ============ */
+  /* ============ SYSTEM PROMPT ============ */
   function appFacts(){
     return "Today is "+todayStr()+". Your knowledge has a cutoff — if unsure about recent events, say so. Never mention tokens, quotas, or limits unless the user directly asks.";
   }
@@ -467,31 +536,67 @@ function boot(){
     if(!full&&!aborted)throw{code:"empty"};
     return full}
 
-  function typer(body,cheap){let target="",shown=0,tm=0,fin=false,res=null,lastDraw=0;
-    const fast=cheap||($("mode")&&$("mode").value==="Fast");
-    const draw=force=>{const now=performance.now();if(!force&&now-lastDraw<180)return;lastDraw=now;
-      setH(body,withCaret(liteMd(target.slice(0,shown))));body.querySelectorAll(".cb.live pre").forEach(p=>{p.scrollTop=p.scrollHeight});down()};
-    function tick(){tm=0;const back=target.length-shown;
-      if(back<=0){if(fin&&res)res();return}
-      if(skip){shown=target.length;draw(true);if(fin&&res)res();return}
-      let n;
-      if(fast)n=Math.min(40,Math.max(4,Math.ceil(back/8)));
-      else n=back>400?Math.min(30,Math.ceil(back/16)):back>120?4:back>30?2:1;
-      if(fin)n=Math.max(n,Math.ceil(back/6));
-      shown=Math.min(target.length,shown+n);let ch=target[shown-1];
-      if(/[\uD800-\uDBFF]/.test(ch)&&shown<target.length){shown++;ch=target[shown-1]}
-      draw();
-      let d=fast?8+Math.random()*12:14+Math.random()*26;
-      if(!fast&&back<=30&&!fin){if(",;:".includes(ch))d+=90;else if(".!?\n".includes(ch))d+=160}
-      tm=setTimeout(tick,d)}
-    return{set(x){target=x;if(!tm)tm=setTimeout(tick,0)},
-      finish(x){target=x;fin=true;return new Promise(r=>{res=r;if(!tm)tm=setTimeout(tick,0)})},
-      kill(){clearTimeout(tm);tm=0}}}
+  /* ============ BETTER LONG-CHAT MEMORY ============ */
+  const api = (h, keep) => {
+    if (!h.length) return [];
+    const N = 15;         // keep last 15 turns
+    const MAX = 30000;    // total char budget
 
-  const api=(h,keep)=>{const out=[];let n=0;for(let i=h.length-1;i>=0&&out.length<20;i--){const c=h[i].content||"";if(out.length&&n+c.length>30000)break;n+=c.length;out.unshift({role:h[i].role,content:c,imgs:h[i].imgs})}
-    while(out.length&&out[0].role!=="user")out.shift();
-    let seen=keep===false;for(let i=out.length-1;i>=0;i--){if(!seen&&out[i].imgs&&out[i].imgs.length)seen=true;else delete out[i].imgs}
-    return out.map(m=>m.imgs?{role:m.role,content:m.content,images:m.imgs}:{role:m.role,content:m.content})};
+    const keepIdx = new Set();
+
+    // 1. first user message (original intent)
+    const firstUser = h.findIndex(m => m.role === "user");
+    if (firstUser >= 0) keepIdx.add(firstUser);
+
+    // 2. last N turns
+    for (let i = Math.max(0, h.length - N); i < h.length; i++) keepIdx.add(i);
+
+    // 3. any message with attachments (files user referenced)
+    h.forEach((m, i) => { if (m.imgs && m.imgs.length) keepIdx.add(i); });
+
+    let idxs = Array.from(keepIdx).sort((a, b) => a - b);
+
+    // Trim if too large — essentials stay, then walk recent backwards
+    let total = 0;
+    idxs.forEach(i => total += (h[i].content || "").length);
+    if (total > MAX){
+      const essential = new Set();
+      if (firstUser >= 0) essential.add(firstUser);
+      h.forEach((m, i) => { if (m.imgs && m.imgs.length) essential.add(i); });
+
+      const kept = [];
+      let sz = 0;
+      idxs.forEach(i => {
+        if (essential.has(i)){ kept.push(i); sz += (h[i].content || "").length }
+      });
+      for (let k = idxs.length - 1; k >= 0; k--){
+        const i = idxs[k];
+        if (essential.has(i)) continue;
+        const len = (h[i].content || "").length;
+        if (sz + len > MAX) continue;
+        kept.push(i);
+        sz += len;
+      }
+      idxs = kept.sort((a, b) => a - b);
+    }
+
+    // First turn must be user for Gemini
+    while (idxs.length && h[idxs[0]].role !== "user") idxs.shift();
+
+    // Image budget — only most recent few keep images
+    let imgBudget = keep === false ? 0 : 4;
+    const out = [];
+    for (let k = idxs.length - 1; k >= 0; k--){
+      const m = h[idxs[k]];
+      const copy = { role: m.role, content: m.content };
+      if (m.imgs && m.imgs.length && imgBudget > 0){
+        copy.images = m.imgs;
+        imgBudget -= m.imgs.length;
+      }
+      out.unshift(copy);
+    }
+    return out;
+  };
 
   function send(text){
     const items=pending.slice();
@@ -525,7 +630,7 @@ function boot(){
 
   async function run(show,full,names,imgs){
     imgs=imgs||[];if(busy)return;
-    busy=true;skip=false;streaming=true;
+    busy=true;streaming=true;
     ctrl=new AbortController();
     setGo(true);
     log.querySelectorAll("[data-regen]").forEach(x=>x.remove());
@@ -547,21 +652,36 @@ function boot(){
     const onThought=th=>{hadThought=true;thinkUpdate(d,th)};
 
     const search=needsSearch(show)&&!tokensOut(),meta={src:[],sep:""};
-    const tw=typer(body,cheap);
+
+    // Direct streaming — no fake typer. Renders as tokens arrive.
+    let lastRender=0;
+    const emit = x => {
+      c.write();
+      const now = performance.now();
+      if (now - lastRender > 80){
+        lastRender = now;
+        setH(body, withCaret(liteMd(x)));
+        down();
+      }
+      paintBar(baseUsed + Math.round(x.length/4), 0);
+    };
+
     try{
       let out;
-      const emit=x=>{c.write();tw.set(x);paintBar(baseUsed+Math.round(x.length/4),0)};
       if(!WORKER_URL)throw{code:"nowork"};
       const msgs=[{role:"system",content:SYS()},...api(hist,imgs.length===0),imgs.length?{role:"user",content:full,images:imgs}:{role:"user",content:full}];
       try{out=await workerStream(msgs,emit,ctrl.signal,cheap||$("mode").value==="Fast",onThought,search,meta)}
-      catch(e1){if(e1&&e1.code==="empty"&&!ctrl.signal.aborted){toast("Retrying…");out=await workerStream(msgs,emit,ctrl.signal,cheap||$("mode").value==="Fast",onThought,search,meta)}else throw e1}
-      out=out||(skip?"(stopped)":"(empty response)");
+      catch(e1){
+        if(e1&&e1.code==="empty"&&!ctrl.signal.aborted){
+          toast("Retrying…");
+          out=await workerStream(msgs,emit,ctrl.signal,cheap||$("mode").value==="Fast",onThought,search,meta);
+        } else throw e1;
+      }
+      out=out||"(empty response)";
       streaming=false;
-      await tw.finish(out);
-      setH(body,md(out));
+      setH(body, md(out));
       addGround(d,meta.src,meta.sep.length<=6000?meta.sep:"");
       const secs=((Date.now()-t0)/1000).toFixed(1);
-
       thinkFinish(d,secs,hadThought);
 
       const acts=document.createElement("div");acts.className="acts";acts.innerHTML=actsHTML(false);d.appendChild(acts);
@@ -575,7 +695,7 @@ function boot(){
       save();
       c.done();
     }catch(e){
-      streaming=false;tw.kill();c.stop();
+      streaming=false;c.stop();
       if(e&&e.name==="AbortError"){body.innerHTML='<span style="color:#e5484d">(stopped)</span>'}
       else{
         if(e&&e.code!=="na"){t.value=show;t.dispatchEvent(new Event("input"))}
@@ -589,7 +709,7 @@ function boot(){
 
   $("f").onsubmit=e=>{
     e.preventDefault();
-    if(busy){skip=true;if(ctrl)ctrl.abort();return}
+    if(busy){if(ctrl)ctrl.abort();return}
     const v=t.value;
     t.value="";t.style.height="auto";updateSendState();
     send(v);
