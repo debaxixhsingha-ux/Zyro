@@ -347,6 +347,11 @@ textarea::placeholder{color:var(--dim-2)}
 @media(prefers-reduced-motion:reduce){
   *{animation:none!important;transition:none!important;scroll-behavior:auto!important}
 }
+  /* === fix: drawer above header === */
+.scrim{z-index:190 !important}
+.drawer{z-index:200 !important}
+.acct-drop{z-index:300 !important}
+.toast{z-index:400 !important}
 </style>
 </head>
 <body>
