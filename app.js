@@ -1,5 +1,5 @@
 /* =========================================================
-   ZYRO app.js — v28
+   ZYRO app.js — v29
    ========================================================= */
 
 /* ---------- TOP HELPERS ---------- */
@@ -318,7 +318,7 @@ function boot(){
   { const fb = $("fileBtn"); if (fb) fb.onclick = () => $("file").click(); }
   { const mb = $("moreBtn"); if (mb) mb.onclick = () => toast("More attachments coming soon"); }
 
-  /* ---------- VOICE INPUT (SVG built in JS) ---------- */
+  /* ---------- VOICE INPUT ---------- */
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   let recog = null, listening = false;
   if (SR){
@@ -847,7 +847,13 @@ function boot(){
     b.textContent = txt;
     if (imgs && imgs.length){
       const w = document.createElement("div"); w.className = "th";
-      imgs.forEach(im => { const i = document.createElement("img"); i.alt = ""; i.src = "data:" + im.mime + ";base64," + im.data; w.appendChild(i); });
+      imgs.forEach(im => {
+        const i = document.createElement("img");
+        i.alt = "";
+        i.src = "data:" + im.mime + ";base64," + im.data;
+        i.style.cssText = "width:84px;height:84px;object-fit:cover;border-radius:10px;display:block;max-width:84px;max-height:84px;";
+        w.appendChild(i);
+      });
       b.appendChild(w);
     } else if (nimg){
       const f = document.createElement("div"); f.className = "fl"; f.textContent = "🖼 " + nimg + " image" + (nimg > 1 ? "s" : ""); b.appendChild(f);
@@ -1436,19 +1442,17 @@ function boot(){
   const openD = () => { renderList(); markTh(); updateTokenUI(); $("drawer").classList.add("on"); $("scrim").classList.add("on"); };
   const closeD = () => { $("drawer").classList.remove("on"); $("scrim").classList.remove("on"); };
   function newChat(){
-    if (busy){
-      try { if (ctrl) ctrl.abort(); } catch(_) {}
-      busy = false; streaming = false; setGo(false); clearBusyWatchdog();
-    }
+    // Always force-reset busy state
+    try { if (ctrl) ctrl.abort(); } catch(_) {}
+    busy = false; streaming = false; setGo(false); clearBusyWatchdog();
     cur = null; hist = []; log.innerHTML = ""; log.classList.remove("on");
     $("hero").classList.remove("hide");
-    closeD(); t.focus();
+    closeD();
+    try { t.focus(); } catch(_) {}
   }
   function openChat(id){
-    if (busy){
-      try { if (ctrl) ctrl.abort(); } catch(_) {}
-      busy = false; streaming = false; setGo(false); clearBusyWatchdog();
-    }
+    try { if (ctrl) ctrl.abort(); } catch(_) {}
+    busy = false; streaming = false; setGo(false); clearBusyWatchdog();
     const c = chats.find(x => x.id === id); if (!c) return;
     cur = c; hist = c.msgs; log.innerHTML = "";
     $("hero").classList.add("hide"); log.classList.add("on");
@@ -1471,7 +1475,8 @@ function boot(){
     closeD(); down(1);
   }
   function delChat(id){
-    if (busy){ try { if (ctrl) ctrl.abort(); } catch(_) {} busy = false; streaming = false; setGo(false); clearBusyWatchdog(); }
+    try { if (ctrl) ctrl.abort(); } catch(_) {}
+    busy = false; streaming = false; setGo(false); clearBusyWatchdog();
     if (!confirm("Delete this chat?")) return;
     const c = chats.find(x => x.id === id);
     chats = chats.filter(x => x.id !== id);
@@ -1568,10 +1573,7 @@ function boot(){
   };
   function readImg(f){
     return new Promise((ok, no) => {
-      if (!/^image\//i.test(f.type)){
-        no(new Error("not an image"));
-        return;
-      }
+      if (!/^image\//i.test(f.type)){ no(new Error("not an image")); return; }
       const url = URL.createObjectURL(f), im = new Image();
       im.onload = () => {
         try {
@@ -1602,11 +1604,8 @@ function boot(){
         pending.push({ name: f.name || "image", img: im });
       } catch(_) {
         const ext = (f.name || "").split(".").pop().toLowerCase();
-        if (ext === "heic" || ext === "heif"){
-          toast("HEIC not supported — try a JPG/PNG");
-        } else {
-          toast("Couldn't read " + (f.name || "image"));
-        }
+        if (ext === "heic" || ext === "heif") toast("HEIC not supported — try a JPG/PNG");
+        else toast("Couldn't read " + (f.name || "image"));
       }
     }
     renderAtts(); updateSendState();
