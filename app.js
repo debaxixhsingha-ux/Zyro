@@ -1,16 +1,90 @@
-/* ============ TABLE STYLES (injected at load) ============ */
+/* ================================================================
+   ZYRO v5 — study pipeline + pro tier
+   ================================================================ */
 (function(){
-  if (document.getElementById("zyro-table-style")) return;
+  // ---- injected study styles (flashcards, quiz, pro badge) ----
+  if (document.getElementById("zyro-study-style")) return;
   const s = document.createElement("style");
-  s.id = "zyro-table-style";
-  s.textContent =
-    ".body .table-wrap{overflow-x:auto;margin:12px 0;border:1px solid var(--line);border-radius:12px;background:var(--box)}"+
-    ".body table{border-collapse:collapse;width:100%;font-size:14px;min-width:100%}"+
-    ".body th,.body td{padding:10px 14px;text-align:left;border-bottom:1px solid var(--line);vertical-align:top}"+
-    ".body th{background:var(--box-2);color:var(--ink);font-weight:600;font-size:13px;white-space:nowrap}"+
-    ".body tr:last-child td{border-bottom:0}"+
-    ".body td{color:var(--ink-2)}"+
-    ".body tr:hover td{background:var(--hover)}";
+  s.id = "zyro-study-style";
+  s.textContent = `
+  /* table */
+  .body .table-wrap{overflow-x:auto;margin:12px 0;border:1px solid var(--line);border-radius:12px;background:var(--box)}
+  .body table{border-collapse:collapse;width:100%;font-size:14px}
+  .body th,.body td{padding:10px 14px;text-align:left;border-bottom:1px solid var(--line);vertical-align:top}
+  .body th{background:var(--box-2);color:var(--ink);font-weight:600;font-size:13px;white-space:nowrap}
+  .body tr:last-child td{border-bottom:0}
+  .body td{color:var(--ink-2)}
+  /* flashcards */
+  .fc-trigger{display:inline-flex;align-items:center;gap:9px;border:1px solid var(--acc-line);background:var(--acc-soft);border-radius:12px;padding:10px 14px;margin:12px 0;cursor:pointer;font-size:13.5px;color:var(--ink)}
+  .fc-trigger:hover{background:rgba(217,119,87,.16)}
+  .fc-trigger b{color:var(--acc);font-weight:600}
+  .fc-modal{position:fixed;inset:0;background:rgba(0,0,0,.85);backdrop-filter:blur(20px);display:none;align-items:center;justify-content:center;z-index:500;padding:20px}
+  .fc-modal.on{display:flex}
+  .fc-stage{width:100%;max-width:520px;display:flex;flex-direction:column;gap:18px}
+  .fc-head{display:flex;align-items:center;justify-content:space-between;color:var(--dim);font-size:13px;font-family:'JetBrains Mono',monospace}
+  .fc-head button{background:none;border:0;color:var(--dim);font-size:14px;padding:6px 10px;border-radius:8px;cursor:pointer}
+  .fc-head button:hover{background:var(--hover);color:var(--ink)}
+  .fc-card{background:var(--bg-2);border:1px solid var(--line-2);border-radius:24px;padding:44px 28px;min-height:280px;display:flex;align-items:center;justify-content:center;text-align:center;font-size:22px;line-height:1.4;cursor:pointer;user-select:none;position:relative;transition:transform .15s}
+  .fc-card:active{transform:scale(.98)}
+  .fc-card .side{position:absolute;top:16px;left:20px;font:600 10px 'JetBrains Mono',monospace;color:var(--dim);letter-spacing:.15em;text-transform:uppercase}
+  .fc-card .hint{position:absolute;bottom:16px;left:50%;transform:translateX(-50%);font-size:11.5px;color:var(--dim-2)}
+  .fc-card.back{background:linear-gradient(145deg,rgba(217,119,87,.14),var(--bg-2));border-color:var(--acc-line)}
+  .fc-card.back .side{color:var(--acc)}
+  .fc-nav{display:flex;align-items:center;justify-content:center;gap:12px;color:var(--dim);font-size:13.5px}
+  .fc-nav button{background:var(--box-2);border:1px solid var(--line);color:var(--ink);padding:10px 20px;border-radius:12px;cursor:pointer;font-size:15px}
+  .fc-nav button:hover{background:var(--box-2);border-color:var(--line-2)}
+  .fc-nav button:disabled{opacity:.35;cursor:not-allowed}
+  /* quiz */
+  .quiz-trigger{display:inline-flex;align-items:center;gap:9px;border:1px solid var(--line-2);background:var(--box);border-radius:12px;padding:10px 14px;margin:12px 0;cursor:pointer;font-size:13.5px;color:var(--ink)}
+  .quiz-trigger:hover{background:var(--box-2)}
+  .quiz-trigger b{color:var(--acc)}
+  .quiz-modal{position:fixed;inset:0;background:rgba(0,0,0,.88);backdrop-filter:blur(20px);display:none;align-items:flex-start;justify-content:center;z-index:500;padding:20px;overflow-y:auto}
+  .quiz-modal.on{display:flex}
+  .quiz-stage{width:100%;max-width:560px;background:var(--bg-2);border:1px solid var(--line-2);border-radius:22px;padding:24px;margin:auto 0;display:flex;flex-direction:column;gap:18px}
+  .quiz-head{display:flex;align-items:center;justify-content:space-between;font:600 12px 'JetBrains Mono',monospace;color:var(--dim);letter-spacing:.08em;text-transform:uppercase}
+  .quiz-head button{background:none;border:0;color:var(--dim);padding:6px 10px;border-radius:8px;cursor:pointer}
+  .quiz-head button:hover{background:var(--hover);color:var(--ink)}
+  .quiz-q{font-size:17px;line-height:1.55;color:var(--ink)}
+  .quiz-opts{display:flex;flex-direction:column;gap:10px}
+  .quiz-opt{display:flex;align-items:flex-start;gap:12px;border:1px solid var(--line);background:var(--box);border-radius:14px;padding:13px 16px;cursor:pointer;font-size:15px;color:var(--ink);text-align:left;transition:background .12s,border-color .12s}
+  .quiz-opt:hover{background:var(--box-2);border-color:var(--line-2)}
+  .quiz-opt.correct{background:rgba(62,207,142,.12);border-color:rgba(62,207,142,.5)}
+  .quiz-opt.wrong{background:rgba(229,72,77,.1);border-color:rgba(229,72,77,.5)}
+  .quiz-opt .letter{width:24px;height:24px;border-radius:8px;background:var(--box-2);display:grid;place-items:center;font:600 12px 'JetBrains Mono',monospace;color:var(--dim);flex:none}
+  .quiz-opt.correct .letter{background:rgba(62,207,142,.2);color:#3ecf8e}
+  .quiz-opt.wrong .letter{background:rgba(229,72,77,.2);color:#e5484d}
+  .quiz-exp{margin-top:2px;font-size:13px;color:var(--dim);padding:10px 14px;border-left:2px solid var(--acc);background:var(--box);border-radius:0 8px 8px 0}
+  .quiz-progress{font:600 12px 'JetBrains Mono',monospace;color:var(--dim);letter-spacing:.06em}
+  .quiz-score{text-align:center;padding:30px 20px}
+  .quiz-score .big{font-size:56px;font-weight:600;color:var(--ink);letter-spacing:-2px;display:block;margin:12px 0 4px}
+  .quiz-score .lbl{font:600 12px 'JetBrains Mono',monospace;color:var(--dim);letter-spacing:.14em;text-transform:uppercase}
+  /* fix code button */
+  .fix-btn{display:inline-flex;align-items:center;gap:7px;margin-top:6px;border:1px solid var(--acc-line);background:var(--acc-soft);color:var(--acc);border-radius:10px;padding:7px 13px;font-size:13px;cursor:pointer}
+  .fix-btn:hover{background:rgba(217,119,87,.18)}
+  /* pro badge */
+  .pro-badge{display:inline-flex;align-items:center;gap:5px;background:linear-gradient(135deg,#f0b48a,var(--acc));color:#0a0a0a;font:700 9.5px 'Space Grotesk';letter-spacing:.06em;padding:2px 8px;border-radius:6px;text-transform:uppercase;margin-left:4px}
+  .pro-locked{opacity:.5;position:relative;cursor:not-allowed}
+  /* upgrade panel */
+  .pro-card{background:linear-gradient(160deg,rgba(217,119,87,.15),rgba(217,119,87,.04));border:1px solid var(--acc-line);border-radius:14px;padding:14px;margin:10px 0}
+  .pro-card h4{margin:0 0 4px;font-size:14px;color:var(--ink);display:flex;align-items:center;gap:8px}
+  .pro-card p{margin:0 0 12px;font-size:12.5px;color:var(--dim);line-height:1.5}
+  .pro-card .btn-up{width:100%;border:0;background:linear-gradient(135deg,#f0b48a,var(--acc));color:#0a0a0a;font-weight:600;padding:10px;border-radius:10px;cursor:pointer;font-size:14px}
+  .pro-card .btn-up:hover{filter:brightness(1.08)}
+  .up-modal{position:fixed;inset:0;background:rgba(0,0,0,.88);backdrop-filter:blur(20px);display:none;align-items:center;justify-content:center;z-index:500;padding:20px}
+  .up-modal.on{display:flex}
+  .up-box{width:100%;max-width:400px;background:var(--bg-2);border:1px solid var(--acc-line);border-radius:22px;padding:26px 22px}
+  .up-box h3{margin:0 0 6px;font-size:20px;color:var(--ink)}
+  .up-box .sub{margin:0 0 18px;font-size:13.5px;color:var(--dim)}
+  .up-box .price{font-size:34px;font-weight:600;color:var(--ink);letter-spacing:-1px;margin:0 0 4px}
+  .up-box .price em{font-style:normal;font-size:14px;font-weight:400;color:var(--dim);letter-spacing:0}
+  .up-box ul{margin:14px 0 20px;padding:0;list-style:none;display:flex;flex-direction:column;gap:8px}
+  .up-box li{font-size:13.5px;color:var(--ink-2);display:flex;gap:9px;align-items:flex-start}
+  .up-box li svg{width:15px;height:15px;color:var(--acc);flex:none;margin-top:3px}
+  .up-box .actions{display:flex;gap:8px}
+  .up-box .actions button{flex:1;padding:12px;border-radius:12px;font-weight:600;font-size:14.5px;cursor:pointer;border:1px solid var(--line)}
+  .up-box .actions button.primary{background:linear-gradient(135deg,#f0b48a,var(--acc));color:#0a0a0a;border:0}
+  .up-box .actions button.ghost{background:none;color:var(--ink)}
+  `;
   document.head.appendChild(s);
 })();
 
@@ -78,7 +152,7 @@ function boot(){
     if(tl && last) tl.textContent="last "+last.toLocaleString()}
   function updateTokenUI(){const d=getTokens();paintBar(d.used,d.last);
     const tn=$("tNote");
-    if(tn) tn.textContent="Counts your messages + replies · refills daily";
+    if(tn) tn.textContent=pro?"PRO · 1M tokens / day":"Free · 100k tokens / day · refills at midnight";
     applyLimits()}
   function applyLimits(){const out=tokensOut();
     if(!pro){
@@ -95,14 +169,29 @@ function boot(){
     }
   }
 
-  /* ============ TOAST ============ */
   function toast(m){const e=$("toast");if(!e)return;e.textContent=m;e.classList.add("on");setTimeout(()=>e.classList.remove("on"),1600)}
 
   /* ============ MODES + STUDY ============ */
   const MODES={Fast:"Quick short answer, minimal thinking.",Auto:"Balanced speed and depth.",Thinking:"Deep analysis, long detailed answer."};
   const STAGES=["Thinking","Analyzing","Planning steps"];
-  const STUDY={Chat:"",Solver:"Study mode: solve step by step with clear numbered steps, show formulas, put the final answer in bold, end with one line naming the key concept.",Socratic:"Study mode: do NOT give the final answer immediately. Guide with one short question or hint at a time, check reasoning, reveal the answer only if they ask or are stuck twice.",Exam:"Study mode: quiz one question at a time (mix of MC and short answer). Wait for the answer, mark correct/incorrect with a short explanation, then next question. After 5 questions, give the score and weak topics."};
-  const QUICK=[["Explain this code","Explain this code step by step:\n\n","Chat"],["Fix my error","Fix this error and explain what caused it:\n\n","Chat"],["Solve a problem","","Solver"],["Quiz me","Quiz me on ","Exam"],["Teach me step by step","Teach me ","Socratic"],["Notes from my PDF","Make short revision notes from the attached PDF.","Chat",1],["Viva questions","Give me 10 viva questions with short answers on ","Chat"],["Build a web page","Build a web page for ","Chat"]];
+  const STUDY={
+    Chat:"",
+    Solver:"Study mode: solve step by step with clear numbered steps, show formulas, put the final answer in bold, end with one line naming the key concept.",
+    Socratic:"Study mode: do NOT give the final answer immediately. Guide with one short question or hint at a time, check reasoning, reveal the answer only if they ask or are stuck twice.",
+    Exam:"EXAM MODE. When the user asks a question, answer in strict exam format:\n- Start with the marks breakdown. E.g. **For 5 marks:** then numbered points. If the user specified marks (2, 5, 10), respect that.\n- Use crisp, examiner-friendly language. No filler.\n- End with a short **Key terms to mention:** list (4-6 terms).\n- If the question could also appear as a 2-mark or 10-mark, add a one-line note: *For 2 marks, shorten to: …*"
+  };
+  const QUICK=[
+    ["Explain this code","Explain this code step by step:\n\n","Chat"],
+    ["Fix my error","Fix this error and explain what caused it:\n\n","Chat"],
+    ["Solve a problem","","Solver"],
+    ["Quiz me","Quiz me on ","Exam"],
+    ["Exam answer","Give me a proper exam answer (5 marks) for: ","Exam"],
+    ["Teach me step by step","Teach me ","Socratic"],
+    ["📚 Notes → Flashcards → Quiz","","Chat",1,"notes"],
+    ["Notes from my PDF","Make short revision notes from the attached PDF.","Chat",1],
+    ["Viva questions","Give me 10 viva questions with short answers on ","Chat"],
+    ["Build a web page","Build a web page for ","Chat"]
+  ];
 
   const hiddenMode=$("mode");
   if(hiddenMode){
@@ -127,22 +216,13 @@ function boot(){
     if(!MODES[m]) m="Auto";
     if(hiddenMode) hiddenMode.value=m;
     if(modeLabel) modeLabel.textContent=m;
-    if(modeBtn){
-      const old=modeBtn.querySelector(".lead");
-      if(old) old.outerHTML=MODE_ICONS[m];
-    }
-    if(modeMenu){
-      modeMenu.querySelectorAll(".mode-opt").forEach(o=>o.classList.toggle("active",o.dataset.mode===m));
-    }
+    if(modeBtn){const old=modeBtn.querySelector(".lead"); if(old) old.outerHTML=MODE_ICONS[m];}
+    if(modeMenu) modeMenu.querySelectorAll(".mode-opt").forEach(o=>o.classList.toggle("active",o.dataset.mode===m));
   }
   if(modeBtn&&modeMenu){
     modeBtn.addEventListener("click",e=>{e.stopPropagation();modeMenu.classList.toggle("open")});
     modeMenu.querySelectorAll(".mode-opt").forEach(opt=>{
-      opt.addEventListener("click",e=>{
-        e.stopPropagation();
-        setMode(opt.dataset.mode);
-        modeMenu.classList.remove("open");
-      });
+      opt.addEventListener("click",e=>{e.stopPropagation();setMode(opt.dataset.mode);modeMenu.classList.remove("open")});
     });
   }
   setMode("Auto");
@@ -159,11 +239,7 @@ function boot(){
   if(studyBtn&&studyMenu){
     studyBtn.addEventListener("click",e=>{e.stopPropagation();studyMenu.classList.toggle("open")});
     studyMenu.querySelectorAll(".study-opt").forEach(opt=>{
-      opt.addEventListener("click",e=>{
-        e.stopPropagation();
-        setStudy(opt.dataset.study);
-        studyMenu.classList.remove("open");
-      });
+      opt.addEventListener("click",e=>{e.stopPropagation();setStudy(opt.dataset.study);studyMenu.classList.remove("open")});
     });
   }
   try{const sv=localStorage.getItem("zyro_study"); if(sv) setStudy(sv); else setStudy("Chat");}catch(_){setStudy("Chat");}
@@ -176,29 +252,36 @@ function boot(){
     if(e.key==="Escape"){
       if(modeMenu) modeMenu.classList.remove("open");
       if(studyMenu) studyMenu.classList.remove("open");
+      document.querySelectorAll(".fc-modal.on,.quiz-modal.on,.up-modal.on").forEach(m=>m.classList.remove("on"));
     }
   });
 
   /* ============ QUICK CHIPS ============ */
   const chipsBox=$("chips");
   if(chipsBox){
-    QUICK.forEach(([label,pre,st,pdf])=>{
+    QUICK.forEach(item=>{
+      const [label,pre,st,pdf,kind]=item;
       const b=document.createElement("button");
       b.type="button";b.textContent=label;
+      if(kind==="notes") b.dataset.kind="notes";
       b.onclick=()=>{
         setStudy(st);
         t.value=pre;t.dispatchEvent(new Event("input"));
         t.focus();
         try{t.setSelectionRange(t.value.length,t.value.length)}catch(_){}
-        if(pdf) $("file").click();
+        if(pdf){
+          pendingKind = kind || null;
+          $("file").click();
+        }
       };
       chipsBox.appendChild(b);
     });
   }
+  let pendingKind=null;
 
   /* ============ ATTACH BUTTONS ============ */
   {const ib=$("imgBtn"); if(ib) ib.onclick=()=>$("img").click();}
-  {const fb=$("fileBtn"); if(fb) fb.onclick=()=>$("file").click();}
+  {const fb=$("fileBtn"); if(fb) fb.onclick=()=>{$("file").click();};}
   {const mb=$("moreBtn"); if(mb) mb.onclick=()=>toast("More attachments coming soon");}
 
   /* ============ PASSWORD EYE ============ */
@@ -224,74 +307,154 @@ function boot(){
   if(drawerDh)drawerDh.insertAdjacentElement("afterend",authsec);
   renderAuth();
 
-  function renderAuth(){
-    const d=$("authsec");if(!d)return;
-    if(user){
-      d.innerHTML='<div class="arow"><span class="ava">'+esc((user.email||"Z").toUpperCase()[0])+'</span><span class="amail">'+esc(user.email||"")+'</span>'+(pro?'<em class="pro">PRO</em>':'')+'<button class="icon-btn" id="signout" aria-label="Sign out" title="Sign out">⎋</button></div>';
-      const so=$("signout");
-      if(so)so.onclick=async()=>{
-        const s=await sbClient();
-        if(s){try{await s.auth.signOut()}catch(_){}}
-        user=null;pro=false;TOTAL=100000;renderAuth();updateTokenUI();toast("Signed out — chats stay on this device");
-      };
-    }else{
-      d.innerHTML="";
-    }}
+  /* ============ PRO PANEL INJECTION ============ */
+  const proPanel = document.createElement("div");
+  proPanel.id = "proPanel";
+  proPanel.className = "pro-card";
+  proPanel.innerHTML =
+    '<h4>'+(pro?'💎 Pro member':'💎 Go Pro')+'</h4>'+
+    '<p>'+(pro?'You have unlimited access to all features. Thanks for supporting Zyro!':'Unlock 1M tokens/day, unlimited PDFs, Notes→Flashcards→Quiz, printable notes, and priority speed.')+'</p>'+
+    (pro?'':'<button class="btn-up" id="upBtn">Upgrade · ₹199 / mo</button>');
+  const tokenSection = document.querySelector(".token-section");
+  if(tokenSection) tokenSection.parentNode.insertBefore(proPanel, tokenSection.nextSibling);
 
-  let authMode="signin";
-  function setAuthMode(m){
-    authMode=m;
-    const amTitle=$("amTitle"),amSub=$("amSub"),amGo=$("amGo"),amSwitch=$("amSwitch");
-    if(!amTitle)return;
-    if(m==="signup"){amTitle.textContent="Create your account";amSub.textContent="Sync chats across devices. Free.";amGo.textContent="Create account";amSwitch.previousSibling.textContent="Already have an account? ";amSwitch.textContent="Sign in"}
-    else{amTitle.textContent="Sign in";amSub.textContent="Sync your chats across devices.";amGo.textContent="Sign in";amSwitch.previousSibling.textContent="No account? ";amSwitch.textContent="Create one"}
-    $("amMsg").textContent="";
+  /* ============ UPGRADE MODAL ============ */
+  const upModal = document.createElement("div");
+  upModal.className = "up-modal";
+  upModal.id = "upModal";
+  upModal.innerHTML =
+    '<div class="up-box">'+
+      '<h3>Zyro Pro</h3>'+
+      '<p class="sub">Everything free, plus more.</p>'+
+      '<p class="price">₹199 <em>/ month</em></p>'+
+      '<p class="sub" style="margin:0">or ₹999 / year — save 58%</p>'+
+      '<ul>'+
+        '<li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m5 13 4 4L19 7"/></svg><b style="font-weight:500">1M tokens daily</b> — 10× the free limit</li>'+
+        '<li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m5 13 4 4L19 7"/></svg>Unlimited PDFs & images per message</li>'+
+        '<li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m5 13 4 4L19 7"/></svg><b style="font-weight:500">Notes → Flashcards → Quiz</b> from any PDF</li>'+
+        '<li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m5 13 4 4L19 7"/></svg>Exam-mode answers with mark breakdowns</li>'+
+        '<li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m5 13 4 4L19 7"/></svg>Priority model access (Pro model always)</li>'+
+        '<li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m5 13 4 4L19 7"/></svg>No ads, ever</li>'+
+      '</ul>'+
+      '<div class="actions">'+
+        '<button class="ghost" id="upCancel">Maybe later</button>'+
+        '<button class="primary" id="upGo">Upgrade now</button>'+
+      '</div>'+
+    '</div>';
+  document.body.appendChild(upModal);
+
+  document.body.addEventListener("click",e=>{
+    if(e.target.id==="upBtn"){ upModal.classList.add("on"); return; }
+    if(e.target.id==="upCancel"){ upModal.classList.remove("on"); return; }
+    if(e.target.id==="upGo"){
+      upModal.classList.remove("on");
+      // real integration hook — replace with Razorpay / Stripe
+      if(!user){
+        toast("Sign in first to upgrade");
+        openAuth("signup");
+        return;
+      }
+      toast("Payment coming soon — we'll email you when it's live");
+      return;
+    }
+  });
+
+  /* ============ FLASHCARD + QUIZ MODALS ============ */
+  const fcModal = document.createElement("div");
+  fcModal.className = "fc-modal"; fcModal.id = "fcModal";
+  fcModal.innerHTML = '<div class="fc-stage"><div class="fc-head"><span id="fcCount">1 / 1</span><button id="fcClose">Close ✕</button></div><div class="fc-card" id="fcCard"><span class="side" id="fcSide">Front</span><span id="fcText"></span><span class="hint">Tap to flip</span></div><div class="fc-nav"><button id="fcPrev">←</button><button id="fcFlip">Flip</button><button id="fcNext">→</button></div></div>';
+  document.body.appendChild(fcModal);
+
+  const quizModal = document.createElement("div");
+  quizModal.className = "quiz-modal"; quizModal.id = "quizModal";
+  quizModal.innerHTML = '<div class="quiz-stage"><div class="quiz-head"><span id="qIdx">Q 1 / 1</span><button id="qClose">Close ✕</button></div><div id="qBody"></div></div>';
+  document.body.appendChild(quizModal);
+
+  let fcCards=[], fcIdx=0, fcFlipped=false;
+  function openFlashcards(cards){
+    if(!cards.length) return;
+    fcCards=cards; fcIdx=0; fcFlipped=false;
+    fcModal.classList.add("on");
+    paintCard();
   }
-  function openAuth(m){setAuthMode(m||"signin");$("authModal").classList.add("on");setTimeout(()=>$("amEmail").focus(),60)}
-  function closeAuth(){const am=$("authModal"); if(am) am.classList.remove("on"); if($("amPw"))$("amPw").value=""; if($("amMsg"))$("amMsg").textContent=""}
-  {const ab=$("authBtn"); if(ab) ab.onclick=()=>openAuth("signin");}
-  {const c=$("amCancel"); if(c) c.onclick=closeAuth;}
-  {const s=$("amSwitch"); if(s) s.onclick=e=>{e.preventDefault();setAuthMode(authMode==="signin"?"signup":"signin")};}
-  {const g=$("amGo"); if(g) g.onclick=async()=>{
-    const em=$("amEmail").value.trim(),pw=$("amPw").value,msg=$("amMsg"),btn=$("amGo");
-    if(!em||pw.length<6){msg.style.color="#e5484d";msg.textContent="Enter an email and a password with 6+ characters.";return}
-    msg.style.color="var(--dim)";msg.textContent="Working…";btn.disabled=true;
-    const s=await sbClient();
-    if(!s){btn.disabled=false;msg.style.color="#e5484d";msg.textContent="Supabase isn't configured.";return}
-    const r=authMode==="signup"
-      ? await s.auth.signUp({email:em,password:pw,options:{emailRedirectTo:location.origin+location.pathname}})
-      : await s.auth.signInWithPassword({email:em,password:pw});
-    btn.disabled=false;
-    if(r.error){msg.style.color="#e5484d";msg.textContent=r.error.message;return}
-    if(authMode==="signup"&&r.data&&!r.data.session){msg.style.color="#3ecf8e";msg.textContent="✅ Check your email to confirm, then sign in.";return}
-    closeAuth();
-    toast(authMode==="signup"?"Account created 🎉":"Signed in");
-  };}
+  function paintCard(){
+    const c=fcCards[fcIdx];
+    const card=$("fcCard"), txt=$("fcText"), side=$("fcSide"), cnt=$("fcCount");
+    side.textContent=fcFlipped?"Back":"Front";
+    txt.textContent=fcFlipped?c.b:c.a;
+    cnt.textContent=(fcIdx+1)+" / "+fcCards.length;
+    card.classList.toggle("back",fcFlipped);
+    $("fcPrev").disabled = fcIdx===0;
+    $("fcNext").disabled = fcIdx===fcCards.length-1;
+  }
+  document.body.addEventListener("click",e=>{
+    if(e.target.id==="fcClose"){ fcModal.classList.remove("on"); return; }
+    if(e.target.closest("#fcCard")){ fcFlipped=!fcFlipped; paintCard(); return; }
+    if(e.target.id==="fcFlip"){ fcFlipped=!fcFlipped; paintCard(); return; }
+    if(e.target.id==="fcPrev"){ if(fcIdx>0){fcIdx--;fcFlipped=false;paintCard()} return; }
+    if(e.target.id==="fcNext"){ if(fcIdx<fcCards.length-1){fcIdx++;fcFlipped=false;paintCard()} return; }
+    if(e.target.classList.contains("fc-trigger")){
+      const idx=+e.target.dataset.idx;
+      const cards=window._zyroFCsets && window._zyroFCsets[idx];
+      if(cards) openFlashcards(cards);
+      return;
+    }
+  });
 
-  async function loadProfile(){try{const s=await sbClient();const {data}=await s.from("profiles").select("pro").eq("id",user.id).maybeSingle();
-    pro=!!(data&&data.pro);TOTAL=pro?1000000:100000;updateTokenUI()}catch(_){}}
-  async function syncUsageFromCloud(){if(!user)return;try{const s=await sbClient();if(!s)return;
-    const day=new Date().toISOString().slice(0,10);
-    const {data}=await s.from("usage").select("total").eq("user_id",user.id).eq("day",day).maybeSingle();
-    if(data&&typeof data.total==="number"){const d=getTokens();if(data.total>d.used){d.used=data.total;saveTokens(d);updateTokenUI()}}
-  }catch(_){}}
-  function cloudSave(){if(!user||!cur)return;clearTimeout(syncT);syncT=setTimeout(async()=>{try{const s=await sbClient();if(!s)return;
-    const msgs=JSON.parse(JSON.stringify(cur.msgs));msgs.forEach(m=>{delete m.imgs});
-    await s.from("chats").upsert({id:cur.id,user_id:user.id,title:cur.title,pin:!!cur.pin,ts:cur.ts,msgs:msgs.slice(-40)},{onConflict:"id"})}catch(_){}},1200)}
-  function cloudDelete(id){if(!user)return;sbClient().then(s=>{if(s)s.from("chats").delete().eq("id",id).then(()=>{}).catch(()=>{})})}
-  async function pullCloud(){try{const s=await sbClient();if(!s)return;const {data}=await s.from("chats").select("*").order("ts",{ascending:false}).limit(100);
-    if(!data)return;let changed=false;
-    for(const r of data){const ex=chats.find(c=>c.id===r.id);
-      if(!ex){chats.push({id:r.id,title:r.title,pin:r.pin,ts:r.ts,msgs:r.msgs});changed=true}
-      else if((r.ts||0)>(ex.ts||0)){ex.title=r.title;ex.pin=r.pin;ex.ts=r.ts;ex.msgs=r.msgs;changed=true}}
-    if(changed){save();renderList();toast("Chats synced")}}catch(_){}}
-  function cloudUsage(n){if(!user)return;uAcc+=n;clearTimeout(uT);uT=setTimeout(async()=>{try{const s=await sbClient();if(!s||!uAcc)return;const a=uAcc;uAcc=0;await s.rpc("add_usage",{amt:a})}catch(_){}},15000)}
-  async function afterSignIn(){renderAuth();await loadProfile();await pullCloud();await syncUsageFromCloud();renderAuth()}
-  (async()=>{let s;try{s=await sbClient()}catch(_){}
-    if(!s){renderAuth();return}
-    try{const {data}=await s.auth.getSession();user=(data&&data.session&&data.session.user)||null}catch(_){}
-    s.auth.onAuthStateChange((_e,ses)=>{user=(ses&&ses.user)||null;if(!user){pro=false;TOTAL=100000;renderAuth();updateTokenUI()}else afterSignIn()});
-    if(user)await afterSignIn();else renderAuth()})();
+  let quizQs=[], quizIdx=0, quizScore=0, quizAnswered=false;
+  function openQuiz(qs){
+    if(!qs.length) return;
+    quizQs=qs; quizIdx=0; quizScore=0; quizAnswered=false;
+    quizModal.classList.add("on");
+    paintQuiz();
+  }
+  function paintQuiz(){
+    const q=quizQs[quizIdx];
+    const body=$("qBody");
+    $("qIdx").textContent="Q "+(quizIdx+1)+" / "+quizQs.length+(quizAnswered?" · score "+quizScore:"");
+    let h='<div class="quiz-q">'+esc(q.q)+'</div><div class="quiz-opts">';
+    q.opts.forEach((opt,i)=>{
+      const letter=String.fromCharCode(65+i);
+      let cls="quiz-opt";
+      if(quizAnswered){
+        if(letter===q.ans) cls+=" correct";
+        else if(letter===q.picked) cls+=" wrong";
+      }
+      h+='<button class="'+cls+'" data-letter="'+letter+'"><span class="letter">'+letter+'</span><span>'+esc(opt)+'</span></button>';
+    });
+    h+='</div>';
+    if(quizAnswered && q.ex) h+='<div class="quiz-exp">'+esc(q.ex)+'</div>';
+    if(quizAnswered){
+      if(quizIdx<quizQs.length-1){
+        h+='<div style="margin-top:16px;text-align:right"><button class="quiz-opt" id="qNext" style="display:inline-flex;width:auto;padding:10px 20px">Next →</button></div>';
+      }else{
+        const pct=Math.round((quizScore/quizQs.length)*100);
+        h+='<div class="quiz-score"><span class="lbl">Your score</span><span class="big">'+quizScore+' / '+quizQs.length+'</span><span class="lbl">'+pct+'%</span></div>';
+        h+='<div style="text-align:center"><button id="qRestart" style="background:var(--box-2);border:1px solid var(--line);color:var(--ink);padding:10px 22px;border-radius:12px;cursor:pointer;font-size:14px">Try again</button></div>';
+      }
+    }
+    body.innerHTML=h;
+  }
+  document.body.addEventListener("click",e=>{
+    if(e.target.id==="qClose"){ quizModal.classList.remove("on"); return; }
+    if(e.target.id==="qRestart"){ quizIdx=0;quizScore=0;quizAnswered=false;paintQuiz(); return; }
+    if(e.target.id==="qNext"){ quizIdx++;quizAnswered=false;paintQuiz(); return; }
+    const opt=e.target.closest(".quiz-opt");
+    if(opt && !quizAnswered && opt.dataset.letter){
+      const q=quizQs[quizIdx];
+      q.picked=opt.dataset.letter;
+      if(opt.dataset.letter===q.ans) quizScore++;
+      quizAnswered=true;
+      paintQuiz();
+      return;
+    }
+    if(e.target.classList.contains("quiz-trigger")){
+      const idx=+e.target.dataset.idx;
+      const qs=window._zyroQuizSets && window._zyroQuizSets[idx];
+      if(qs) openQuiz(qs);
+      return;
+    }
+  });
 
   /* ============ MARKDOWN ============ */
   const MR=/\$\$([\s\S]+?)\$\$|\\\[([\s\S]+?)\\\]|\\\(([\s\S]+?)\\\)|\$([^\s$](?:[^$\n]*?[^\s$])?)\$(?!\d)/g;
@@ -302,63 +465,45 @@ function boot(){
 
   function renderTable(rows){
     if(!rows.length) return "";
-    const splitRow = r => r.replace(/^\s*\|/,"").replace(/\|\s*$/,"").split("|").map(c=>c.trim());
-    const head = splitRow(rows[0]);
-    let h = '<div class="table-wrap"><table><thead><tr>';
-    head.forEach(c => h += "<th>" + inl(c) + "</th>");
-    h += "</tr></thead><tbody>";
-    for (let r = 1; r < rows.length; r++){
-      h += "<tr>";
-      splitRow(rows[r]).forEach(c => h += "<td>" + inl(c) + "</td>");
-      h += "</tr>";
+    const splitRow=r=>r.replace(/^\s*\|/,"").replace(/\|\s*$/,"").split("|").map(c=>c.trim());
+    const head=splitRow(rows[0]);
+    let h='<div class="table-wrap"><table><thead><tr>';
+    head.forEach(c=>h+="<th>"+inl(c)+"</th>");
+    h+="</tr></thead><tbody>";
+    for(let r=1;r<rows.length;r++){
+      h+="<tr>";
+      splitRow(rows[r]).forEach(c=>h+="<td>"+inl(c)+"</td>");
+      h+="</tr>";
     }
-    h += "</tbody></table></div>";
+    h+="</tbody></table></div>";
     return h;
   }
 
   function txt(p){
-    const lines = p.split("\n");
-    let h = "", l = null, pa = [];
-    const fp = () => { if (pa.length){ h += "<p>" + inl(pa.join("\n")) + "</p>"; pa = []; } };
-    const fl = () => { if (l){ h += "</" + l + ">"; l = null } };
-    const isTableRow = s => /^\s*\|.+\|\s*$/.test(s);
-    const isTableSep = s => /^\s*\|[\s\-:|]+\|\s*$/.test(s) && /-/.test(s);
-
-    let i = 0;
-    while (i < lines.length){
-      const ln = lines[i];
-      let m;
-
-      if (isTableRow(ln) && i + 1 < lines.length && isTableSep(lines[i+1])){
-        fp(); fl();
-        const rows = [ln];
-        i += 2;
-        while (i < lines.length && isTableRow(lines[i])){ rows.push(lines[i]); i++ }
-        h += renderTable(rows);
-        continue;
+    const lines=p.split("\n");
+    let h="",l=null,pa=[];
+    const fp=()=>{if(pa.length){h+="<p>"+inl(pa.join("\n"))+"</p>";pa=[]}};
+    const fl=()=>{if(l){h+="</"+l+">";l=null}};
+    const isTableRow=s=>/^\s*\|.+\|\s*$/.test(s);
+    const isTableSep=s=>/^\s*\|[\s\-:|]+\|\s*$/.test(s)&&/-/.test(s);
+    let i=0;
+    while(i<lines.length){
+      const ln=lines[i];let m;
+      if(isTableRow(ln)&&i+1<lines.length&&isTableSep(lines[i+1])){
+        fp();fl();
+        const rows=[ln];i+=2;
+        while(i<lines.length&&isTableRow(lines[i])){rows.push(lines[i]);i++}
+        h+=renderTable(rows);continue;
       }
-
-      if (m = ln.match(/^\s{0,3}(#{1,6})\s+(.*)/)){
-        fp(); fl();
-        const n = Math.min(m[1].length + 1, 4);
-        h += "<h" + n + ">" + inl(m[2]) + "</h" + n + ">";
-      }
-      else if (/^\s*([-*_])\1{2,}\s*$/.test(ln)){ fp(); fl(); h += "<hr>" }
-      else if (m = ln.match(/^\s*[-*]\s+(.*)/)){
-        fp();
-        if (l !== "ul"){ fl(); h += "<ul>"; l = "ul" }
-        h += "<li>" + inl(m[1]) + "</li>";
-      }
-      else if (m = ln.match(/^\s*\d+[.)]\s+(.*)/)){
-        fp();
-        if (l !== "ol"){ fl(); h += "<ol>"; l = "ol" }
-        h += "<li>" + inl(m[1]) + "</li>";
-      }
-      else if (!ln.trim()){ fp(); fl() }
-      else { fl(); pa.push(ln) }
+      if(m=ln.match(/^\s{0,3}(#{1,6})\s+(.*)/)){fp();fl();const n=Math.min(m[1].length+1,4);h+="<h"+n+">"+inl(m[2])+"</h"+n+">"}
+      else if(/^\s*([-*_])\1{2,}\s*$/.test(ln)){fp();fl();h+="<hr>"}
+      else if(m=ln.match(/^\s*[-*]\s+(.*)/)){fp();if(l!=="ul"){fl();h+="<ul>";l="ul"}h+="<li>"+inl(m[1])+"</li>"}
+      else if(m=ln.match(/^\s*\d+[.)]\s+(.*)/)){fp();if(l!=="ol"){fl();h+="<ol>";l="ol"}h+="<li>"+inl(m[1])+"</li>"}
+      else if(!ln.trim()){fp();fl()}
+      else{fl();pa.push(ln)}
       i++;
     }
-    fp(); fl();
+    fp();fl();
     return h;
   }
 
@@ -373,7 +518,7 @@ function boot(){
       o+=q?'<span class="h'+q+'">'+esc(tx)+"</span>":esc(tx)}
     return o+esc(c.slice(last))}
   function typeset(root){if(!window.katex||streaming)return;root.querySelectorAll(".mx:not([data-k])").forEach(el=>{try{el.innerHTML=katex.renderToString(el.dataset.tex,{displayMode:el.dataset.d==="1",throwOnError:false});el.dataset.k=1}catch(_){}})}
-  function setH(el,h){el.innerHTML=h;typeset(el)}
+  function setH(el,h){el.innerHTML=h;typeset(el);enhanceStudy(el)}
   window.typesetAll=function(){typeset(document)};
   function md(src){let h="";src.split(/```/).forEach((p,i)=>{if(i%2){const nl=p.indexOf("\n"),l=nl>-1?p.slice(0,nl).trim():"",c=nl>-1?p.slice(nl+1):p;
     const code=c.replace(/\n$/,""),isH=/^html?$/i.test(l)||(!l&&/<!doctype|<html/i.test(c)),rn=/^(js|javascript|node|mjs)$/i.test(l)?"js":/^(py|python|python3)$/i.test(l)?"py":"";
@@ -384,6 +529,46 @@ function boot(){
       if(i%2){const nl=p.indexOf("\n"),c=nl>-1?p.slice(nl+1):p;h+='<div class="cb live col"><pre>'+esc(c)+'</pre></div>'}
       else{p.split(/\n{2,}/).forEach(bl=>{const s=bl.trim();if(s)h+='<p>'+esc(s).replace(/\n/g,"<br>")+'</p>'})}}
     return h}
+
+  /* ============ STUDY ENHANCER ============ */
+  function enhanceStudy(root){
+    if(!root) return;
+    // scan for flashcard patterns
+    const full=root.textContent||"";
+    const fcMatches=[...full.matchAll(/^\s*F:\s*(.+?)\s*\n\s*B:\s*(.+?)(?=\n\s*F:|\n\s*##|\n\s*$)/gims)];
+    if(fcMatches.length>=3){
+      const cards=fcMatches.map(m=>({a:m[1].trim(),b:m[2].trim()}));
+      window._zyroFCsets=window._zyroFCsets||[];
+      const idx=window._zyroFCsets.push(cards)-1;
+      const trigger=document.createElement("div");
+      trigger.className="fc-trigger";
+      trigger.dataset.idx=idx;
+      trigger.innerHTML='📚 <b>'+cards.length+' flashcards</b> ready · Tap to study';
+      // insert after the last heading that mentions Flashcards, else at top
+      root.insertBefore(trigger, root.firstChild);
+    }
+    // scan for quiz patterns
+    const quizBlocks=[];
+    const quizRe=/^\s*Q:\s*(.+?)\s*\n\s*A\)\s*(.+?)\s*\n\s*B\)\s*(.+?)\s*\n\s*C\)\s*(.+?)\s*\n\s*D\)\s*(.+?)\s*\n\s*Ans:\s*([A-D])\s*(?:\n\s*Ex:\s*(.+?))?(?=\n\s*Q:|\n\s*##|\n\s*$)/gims;
+    let m;
+    while((m=quizRe.exec(full))){
+      quizBlocks.push({
+        q:m[1].trim(),
+        opts:[m[2].trim(),m[3].trim(),m[4].trim(),m[5].trim()],
+        ans:m[6].trim().toUpperCase(),
+        ex:(m[7]||"").trim()
+      });
+    }
+    if(quizBlocks.length>=3){
+      window._zyroQuizSets=window._zyroQuizSets||[];
+      const idx=window._zyroQuizSets.push(quizBlocks)-1;
+      const trigger=document.createElement("div");
+      trigger.className="quiz-trigger";
+      trigger.dataset.idx=idx;
+      trigger.innerHTML='📝 <b>'+quizBlocks.length+'-question quiz</b> · Tap to start';
+      root.insertBefore(trigger, root.firstChild);
+    }
+  }
 
   /* ============ RENDER MESSAGES ============ */
   function fillBubble(b,txt,names,imgs,nimg){b.textContent=txt;
@@ -468,19 +653,25 @@ function boot(){
     const eb=e.target.closest("[data-edit]");if(eb)return startEdit(eb.closest(".u"));
     const cb=e.target.closest("[data-c]");if(cb)return copy(cb.closest(".cb").querySelector("pre").textContent,cb);
     const pv=e.target.closest("[data-p]");if(pv){$("pvf").srcdoc=pv.closest(".cb").querySelector("pre").textContent;$("pv").classList.add("on");return}
+    const fx=e.target.closest("[data-fix]");if(fx){
+      const cb2=fx.closest(".cb");
+      const code=cb2.querySelector("pre").textContent;
+      const err=cb2.querySelector(".out") ? cb2.querySelector(".out").textContent : "";
+      const msg="Fix this code. It failed.\n\nCode:\n```\n"+code+"\n```\n\nError:\n```\n"+err+"\n```\n\nExplain what caused the error and give the corrected code.";
+      t.value=msg; t.dispatchEvent(new Event("input"));
+      $("f").requestSubmit();
+      return;
+    }
     const rg=e.target.closest("[data-regen]");
     if(rg){if(rg.closest(".a")===log.lastElementChild)regen();else toast("Only the last reply can be regenerated");return}
-    const lk=e.target.closest("[data-like]");if(lk){addFeedback(lk.closest(".a").dataset.msgId,"like");lk.classList.add("active");lk.parentElement.querySelector("[data-dislike]").classList.remove("active");toast("Thanks for the feedback!");return}
-    const dk=e.target.closest("[data-dislike]");if(dk){addFeedback(dk.closest(".a").dataset.msgId,"dislike");dk.classList.add("active");dk.parentElement.querySelector("[data-like]").classList.remove("active");toast("Thanks for the feedback!")}});
-  function addFeedback(id,action){try{const k="zyro_feedback";const arr=JSON.parse(localStorage.getItem(k)||"[]");arr.push({id,action,t:Date.now()});localStorage.setItem(k,JSON.stringify(arr))}catch(_){}}
+    const lk=e.target.closest("[data-like]");if(lk){lk.classList.add("active");lk.parentElement.querySelector("[data-dislike]").classList.remove("active");toast("Thanks for the feedback!");return}
+    const dk=e.target.closest("[data-dislike]");if(dk){dk.classList.add("active");dk.parentElement.querySelector("[data-like]").classList.remove("active");toast("Thanks for the feedback!")}});
 
   const todayStr=()=>new Date().toLocaleDateString("en",{weekday:"long",year:"numeric",month:"long",day:"numeric"});
   const needsSearch=s=>/\b(latest|newest|recent(ly)?|today|tonight|yesterday|tomorrow|this (week|month|year)|news|released?|launch(ed|es)?|new version|prices?|score|weather|who (is|won)|what'?s new|trending|202[4-9]|203\d)\b/i.test(s)||(/\b(claude|chatgpt|gpt-?\d+|openai|anthropic|gemini|grok|deepseek|llama|qwen|mistral|nvidia|iphone|pixel|galaxy|react|next\.?js|python)\b/i.test(s)&&/\b(models?|versions?|releases?|new|newest|latest|vs|versus|compare|comparison|pricing|price|available|exists?|sonnet|opus|haiku|\d+(\.\d+)?)\b/i.test(s));
 
   /* ============ SYSTEM PROMPT ============ */
-  function appFacts(){
-    return "Today is "+todayStr()+". Your knowledge has a cutoff — if unsure about recent events, say so. Never mention tokens, quotas, or limits unless the user directly asks.";
-  }
+  function appFacts(){ return "Today is "+todayStr()+". Your knowledge has a cutoff — if unsure about recent events, say so. Never mention tokens, quotas, or limits unless the user directly asks."; }
 
   const SYS=()=>"You are Zyro, an AI assistant for anything: code, studies, writing, ideas, math, daily advice.\n\n"+
     "GREETING RULE: if the user's message is only a greeting (hi, hey, hello, yo, good morning, how are you, etc), reply with ONE short friendly sentence as Zyro. Never list features or abilities.\n\n"+
@@ -496,6 +687,22 @@ function boot(){
     "- REALISTIC content only. NEVER use Lorem ipsum, 'placeholder', 'TODO', or '...' abbreviations.\n"+
     "- Photos: use https://picsum.photos/seed/UNIQUEWORD/600/800 with a DIFFERENT word per image.\n"+
     "- Responsive, at least 150 lines, write the FULL file every time.\n\n"+
+    "NOTES PIPELINE: when the user says 'notes pipeline', 'notes → flashcards', 'make notes flashcards quiz', or similar, produce EXACTLY these three sections in order:\n"+
+    "## 📖 Notes\n"+
+    "[Short revision notes with key terms bolded. 5-8 paragraphs max.]\n\n"+
+    "## 🎴 Flashcards\n"+
+    "Output 12 flashcards. Each flashcard EXACTLY in this format on its own lines:\n"+
+    "F: [front — a question or a term]\n"+
+    "B: [back — the answer or definition, one short line]\n\n"+
+    "## 📝 Quiz\n"+
+    "Output 5 MCQs. Each one EXACTLY in this format:\n"+
+    "Q: [question]\n"+
+    "A) [option]\n"+
+    "B) [option]\n"+
+    "C) [option]\n"+
+    "D) [option]\n"+
+    "Ans: [A/B/C/D]\n"+
+    "Ex: [one-line explanation of the correct answer]\n\n"+
     (STUDY[$("study").value]||"")+
     (getCI()?"\n\nUser's custom instructions: "+getCI().slice(0,800):"")+
     "\n\n"+appFacts();
@@ -539,60 +746,37 @@ function boot(){
   /* ============ BETTER LONG-CHAT MEMORY ============ */
   const api = (h, keep) => {
     if (!h.length) return [];
-    const N = 15;         // keep last 15 turns
-    const MAX = 30000;    // total char budget
-
+    const N = 15, MAX = 30000;
     const keepIdx = new Set();
-
-    // 1. first user message (original intent)
     const firstUser = h.findIndex(m => m.role === "user");
     if (firstUser >= 0) keepIdx.add(firstUser);
-
-    // 2. last N turns
     for (let i = Math.max(0, h.length - N); i < h.length; i++) keepIdx.add(i);
-
-    // 3. any message with attachments (files user referenced)
     h.forEach((m, i) => { if (m.imgs && m.imgs.length) keepIdx.add(i); });
-
     let idxs = Array.from(keepIdx).sort((a, b) => a - b);
-
-    // Trim if too large — essentials stay, then walk recent backwards
     let total = 0;
     idxs.forEach(i => total += (h[i].content || "").length);
     if (total > MAX){
       const essential = new Set();
       if (firstUser >= 0) essential.add(firstUser);
       h.forEach((m, i) => { if (m.imgs && m.imgs.length) essential.add(i); });
-
-      const kept = [];
-      let sz = 0;
-      idxs.forEach(i => {
-        if (essential.has(i)){ kept.push(i); sz += (h[i].content || "").length }
-      });
+      const kept = []; let sz = 0;
+      idxs.forEach(i => { if (essential.has(i)){ kept.push(i); sz += (h[i].content || "").length } });
       for (let k = idxs.length - 1; k >= 0; k--){
         const i = idxs[k];
         if (essential.has(i)) continue;
         const len = (h[i].content || "").length;
         if (sz + len > MAX) continue;
-        kept.push(i);
-        sz += len;
+        kept.push(i); sz += len;
       }
       idxs = kept.sort((a, b) => a - b);
     }
-
-    // First turn must be user for Gemini
     while (idxs.length && h[idxs[0]].role !== "user") idxs.shift();
-
-    // Image budget — only most recent few keep images
     let imgBudget = keep === false ? 0 : 4;
     const out = [];
     for (let k = idxs.length - 1; k >= 0; k--){
       const m = h[idxs[k]];
       const copy = { role: m.role, content: m.content };
-      if (m.imgs && m.imgs.length && imgBudget > 0){
-        copy.images = m.imgs;
-        imgBudget -= m.imgs.length;
-      }
+      if (m.imgs && m.imgs.length && imgBudget > 0){ copy.images = m.imgs; imgBudget -= m.imgs.length; }
       out.unshift(copy);
     }
     return out;
@@ -602,6 +786,15 @@ function boot(){
     const items=pending.slice();
     if(busy||(!text.trim()&&!items.length))return;
     const files=items.filter(f=>!f.img),imgs=items.filter(f=>f.img).map(f=>f.img);
+
+    // Notes pipeline intent
+    if(pendingKind==="notes" && (files.length||imgs.length)){
+      const base="I uploaded a file. Follow the NOTES PIPELINE format exactly: ## 📖 Notes, ## 🎴 Flashcards (F:/B: format), ## 📝 Quiz (Q:/A)/B)/C)/D)/Ans:/Ex: format). Make it exam-relevant.";
+      const full=base+files.map(f=>"\n\n--- "+f.name+" ---\n"+f.text).join("");
+      pending=[];pendingKind=null;renderAtts();
+      return run("Notes → Flashcards → Quiz from "+files[0].name, full, files.map(f=>f.name), imgs);
+    }
+
     const out=tokensOut();
     if(out&&!pro&&items.length){toast("Uploads paused — try again tomorrow");pending=[];renderAtts();t.value=text;t.dispatchEvent(new Event("input"));return}
     applyLimits();
@@ -614,7 +807,7 @@ function boot(){
       setH(d.querySelector(".body"),md("Building is paused right now. Try a shorter question, or come back tomorrow."));
       return}
     const full=show+files.map(f=>"\n\n--- "+f.name+" ---\n"+f.text).join("");
-    pending=[];renderAtts();
+    pending=[];pendingKind=null;renderAtts();
     return run(show,full,files.map(f=>f.name),imgs);
   }
 
@@ -653,7 +846,6 @@ function boot(){
 
     const search=needsSearch(show)&&!tokensOut(),meta={src:[],sep:""};
 
-    // Direct streaming — no fake typer. Renders as tokens arrive.
     let lastRender=0;
     const emit = x => {
       c.write();
@@ -817,6 +1009,10 @@ function boot(){
       }catch(_){toast("Couldn't read "+f.name)}
     }
     renderAtts();updateSendState();
+    // Auto-submit notes pipeline
+    if(pendingKind==="notes" && pending.length){
+      setTimeout(()=>{send("");}, 100);
+    }
   };
   function readImg(f){return new Promise((ok,no)=>{const url=URL.createObjectURL(f),im=new Image();
     im.onload=()=>{try{const M=1024,k=Math.min(1,M/Math.max(im.width,im.height)),w=Math.max(1,Math.round(im.width*k)),h=Math.max(1,Math.round(im.height*k)),c=document.createElement("canvas");c.width=w;c.height=h;
@@ -866,9 +1062,22 @@ function boot(){
     if(box._stop){box._stop();return}
     let out=box.querySelector(".out");if(!out){out=document.createElement("div");out.className="out";box.appendChild(out)}
     out.textContent="";const code=box.querySelector("pre").textContent;
-    let size=0,w,tm,done=false;
+    let size=0,w,tm,done=false,hadErr=false;
     const add=(cls,s)=>{size+=s.length;const sp=document.createElement("div");sp.className=cls;sp.textContent=s;out.appendChild(sp);out.scrollTop=out.scrollHeight};
-    const end=note=>{if(done)return;done=true;clearTimeout(tm);if(note)add("o-s",note);btn.textContent="Run";box._stop=null;if(kind==="js"&&w){try{w.terminate()}catch(_){}}};
+    const end=note=>{
+      if(done)return;done=true;clearTimeout(tm);if(note)add("o-s",note);
+      btn.textContent="Run";box._stop=null;
+      if(kind==="js"&&w){try{w.terminate()}catch(_){}}
+      // show fix button if there was an error
+      if(hadErr){
+        const fx=document.createElement("button");
+        fx.type="button";
+        fx.className="fix-btn";
+        fx.setAttribute("data-fix","");
+        fx.innerHTML="🔧 Fix with Zyro";
+        if(!box.querySelector("[data-fix]")) out.appendChild(fx);
+      }
+    };
     const kill=note=>{try{w&&w.terminate()}catch(_){}if(kind==="py")pyW=null;end(note)};
     const arm=ms=>{clearTimeout(tm);tm=setTimeout(()=>kill("Stopped after "+Math.round(ms/1000)+" s."),ms)};
     btn.textContent="Stop";box._stop=()=>kill("Stopped.");
@@ -878,9 +1087,9 @@ function boot(){
       if(m.t==="s")add("o-s",m.s);
       else if(m.t==="r")arm(15000);
       else if(m.t==="o"){if(size>20000){kill("Output limit reached.");return}add("o-o",m.s)}
-      else if(m.t==="e"){let s=m.s;if(kind==="py"&&/importScripts|Failed to fetch|NetworkError|Failed to load/i.test(s))s="Couldn't load Python. It needs an internet connection the first time.";add("o-e",s)}
+      else if(m.t==="e"){hadErr=true;let s=m.s;if(kind==="py"&&/importScripts|Failed to fetch|NetworkError|Failed to load/i.test(s))s="Couldn't load Python. It needs an internet connection the first time.";add("o-e",s)}
       else if(m.t==="d")end(out.childNodes.length?"":"(no output)")};
-    w.onerror=()=>kill("Couldn't start the runner"+(kind==="py"?" (Python needs internet the first time).":"."));
+    w.onerror=()=>{hadErr=true;kill("Couldn't start the runner"+(kind==="py"?" (Python needs internet the first time).":"."))};
     w.postMessage({code});
   }
 
