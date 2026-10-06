@@ -79,7 +79,6 @@ main{flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;display:flex;flex-dir
 #log.on{display:block}
 #log,.a,.body{min-width:0;max-width:100%}
 
-/* STRICT image containment */
 .u img, .a img, .body img, .th img{
   max-width:84px !important;max-height:84px !important;
   width:84px !important;height:84px !important;
@@ -161,13 +160,13 @@ main{flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;display:flex;flex-dir
 .att>span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:140px}
 .att button{background:none;border:0;color:var(--dim);padding:0 4px;font-size:12px}
 
-.scrim{position:fixed;inset:0;background:#0008;opacity:0;pointer-events:none;transition:opacity .25s;z-index:60}
+.scrim{position:fixed;inset:0;background:#0008;opacity:0;pointer-events:none;transition:opacity .25s;z-index:190}
 .scrim.on{opacity:1;pointer-events:auto}
 .drawer{
   position:fixed;top:0;bottom:0;left:0;
   width:min(300px,86vw);max-width:86vw;
   background:var(--bg);border-right:1px solid var(--line);
-  transform:translateX(-100%);transition:transform .25s;z-index:61;
+  transform:translateX(-100%);transition:transform .25s;z-index:200;
   display:block;overflow-y:auto;overflow-x:hidden;
   -webkit-overflow-scrolling:touch;overscroll-behavior:contain;
   padding:calc(12px + env(safe-area-inset-top,0px)) 12px calc(20px + env(safe-area-inset-bottom,0px));
@@ -226,7 +225,7 @@ main{flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;display:flex;flex-dir
   width:min(300px,calc(100vw - 24px));
   max-width:calc(100vw - 24px);
   background:var(--bg-2);border:1px solid var(--line-2);border-radius:18px;
-  padding:16px;display:none;flex-direction:column;gap:14px;z-index:200;
+  padding:16px;display:none;flex-direction:column;gap:14px;z-index:300;
   box-shadow:0 16px 40px -10px rgba(0,0,0,.75);
   max-height:calc(100vh - 80px);overflow-y:auto;overflow-x:hidden;
 }
@@ -326,7 +325,7 @@ textarea::placeholder{color:var(--dim-2)}
 
 .jump{position:fixed;right:20px;bottom:200px;background:var(--bg-3);border:1px solid var(--line);color:var(--ink);border-radius:50%;width:40px;height:40px;font-size:20px;display:none;z-index:15;box-shadow:0 4px 12px #0006;align-items:center;justify-content:center;cursor:pointer}
 .jump.on{display:flex}
-.toast{position:fixed;left:50%;bottom:180px;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:8px 14px;border-radius:20px;font-size:13px;opacity:0;pointer-events:none;transition:opacity .25s;z-index:90;max-width:90vw;text-align:center}
+.toast{position:fixed;left:50%;bottom:180px;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:8px 14px;border-radius:20px;font-size:13px;opacity:0;pointer-events:none;transition:opacity .25s;z-index:400;max-width:90vw;text-align:center}
 .toast.on{opacity:1}
 
 #jsErr{position:fixed;top:0;left:0;right:0;background:#e5484d;color:#fff;padding:10px 14px;font:12px/1.5 monospace;z-index:99999;white-space:pre-wrap;word-break:break-word;max-height:45vh;overflow:auto;display:none}
@@ -347,11 +346,6 @@ textarea::placeholder{color:var(--dim-2)}
 @media(prefers-reduced-motion:reduce){
   *{animation:none!important;transition:none!important;scroll-behavior:auto!important}
 }
-  /* === fix: drawer above header === */
-.scrim{z-index:190 !important}
-.drawer{z-index:200 !important}
-.acct-drop{z-index:300 !important}
-.toast{z-index:400 !important}
 </style>
 </head>
 <body>
@@ -384,7 +378,7 @@ textarea::placeholder{color:var(--dim-2)}
 
   <div id="waitlistSlot"></div>
 
-  <div class="df">Chats saved on this device · Zyro v28</div>
+  <div class="df">Chats saved on this device · Zyro v30</div>
 </aside>
 
 <header>
@@ -523,6 +517,7 @@ textarea::placeholder{color:var(--dim-2)}
 
 <div class="toast" id="toast"></div>
 
-<script src="app.js?v=29"></script>
+<script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+<script src="app.js?v=30"></script>
 </body>
 </html>
