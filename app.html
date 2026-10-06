@@ -312,9 +312,13 @@ textarea::placeholder{color:var(--dim-2)}
 .pw-eye svg{width:20px;height:20px;display:block}
 :root[data-theme="light"] .pw-eye{background:rgba(0,0,0,.04);border-color:rgba(0,0,0,.06);color:#555}
 
-.pv{position:fixed;inset:0;background:var(--bg);z-index:70;display:none;flex-direction:column;padding-top:env(safe-area-inset-top,0px)}
+.pv{position:fixed;inset:0;background:var(--bg);z-index:9998;display:none;flex-direction:column;padding-top:env(safe-area-inset-top,0px)}
 .pv.on{display:flex}
-.pvh{display:flex;justify-content:space-between;align-items:center;padding:8px 10px 8px 16px;border-bottom:1px solid var(--line);color:var(--dim)}
+.pvh{display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-bottom:1px solid var(--line);background:var(--bg-2);color:var(--dim);min-height:56px;flex:none;z-index:2;position:relative}
+.pvh .pv-title{font-size:14.5px;font-weight:500;color:var(--ink);letter-spacing:-.01em}
+.pvh .pv-close{display:inline-flex;align-items:center;gap:7px;background:var(--box-2);border:1px solid var(--line-2);color:var(--ink);padding:9px 15px;border-radius:12px;font-size:14px;font-weight:500;cursor:pointer;min-height:40px}
+.pvh .pv-close:hover{background:var(--hover);border-color:var(--acc-line);color:var(--acc)}
+.pvh .pv-close:active{transform:scale(.96)}
 .pv iframe{flex:1;border:0;width:100%;background:#fff}
 .cv{position:fixed;inset:0;background:var(--bg);z-index:75;display:none;flex-direction:column;padding-top:env(safe-area-inset-top,0px)}
 .cv.on{display:flex}
@@ -463,7 +467,10 @@ textarea::placeholder{color:var(--dim-2)}
 <input type="file" id="file" hidden multiple accept=".pdf,.txt,.md,.py,.js,.ts,.jsx,.tsx,.html,.css,.json,.java,.c,.cpp,.h,.cs,.go,.rs,.php,.rb,.kt,.swift,.sql,.sh,.yml,.yaml,.xml,.csv,.ipynb,.ino,.tex,.r,.m">
 
 <div class="pv" id="pv">
-  <div class="pvh"><span>Preview</span><button class="icon-btn" id="pvx" aria-label="Close">✕</button></div>
+  <div class="pvh">
+  <span class="pv-title">Preview</span>
+  <button class="pv-close" id="pvx" type="button" aria-label="Close preview">✕ Close</button>
+  </div>
   <iframe id="pvf" sandbox="allow-scripts allow-forms allow-modals allow-popups allow-popups-to-escape-sandbox" title="Preview"></iframe>
 </div>
 
@@ -509,7 +516,7 @@ textarea::placeholder{color:var(--dim-2)}
     <span id="cvl">code</span>
     <span>
       <button type="button" id="cvc">Copy</button>
-      <button class="icon-btn" id="cvx" aria-label="Close">✕</button>
+      <button class="pv-close" id="cvx" type="button" aria-label="Close viewer">✕ Close</button>
     </span>
   </div>
   <pre id="cvp"></pre>
