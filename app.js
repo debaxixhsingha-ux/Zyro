@@ -1,4 +1,8 @@
-/* ============ TOP HELPERS ============ */
+/* =========================================================
+   ZYRO app.js — complete
+   ========================================================= */
+
+/* ---------- TOP HELPERS ---------- */
 function loadJS(u){
   return new Promise(function(ok,no){
     var e=document.createElement("script");
@@ -28,7 +32,7 @@ const TOKEN_KEY="zyro_tokens";
 const CI="zyro_ci";
 const CK="zyro_chats";
 const WAITLIST_KEY="zyro_waitlist";
-const TOKEN_RESET_MS = 5 * 60 * 60 * 1000; // 5 hours
+const TOKEN_RESET_MS = 5 * 60 * 60 * 1000;
 const STREAM_TIMEOUT_MS = 90000;
 const FIRST_TOKEN_MS = 45000;
 
@@ -40,7 +44,7 @@ let pending=[],pendingKind=null;
 let sid=0,follow=true,uAcc=0,uT=null,syncT=null;
 const LIM=12000;
 
-/* ============ INJECTED STYLES ============ */
+/* ---------- INJECTED STUDY STYLES ---------- */
 (function(){
   if (document.getElementById("zyro-study-style")) return;
   var s = document.createElement("style");
@@ -116,28 +120,25 @@ const LIM=12000;
     ".waitlist-card .ok{color:#3ecf8e;font-size:12px;margin-top:8px;display:none}",
     ".waitlist-card.done .wl-row{display:none}",
     ".waitlist-card.done .ok{display:block}",
-    ".mic-btn{background:var(--box);border:1px solid var(--line);color:var(--dim);border-radius:50%;width:36px;height:36px;display:grid;place-items:center;cursor:pointer;margin-left:auto;transition:background .2s,color .2s,border-color .2s}",
-    ".mic-btn:hover{background:var(--box-2);color:var(--ink);border-color:var(--line-2)}",
-    ".mic-btn.rec{background:rgba(229,72,77,.15);border-color:rgba(229,72,77,.5);color:#e5484d;animation:pulseMic 1.4s ease-in-out infinite}",
-    "@keyframes pulseMic{0%,100%{box-shadow:0 0 0 0 rgba(229,72,77,.4)}50%{box-shadow:0 0 0 8px rgba(229,72,77,0)}}",
-    ".acts button[data-copy] svg,.acts button[data-like] svg,.acts button[data-dislike] svg{width:14px;height:14px;display:block}",
     ".token-refill{color:var(--dim-2);font-size:11px;margin-top:2px}"
   ].join("");
   document.head.appendChild(s);
 })();
 
-/* ============ BOOT ============ */
+/* =========================================================
+   BOOT
+   ========================================================= */
 function boot(){
   const $ = id => document.getElementById(id);
   const log = $("log"), t = $("t"), go = $("go"), main = $("main");
-  if (!log || !t || !go || !main) { showErr("Core elements missing from app.html"); return; }
+  if (!log || !t || !go || !main){ showErr("Core elements missing from app.html"); return; }
 
   const esc = s => s.replace(/[&<>]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
   const escA = s => esc(s).replace(/"/g,"&quot;");
   const sleep = ms => new Promise(r => setTimeout(r, ms));
   const getCI = () => { try { return localStorage.getItem(CI) || ""; } catch(_) { return ""; } };
 
-  /* ---------- TOKENS — 5-hour reset ---------- */
+  /* ---------- TOKENS (5-hour reset) ---------- */
   function getTokens(){
     try {
       const d = JSON.parse(localStorage.getItem(TOKEN_KEY) || "null");
@@ -166,17 +167,11 @@ function boot(){
   function paintBar(used, last){
     const pct = Math.min(100, (used/TOTAL) * 100);
     const p = used > 0 && pct < 0.1 ? "<0.1" : pct < 10 ? pct.toFixed(1) : Math.floor(pct);
-    const tp = $("tPct");
-    if (tp) tp.textContent = p + "% used";
+    const tp = $("tPct"); if (tp) tp.textContent = p + "% used";
     const f = $("fTotal");
-    if (f) { f.style.width = pct + "%"; f.className = "token-fill" + (pct >= 95 ? " danger" : pct >= 80 ? " warn" : ""); }
+    if (f){ f.style.width = pct + "%"; f.className = "token-fill" + (pct >= 95 ? " danger" : pct >= 80 ? " warn" : ""); }
     const tl = $("tLast");
-    if (tl){
-      const refill = nextRefillTime();
-      if (tokensOut()) tl.textContent = "refills at " + refill;
-      else tl.textContent = "refills at " + refill;
-      tl.className = "token-refill";
-    }
+    if (tl){ tl.textContent = "refills at " + nextRefillTime(); tl.className = "token-refill"; }
   }
 
   function updateTokenUI(){
@@ -203,7 +198,6 @@ function boot(){
     }
   }
 
-  // Refresh refill display every 30s
   setInterval(updateTokenUI, 30000);
 
   function toast(m){ const e = $("toast"); if (!e) return; e.textContent = m; e.classList.add("on"); setTimeout(() => e.classList.remove("on"), 1600); }
@@ -325,17 +319,17 @@ function boot(){
 
   /* ---------- VOICE INPUT ---------- */
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  let micBtn = null, recog = null, listening = false;
+  let recog = null, listening = false;
   if (SR){
-    micBtn = document.createElement("button");
+    const micBtn = document.createElement("button");
     micBtn.type = "button";
     micBtn.className = "mic-btn";
     micBtn.title = "Voice input";
-    micBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 17v5M8 22h8"/></svg>';
-    const row = document.querySelector(".prompt-row");
+    micBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 17v5M8 22h8"/></svg>';
+    const row = document.querySelector(".row");
     if (row && go) row.insertBefore(micBtn, go);
     micBtn.onclick = () => {
-      if (listening) { try { recog.stop(); } catch(_){} return; }
+      if (listening){ try { recog.stop(); } catch(_) {} return; }
       try {
         recog = new SR();
         recog.lang = "en-IN";
@@ -408,13 +402,11 @@ function boot(){
         const em = (wlEmail.value || "").trim().toLowerCase();
         if (!em || !/^\S+@\S+\.\S+$/.test(em)){ toast("Enter a valid email"); return; }
         wlGo.disabled = true; wlGo.textContent = "…";
-        // Save locally always
         try {
           const arr = JSON.parse(localStorage.getItem(WAITLIST_KEY) || "[]");
           if (!arr.includes(em)) arr.push(em);
           localStorage.setItem(WAITLIST_KEY, JSON.stringify(arr));
         } catch(_) {}
-        // Try Supabase
         try {
           const s = await sbClient();
           if (s) await s.from("waitlist").insert({ email: em });
@@ -439,31 +431,23 @@ function boot(){
       const so = $("signout");
       if (so) so.onclick = async () => {
         const s = await sbClient();
-        if (s) { try { await s.auth.signOut(); } catch(_) {} }
+        if (s){ try { await s.auth.signOut(); } catch(_) {} }
         user = null; pro = false; TOTAL = 100000;
         renderAuth(); updateTokenUI();
         toast("Signed out — chats stay on this device");
       };
-
       if (ab){
         ab.innerHTML = '<span style="font-weight:600;font-size:14px">' + initial + '</span>';
         ab.title = user.email || "Account";
       }
-
-      if (tokenSec && d.parentNode){
-        d.parentNode.insertBefore(tokenSec, d.nextSibling);
-      }
+      if (tokenSec && d.parentNode) d.parentNode.insertBefore(tokenSec, d.nextSibling);
     } else {
       d.innerHTML = "";
-
       if (ab){
         ab.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-7 8-7s8 3 8 7"/></svg>';
         ab.title = "Sign in";
       }
-
-      if (tokenSec && themeDiv && themeDiv.parentNode){
-        themeDiv.parentNode.insertBefore(tokenSec, themeDiv);
-      }
+      if (tokenSec && themeDiv && themeDiv.parentNode) themeDiv.parentNode.insertBefore(tokenSec, themeDiv);
     }
   }
   renderAuth();
@@ -587,7 +571,7 @@ function boot(){
   (async () => {
     let s;
     try { s = await sbClient(); } catch(_) {}
-    if (!s) { renderAuth(); return; }
+    if (!s){ renderAuth(); return; }
     try {
       const { data } = await s.auth.getSession();
       user = (data && data.session && data.session.user) || null;
@@ -607,11 +591,11 @@ function boot(){
   proPanel.className = "pro-card";
   proPanel.innerHTML =
     '<h4>' + (pro ? '💎 Pro member' : '💎 Go Pro') + '</h4>' +
-    '<p>' + (pro ? 'You have unlimited access to all features.' : 'Unlock 1M tokens/5h, unlimited PDFs, Notes → Flashcards → Quiz, and priority speed.') + '</p>' +
+    '<p>' + (pro ? 'You have unlimited access to all features.' : 'Unlock 1M tokens/5h, unlimited PDFs, Notes → Flashcards → Quiz, priority model.') + '</p>' +
     (pro ? '' : '<button class="btn-up" id="upBtn">Upgrade · ₹199 / mo</button>');
   const tokenSection = document.querySelector(".token-section");
   if (tokenSection && tokenSection.parentNode) tokenSection.parentNode.insertBefore(proPanel, tokenSection.nextSibling);
-  
+
   /* ---------- UPGRADE MODAL ---------- */
   const upModal = document.createElement("div");
   upModal.className = "up-modal"; upModal.id = "upModal";
@@ -627,11 +611,10 @@ function boot(){
         '<li>Notes → Flashcards → Quiz from any PDF</li>' +
         '<li>Exam-mode answers with mark breakdowns</li>' +
         '<li>Priority Pro model access</li>' +
-        '<li>No ads, ever</li>' +
       '</ul>' +
       '<div class="actions">' +
         '<button class="ghost" id="upCancel">Maybe later</button>' +
-        '<button class="primary" id="upGo">Upgrade now</button>' +
+        '<button class="primary" id="upGo">Notify me</button>' +
       '</div>' +
     '</div>';
   document.body.appendChild(upModal);
@@ -699,14 +682,12 @@ function boot(){
     body.innerHTML = h;
   }
 
-  /* ---------- GLOBAL CLICK for modals ---------- */
+  /* ---------- GLOBAL MODAL CLICKS ---------- */
   document.body.addEventListener("click", e => {
     if (e.target.id === "upBtn"){ upModal.classList.add("on"); return; }
     if (e.target.id === "upCancel"){ upModal.classList.remove("on"); return; }
     if (e.target.id === "upGo"){
       upModal.classList.remove("on");
-      if (!user){ toast("Sign in first to upgrade"); openAuth("signup"); return; }
-      // Scroll to waitlist card in drawer
       openD();
       setTimeout(() => {
         const wl = $("waitlistCard");
@@ -1013,11 +994,7 @@ function boot(){
   }
 
   function copy(txt, btn){
-    const ok = () => {
-      const prev = btn.innerHTML;
-      btn.innerHTML = "✓";
-      setTimeout(() => btn.innerHTML = prev, 1200);
-    };
+    const ok = () => { const prev = btn.innerHTML; btn.innerHTML = "✓"; setTimeout(() => btn.innerHTML = prev, 1200); };
     const fb = () => {
       const a = document.createElement("textarea");
       a.value = txt; a.style.cssText = "position:fixed;opacity:0";
@@ -1028,10 +1005,10 @@ function boot(){
     navigator.clipboard ? navigator.clipboard.writeText(txt).then(ok).catch(fb) : fb();
   }
 
-  /* ---------- SVG ICONS (black / white per theme) ---------- */
+  /* ---------- SVG ICONS ---------- */
   const SVG_COPY = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
-  const SVG_LIKE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 10v12"/><path d="M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h2.76a2 2 0 0 0 1.79-1.11L12 2h0a3.13 3.13 0 0 1 3 3.88Z"/></svg>';
-  const SVG_DISLIKE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 14V2"/><path d="M9 18.12 10 14H4.17a2 2 0 0 1-1.92-2.56l2.33-8A2 2 0 0 1 6.5 2H20a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-2.76a2 2 0 0 0-1.79 1.11L12 22h0a3.13 3.13 0 0 1-3-3.88Z"/></svg>';
+  const SVG_LIKE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 10v12"/><path d="M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h2.76a2 2 0 0 0 1.79-1.11L12 2a3.13 3.13 0 0 1 3 3.88Z"/></svg>';
+  const SVG_DISLIKE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 14V2"/><path d="M9 18.12 10 14H4.17a2 2 0 0 1-1.92-2.56l2.33-8A2 2 0 0 1 6.5 2H20a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-2.76a2 2 0 0 0-1.79 1.11L12 22a3.13 3.13 0 0 1-3-3.88Z"/></svg>';
   const SVG_REGEN = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/><path d="M3 21v-5h5"/></svg>';
   const SVG_CONT = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>';
 
@@ -1040,9 +1017,16 @@ function boot(){
     const rb = e.target.closest("[data-run]"); if (rb) return runCode(rb.closest(".cb"), rb.dataset.run, rb);
     const eb = e.target.closest("[data-edit]"); if (eb) return startEdit(eb.closest(".u"));
     const cb = e.target.closest("[data-c]"); if (cb) return copy(cb.closest(".cb").querySelector("pre").textContent, cb);
-    const pv = e.target.closest("[data-p]"); if (pv){ $("pvf").srcdoc = pv.closest(".cb").querySelector("pre").textContent; $("pv").classList.add("on"); return; }
-
-    // Copy whole message
+    const pv = e.target.closest("[data-p]");
+    if (pv){
+      let html = pv.closest(".cb").querySelector("pre").textContent || "";
+      if (!/<!doctype|<html/i.test(html)){
+        html = '<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><style>body{font-family:system-ui,sans-serif;margin:0;padding:16px;color:#111;background:#fff}</style></head><body>' + html + '</body></html>';
+      }
+      $("pvf").srcdoc = html;
+      $("pv").classList.add("on");
+      return;
+    }
     const cp = e.target.closest("[data-copywhole]");
     if (cp){
       const a = cp.closest(".a");
@@ -1050,7 +1034,6 @@ function boot(){
       if (body) copy(body.innerText, cp);
       return;
     }
-    // Continue
     const cont = e.target.closest("[data-cont]");
     if (cont){
       const a = cont.closest(".a");
@@ -1083,9 +1066,9 @@ function boot(){
   const SYS = () =>
     "You are Zyro, an AI assistant for anything: code, studies, writing, ideas, math, daily advice.\n\n" +
     "GREETING RULE: if the user's message is only a greeting (hi, hey, hello, yo, good morning, how are you, etc), reply with ONE short friendly sentence as Zyro. Never list features or abilities.\n\n" +
-    "STYLE:\n- Clear, concise, markdown. No filler.\n- Code in fenced blocks with language tags.\n- Math in LaTeX: $inline$ or $$display$$.\n- Admit uncertainty. Search results win when provided. Never claim to be another company's assistant.\n\n" +
+    "STYLE:\n- Clear, concise, markdown. No filler.\n- Code in fenced blocks with language tags. ALWAYS close the code fence.\n- Math in LaTeX: $inline$ or $$display$$.\n- Admit uncertainty. Search results win when provided. Never claim to be another company's assistant.\n\n" +
     "CREATOR (only when the user asks who made/created/built/developed you): Debasish Singha. If asked more: 17 years old, student at Reliance Senior Secondary School in Assam, India. Never bring him up unprompted.\n\n" +
-    "BUILD WEBSITES: when the user asks to build/create/make a website, webpage, landing page, UI, dashboard, portfolio, store or form:\n- Output ONE complete self-contained HTML file in a single ```html code block.\n- All CSS inside <style>, all JS inside <script>. No external files.\n- REALISTIC content only. NEVER use Lorem ipsum, 'placeholder', 'TODO', or '...' abbreviations.\n- Photos: use https://picsum.photos/seed/UNIQUEWORD/600/800 with a DIFFERENT word per image.\n- Responsive, at least 150 lines, write the FULL file every time.\n\n" +
+    "BUILD WEBSITES: when the user asks to build/create/make a website, webpage, landing page, UI, dashboard, portfolio, store or form:\n- Output ONE complete self-contained HTML file in a single ```html code block.\n- All CSS inside <style>, all JS inside <script>. No external files.\n- REALISTIC content only. NEVER use Lorem ipsum, 'placeholder', 'TODO', or '...' abbreviations.\n- Photos: use https://picsum.photos/seed/UNIQUEWORD/600/800 with a DIFFERENT word per image.\n- Responsive, at least 150 lines, write the FULL file every time.\n- Always close the ```html fence at the end.\n\n" +
     "NOTES PIPELINE: when the user says 'notes pipeline', 'notes flashcards', 'notes → flashcards', or similar, produce EXACTLY these three sections in order:\n## 📖 Notes\n[Short revision notes with key terms bolded. 5-8 paragraphs max.]\n\n## 🎴 Flashcards\nOutput 12 flashcards. Each flashcard EXACTLY in this format on its own lines:\nF: [front]\nB: [back]\n\n## 📝 Quiz\nOutput 5 MCQs. Each one EXACTLY in this format:\nQ: [question]\nA) [option]\nB) [option]\nC) [option]\nD) [option]\nAns: [A/B/C/D]\nEx: [one-line explanation]\n\n" +
     (STUDY[$("study").value] || "") +
     (getCI() ? "\n\nUser's custom instructions: " + getCI().slice(0, 800) : "") +
@@ -1119,7 +1102,8 @@ function boot(){
     else { go.innerHTML = ARROW; go.classList.remove("on"); go.setAttribute("aria-label", "Send"); }
   }
 
-  async function workerStream(messages, onText, signal, fast, onThought, search, meta){
+  /* ---------- WORKER STREAM ---------- */
+  async function workerStream(messages, onText, signal, fast, onThought, search, meta, allowContinue){
     let r;
     try {
       r = await fetch(WORKER_URL, {
@@ -1181,10 +1165,50 @@ function boot(){
       }
     } catch(e){
       if (e && e.name === "AbortError") aborted = true;
-      else if (gotFirst) { /* partial — keep */ }
+      else if (gotFirst) { /* partial */ }
       else throw e;
     } finally {
       clearTimeout(firstTokenTimer);
+    }
+
+    // Auto-continue if a code fence was left open
+    const fenceCount = (full.match(/```/g) || []).length;
+    const hasOpenFence = fenceCount % 2 === 1;
+
+    if (allowContinue && hasOpenFence && full.length > 100 && !aborted){
+      try {
+        const contMsgs = [
+          ...messages,
+          { role: "assistant", content: full },
+          { role: "user", content: "Continue the code block exactly from where it stopped. Do NOT repeat any line. Do NOT start with ``` again. Just output the remaining code, then close with ```." }
+        ];
+        const r2 = await fetch(WORKER_URL, { method: "POST", signal, headers: { "Content-Type": "application/json" }, body: JSON.stringify({ messages: contMsgs, mode: $("mode").value, fast, search: false }) });
+        if (r2.ok && r2.body){
+          const rd2 = r2.body.getReader(); let buf2 = "";
+          let extra = "";
+          for (;;){
+            const { done, value } = await rd2.read();
+            if (done) break;
+            buf2 += dec.decode(value, { stream: true });
+            const lines2 = buf2.split("\n"); buf2 = lines2.pop();
+            for (const ln of lines2){
+              if (!ln.startsWith("data:")) continue;
+              const dd = ln.slice(5).trim();
+              if (!dd || dd === "[DONE]") continue;
+              try {
+                const j = JSON.parse(dd);
+                const cd = j.candidates && j.candidates[0];
+                if (cd && cd.content && cd.content.parts){
+                  for (const p of cd.content.parts){
+                    if (p.text){ extra += p.text; onText(full + extra); }
+                  }
+                }
+              } catch(_) {}
+            }
+          }
+          full += extra;
+        }
+      } catch(_) {}
     }
 
     if (used > 0) addTokens(used);
@@ -1227,9 +1251,9 @@ function boot(){
     const out = [];
     for (let k = idxs.length - 1; k >= 0; k--){
       const m = h[idxs[k]];
-      const copy = { role: m.role, content: m.content };
-      if (m.imgs && m.imgs.length && imgBudget > 0){ copy.images = m.imgs; imgBudget -= m.imgs.length; }
-      out.unshift(copy);
+      const c2 = { role: m.role, content: m.content };
+      if (m.imgs && m.imgs.length && imgBudget > 0){ c2.images = m.imgs; imgBudget -= m.imgs.length; }
+      out.unshift(c2);
     }
     return out;
   };
@@ -1273,8 +1297,8 @@ function boot(){
   function actsHTML(noRegen, allowContinue){
     return '<button type="button" data-like title="Helpful">' + SVG_LIKE + '</button>' +
       '<button type="button" data-dislike title="Not helpful">' + SVG_DISLIKE + '</button>' +
-      '<button type="button" data-copywhole title="Copy full reply">' + SVG_COPY + '</button>' +
-      (allowContinue ? '<button type="button" data-cont title="Continue reply">' + SVG_CONT + ' Continue</button>' : '') +
+      '<button type="button" data-copywhole title="Copy reply">' + SVG_COPY + '</button>' +
+      (allowContinue ? '<button type="button" data-cont title="Continue">' + SVG_CONT + ' Continue</button>' : '') +
       (noRegen ? '' : '<button type="button" data-regen>' + SVG_REGEN + ' Regenerate</button>');
   }
 
@@ -1284,31 +1308,29 @@ function boot(){
     origin: "This site isn't allowed to use the server.",
     big: "That message or file is too large. Try a smaller one.",
     empty: "Zyro sent back nothing. Try rephrasing.",
-    thoughtonly: "Zyro reasoned about the answer but didn't finish. Try again or switch to Auto mode.",
+    thoughtonly: "Zyro reasoned but didn't finish. Try again or switch to Auto mode.",
     net: "Can't reach the server. Check your connection and retry."
   };
 
-  /* ---------- AUTO CHAT TITLE ---------- */
+  /* ---------- AUTO TITLE ---------- */
   async function autoTitle(chatId, firstUser, firstAI){
     if (!firstUser || !firstAI) return;
     try {
       const prompt = "Give a 3-4 word title for a chat that starts with this message. Return ONLY the title, no quotes, no period.\n\nMessage: " + firstUser.slice(0, 300);
       const msgs = [{ role: "user", content: prompt }];
       const chunks = [];
-      await workerStream(msgs, x => chunks.push(x), null, true, null, false, { src: [], sep: "" });
+      await workerStream(msgs, x => chunks.push(x), null, true, null, false, { src: [], sep: "" }, false);
       const title = (chunks[chunks.length - 1] || "").split("\n")[0].replace(/^["']|["']$/g, "").trim().slice(0, 40);
       if (!title || title.length < 2) return;
       const c = chats.find(x => x.id === chatId);
-      if (c && (c.title.length >= 40 || c.title.includes(" "))){
-        // Only rename if it still looks auto-generated
+      if (c && c.title.length >= 20){
         c.title = title;
-        save();
-        renderList();
+        save(); renderList();
       }
     } catch(_) {}
   }
 
-  /* ---------- CONTINUE REPLY ---------- */
+  /* ---------- CONTINUE ---------- */
   async function continueReply(aEl){
     if (busy) return;
     const body = aEl.querySelector(".body");
@@ -1316,7 +1338,6 @@ function boot(){
     const prev = body.innerText || "";
     if (!prev.trim()) return;
     toast("Continuing…");
-    // Push the partial text as assistant, then ask to continue
     hist.push({ role: "assistant", content: prev });
     t.value = "Continue from where you stopped. Do not repeat anything. Just keep going.";
     $("f").requestSubmit();
@@ -1363,9 +1384,7 @@ function boot(){
     };
 
     const runTimeout = setTimeout(() => {
-      if (ctrl && !ctrl.signal.aborted){
-        try { ctrl.abort(); } catch(_) {}
-      }
+      if (ctrl && !ctrl.signal.aborted){ try { ctrl.abort(); } catch(_) {} }
     }, STREAM_TIMEOUT_MS);
 
     try {
@@ -1374,11 +1393,11 @@ function boot(){
       const msgs = [{ role: "system", content: SYS() }, ...api(hist, imgs.length === 0), imgs.length ? { role: "user", content: full, images: imgs } : { role: "user", content: full }];
 
       try {
-        out = await workerStream(msgs, emit, ctrl.signal, cheap || $("mode").value === "Fast", onThought, search, meta);
+        out = await workerStream(msgs, emit, ctrl.signal, cheap || $("mode").value === "Fast", onThought, search, meta, true);
       } catch(e1){
         if (e1 && e1.code === "empty" && !ctrl.signal.aborted){
           toast("Retrying…");
-          out = await workerStream(msgs, emit, ctrl.signal, cheap || $("mode").value === "Fast", onThought, search, meta);
+          out = await workerStream(msgs, emit, ctrl.signal, cheap || $("mode").value === "Fast", onThought, search, meta, true);
         } else throw e1;
       }
       clearTimeout(runTimeout);
@@ -1389,7 +1408,6 @@ function boot(){
       const secs = ((Date.now() - t0) / 1000).toFixed(1);
       thinkFinish(d, secs, hadThought);
 
-      // Detect if reply looks cut off → offer Continue
       const trimmed = out.trim();
       const looksCut = trimmed.length > 200 && !/[.!?)\]}"'`]\s*$/.test(trimmed) && !/```\s*$/.test(trimmed);
 
@@ -1415,20 +1433,14 @@ function boot(){
       save();
       c.done();
 
-      // Kick off auto-title on first user message
-      if (hist.length === 2){
-        autoTitle(cur.id, show, out);
-      }
+      if (hist.length === 2){ autoTitle(cur.id, show, out); }
     } catch(e){
       clearTimeout(runTimeout);
       streaming = false; c.stop();
       if (e && e.name === "AbortError"){
         const wasTimeout = (Date.now() - t0) >= STREAM_TIMEOUT_MS - 500;
-        if (wasTimeout){
-          body.innerHTML = '<span style="color:#e5484d">(timed out — try again or rephrase)</span>';
-        } else {
-          body.innerHTML = '<span style="color:#e5484d">(stopped)</span>';
-        }
+        if (wasTimeout){ body.innerHTML = '<span style="color:#e5484d">(timed out — try again or rephrase)</span>'; }
+        else { body.innerHTML = '<span style="color:#e5484d">(stopped)</span>'; }
       } else {
         if (e && e.code !== "na"){ t.value = show; t.dispatchEvent(new Event("input")); }
         const msg = (e && ERR[e.code]) || ("Failed: " + (e && e.info || e && e.message || "network problem") + ". Your message is back in the box.");
