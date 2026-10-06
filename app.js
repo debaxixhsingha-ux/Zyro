@@ -68,7 +68,7 @@ async function openRazorpayCheckout(plan){
     return;
   }
   const isYearly = plan === "yearly";
-  const amount = isYearly ? 99900 : 19900;
+  const amount = isYearly ? 349900 : 34900;
   const label  = isYearly ? "Zyro Pro — Yearly" : "Zyro Pro — Monthly";
 
   toast("Creating order…");
