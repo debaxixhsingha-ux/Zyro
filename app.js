@@ -1,5 +1,5 @@
 /* =========================================================
-   ZYRO app.js — v31 (Razorpay ₹299 + fixes)
+   ZYRO app.js — v30 (with Razorpay)
    ========================================================= */
 
 /* ---------- TOP HELPERS ---------- */
@@ -49,29 +49,22 @@ const LIM=12000;
 
 const RZP_WORKER_URL = WORKER_URL.replace(/\/$/, "");
 
-/* ---------- GLOBAL BRIDGE (so Razorpay can see state) ---------- */
-window.__zyroUser = null;
-window.__zyroOpenAuth = null;
-window.__zyroToast = function(m){
-  var e = document.getElementById("toast");
-  if (!e) return;
-  e.textContent = m;
-  e.classList.add("on");
-  setTimeout(function(){ e.classList.remove("on"); }, 1600);
-};
-
 /* ---------- RAZORPAY CHECKOUT ---------- */
 function openRazorpayCheckout(plan){
-  const G = window.__zyroToast;
-  if (typeof Razorpay === "undefined"){ G("Payment library not loaded — refresh the page"); return; }
-  const u = window.__zyroUser;
-  if (!u){ G("Sign in first to upgrade"); if (window.__zyroOpenAuth) window.__zyroOpenAuth("signup"); return; }
-
+  if (typeof Razorpay === "undefined"){
+    toast("Payment library not loaded — refresh the page");
+    return;
+  }
+  if (!user){
+    toast("Sign in first to upgrade");
+    openAuth("signup");
+    return;
+  }
   const isYearly = plan === "yearly";
-  const amount = isYearly ? 149900 : 29900; // ₹1499 / ₹299 in paise
+  const amount = isYearly ? 99900 : 19900;
   const label  = isYearly ? "Zyro Pro — Yearly" : "Zyro Pro — Monthly";
 
-  G("Creating order…");
+  toast("Creating order…");
   fetch(RZP_WORKER_URL + "/razorpay/create-order", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -79,14 +72,14 @@ function openRazorpayCheckout(plan){
       amount,
       plan: isYearly ? "yearly" : "monthly",
       receipt: "zyro_" + Date.now(),
-      notes: { email: u.email || "", plan: isYearly ? "yearly" : "monthly" }
+      notes: { email: user.email || "", plan: isYearly ? "yearly" : "monthly" }
     })
   })
   .then(r => r.json().then(j => ({ ok: r.ok, status: r.status, body: j })))
   .then(res => {
     if (!res.ok){
       const m = (res.body && res.body.error && res.body.error.message) || "Order failed";
-      G(m);
+      toast(m);
       return;
     }
     const o = res.body;
@@ -97,11 +90,13 @@ function openRazorpayCheckout(plan){
       order_id: o.order_id,
       name: "Zyro",
       description: label,
-      prefill: { email: u.email || "" },
+      prefill: { email: user.email || "" },
       theme: { color: "#d97757" },
-      modal: { ondismiss: function(){ G("Payment cancelled"); } },
+      modal: {
+        ondismiss: function(){ toast("Payment cancelled"); }
+      },
       handler: function(response){
-        G("Verifying…");
+        toast("Verifying…");
         fetch(RZP_WORKER_URL + "/razorpay/verify-payment", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -109,7 +104,7 @@ function openRazorpayCheckout(plan){
             razorpay_order_id: response.razorpay_order_id,
             razorpay_payment_id: response.razorpay_payment_id,
             razorpay_signature: response.razorpay_signature,
-            user_id: u.id,
+            user_id: user.id,
             amount: o.amount,
             plan: o.plan
           })
@@ -117,23 +112,24 @@ function openRazorpayCheckout(plan){
         .then(v => v.json().then(j => ({ ok: v.ok, body: j })))
         .then(v => {
           if (v.ok && v.body && v.body.ok){
-            pro = true; TOTAL = 1000000;
-            G("🎉 Welcome to Zyro Pro!");
+            pro = true;
+            TOTAL = 1000000;
+            toast("🎉 Welcome to Zyro Pro!");
             setTimeout(() => location.reload(), 1400);
           } else {
-            G("Verification failed — contact support");
+            toast("Verification failed — contact support");
           }
         })
-        .catch(() => G("Verification error"));
+        .catch(() => toast("Verification error"));
       }
     });
     rz.on("payment.failed", function(resp){
       const d = (resp && resp.error && resp.error.description) || "unknown";
-      G("Payment failed: " + d);
+      toast("Payment failed: " + d);
     });
     rz.open();
   })
-  .catch(() => G("Could not reach payment server"));
+  .catch(() => toast("Could not reach payment server"));
 }
 
 /* ---------- INJECTED STUDY STYLES ---------- */
@@ -284,9 +280,7 @@ function boot(){
 
   setInterval(updateTokenUI, 30000);
 
-  function toast(m){
-    window.__zyroToast(m);
-  }
+  function toast(m){ const e = $("toast"); if (!e) return; e.textContent = m; e.classList.add("on"); setTimeout(() => e.classList.remove("on"), 1600); }
 
   /* ---------- MODES + STUDY ---------- */
   const MODES = { Fast:"Quick short answer, minimal thinking.", Auto:"Balanced speed and depth.", Thinking:"Deep analysis, long detailed answer." };
@@ -569,7 +563,7 @@ function boot(){
         (user
           ? (pro
               ? '<button type="button" id="acctSignOut">Sign out</button>'
-              : '<button type="button" class="primary" id="acctUpgrade">Upgrade to Pro · ₹299/mo</button><button type="button" id="acctSignOut">Sign out</button>')
+              : '<button type="button" class="primary" id="acctUpgrade">Upgrade to Pro · ₹199/mo</button><button type="button" id="acctSignOut">Sign out</button>')
           : '<button type="button" class="primary" id="acctSignIn">Sign in / Sign up</button>'
         ) +
       '</div>';
@@ -586,13 +580,12 @@ function boot(){
 
   document.addEventListener("click", e => {
     if (e.target.id === "acctSignIn"){ const d = $("acctDrop"); if (d) d.classList.remove("open"); openAuth("signin"); return; }
-    if (e.target.id === "acctUpgrade"){ const d = $("acctDrop"); if (d) d.classList.remove("open"); window.__zyroUser = user; openRazorpayCheckout("monthly"); return; }
+    if (e.target.id === "acctUpgrade"){ const d = $("acctDrop"); if (d) d.classList.remove("open"); openRazorpayCheckout("monthly"); return; }
     if (e.target.id === "acctSignOut"){
       (async () => {
         const s = await sbClient();
         if (s){ try { await s.auth.signOut(); } catch(_) {} }
         user = null; pro = false; TOTAL = 100000;
-        window.__zyroUser = null;
         renderAcct(); renderAuth(); updateTokenUI();
         const d = $("acctDrop"); if (d) d.classList.remove("open");
         toast("Signed out");
@@ -730,25 +723,20 @@ function boot(){
     await pullCloud();
     await syncUsageFromCloud();
     renderAuth(); renderAcct();
-    window.__zyroUser = user;
-    window.__zyroOpenAuth = openAuth;
   }
   (async () => {
     let s;
     try { s = await sbClient(); } catch(_) {}
-    if (!s){ renderAuth(); renderAcct(); window.__zyroOpenAuth = openAuth; return; }
+    if (!s){ renderAuth(); renderAcct(); return; }
     try {
       const { data } = await s.auth.getSession();
       user = (data && data.session && data.session.user) || null;
     } catch(_) {}
     s.auth.onAuthStateChange((_e, ses) => {
       user = (ses && ses.user) || null;
-      window.__zyroUser = user;
       if (!user){ pro = false; TOTAL = 100000; renderAuth(); renderAcct(); updateTokenUI(); }
       else afterSignIn();
     });
-    window.__zyroOpenAuth = openAuth;
-    window.__zyroUser = user;
     if (user) await afterSignIn();
     else { renderAuth(); renderAcct(); }
   })();
@@ -1619,4 +1607,216 @@ function boot(){
   { const pvx = $("pvx"); if (pvx) pvx.onclick = closePV; }
   { const cvx = $("cvx"); if (cvx) cvx.onclick = () => $("cv").classList.remove("on"); }
   { const cvc = $("cvc"); if (cvc) cvc.onclick = () => copy($("cvp").textContent, cvc); }
-  { const ciSave = $("ciSave"); if (ciSave) ciSave.onclick = () => { try
+  { const ciSave = $("ciSave"); if (ciSave) ciSave.onclick = () => { try { localStorage.setItem(CI, $("ci").value.trim()); } catch(_) {} $("modal").classList.remove("on"); toast("Instructions saved"); }; }
+  { const ciCancel = $("ciCancel"); if (ciCancel) ciCancel.onclick = () => $("modal").classList.remove("on"); }
+
+  /* ---------- ATTACHMENTS ---------- */
+  function renderAtts(){
+    const a = $("atts"); if (!a) return;
+    a.innerHTML = "";
+    pending.forEach((f, i) => {
+      const c = document.createElement("span");
+      c.className = "att";
+      if (f.img){ const im = document.createElement("img"); im.alt = ""; im.src = "data:" + f.img.mime + ";base64," + f.img.data; c.appendChild(im); }
+      const n = document.createElement("span"); n.textContent = f.name; c.appendChild(n);
+      const x = document.createElement("button"); x.type = "button"; x.textContent = "✕";
+      x.onclick = () => { pending.splice(i, 1); renderAtts(); updateSendState(); };
+      c.appendChild(x);
+      a.appendChild(c);
+    });
+  }
+  async function readAny(f){
+    if (/\.pdf$/i.test(f.name) || f.type === "application/pdf"){
+      if (!window.pdfjsLib){
+        await loadJS("https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js");
+        pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+      }
+      const pdf = await pdfjsLib.getDocument({ data: await f.arrayBuffer(), isEvalSupported: false }).promise;
+      let o = "";
+      for (let i = 1; i <= Math.min(pdf.numPages, 40) && o.length < LIM; i++){
+        const tc = await (await pdf.getPage(i)).getTextContent();
+        o += tc.items.map(x => x.str).join(" ") + "\n";
+      }
+      return o;
+    }
+    return await f.text();
+  }
+  $("file").onchange = async e => {
+    const fs = [...e.target.files]; e.target.value = "";
+    for (const f of fs){
+      if (tokensOut() && !pro){ toast("Uploads paused — refills at " + nextRefillTime()); break; }
+      if (pending.length >= 3){ toast("Max 3 files"); break; }
+      if (f.size > 8e6){ toast(f.name + " is too big (max 8 MB)"); continue; }
+      try {
+        let x = (await readAny(f)).replace(/\r/g, "");
+        if (x.includes("\u0000")){ toast("Can't read " + f.name); continue; }
+        if (!x.trim()){ toast("No text found in " + f.name); continue; }
+        if (x.length > LIM){ x = x.slice(0, LIM) + "\n[...trimmed]"; toast(f.name + " trimmed"); }
+        pending.push({ name: f.name, text: x });
+      } catch(_) { toast("Couldn't read " + f.name); }
+    }
+    renderAtts(); updateSendState();
+    if (pendingKind === "notes" && pending.length){ setTimeout(() => send(""), 100); }
+  };
+  function readImg(f){
+    return new Promise((ok, no) => {
+      if (!/^image\//i.test(f.type)){ no(new Error("not an image")); return; }
+      const url = URL.createObjectURL(f), im = new Image();
+      im.onload = () => {
+        try {
+          const M = 1024, k = Math.min(1, M / Math.max(im.width, im.height));
+          const w = Math.max(1, Math.round(im.width * k)), h = Math.max(1, Math.round(im.height * k));
+          const c = document.createElement("canvas"); c.width = w; c.height = h;
+          const x = c.getContext("2d"); x.fillStyle = "#fff"; x.fillRect(0, 0, w, h);
+          x.drawImage(im, 0, 0, w, h);
+          const d = c.toDataURL("image/jpeg", .8);
+          URL.revokeObjectURL(url);
+          ok({ mime: "image/jpeg", data: d.split(",")[1] });
+        } catch(e) { no(e); }
+      };
+      im.onerror = () => { URL.revokeObjectURL(url); no(new Error("bad image")); };
+      im.src = url;
+    });
+  }
+  $("img").onchange = async e => {
+    const fs = [...e.target.files]; e.target.value = "";
+    for (const f of fs){
+      if (tokensOut() && !pro){ toast("Uploads paused — refills at " + nextRefillTime()); break; }
+      if (pending.length >= 3){ toast("Max 3 attachments"); break; }
+      if (!/^image\//.test(f.type)){ toast("Not an image"); continue; }
+      if (f.size > 8e6){ toast(f.name + " is too big (max 8 MB)"); continue; }
+      try {
+        const im = await readImg(f);
+        if (im.data.length > 1100000){ toast("Image too large"); continue; }
+        pending.push({ name: f.name || "image", img: im });
+      } catch(_) {
+        const ext = (f.name || "").split(".").pop().toLowerCase();
+        if (ext === "heic" || ext === "heif") toast("HEIC not supported — try a JPG/PNG");
+        else toast("Couldn't read " + (f.name || "image"));
+      }
+    }
+    renderAtts(); updateSendState();
+  };
+
+  /* ---------- THEME ---------- */
+  function curTheme(){ return document.documentElement.getAttribute("data-theme") || (matchMedia("(prefers-color-scheme:light)").matches ? "light" : "dark"); }
+  function markTh(){ document.querySelectorAll("[data-th]").forEach(b => b.classList.toggle("on", b.dataset.th === curTheme())); }
+  document.querySelectorAll("[data-th]").forEach(b => b.onclick = () => { document.documentElement.setAttribute("data-theme", b.dataset.th); try { localStorage.setItem("zyro_theme", b.dataset.th); } catch(_) {} markTh(); });
+  markTh();
+
+  /* ---------- EDIT ---------- */
+  function addEdit(u){
+    if (!u || u.querySelector(".ed")) return;
+    const e = document.createElement("button");
+    e.type = "button"; e.className = "ed"; e.setAttribute("data-edit", ""); e.textContent = "✎";
+    u.insertBefore(e, u.firstChild);
+  }
+  function startEdit(u){
+    if (busy){ toast("Wait for the reply"); return; }
+    const m = hist[hist.length - 2];
+    if (!m || m.role !== "user") return;
+    const b = u.querySelector(":scope>div"), old = m.show ?? m.content;
+    u.classList.add("editing"); b.textContent = "";
+    const ta = document.createElement("textarea"); ta.className = "ei"; ta.value = old; ta.rows = 3;
+    const bar = document.createElement("div"); bar.className = "eb";
+    const cn = document.createElement("button"); cn.type = "button"; cn.textContent = "Cancel";
+    cn.onclick = () => { u.classList.remove("editing"); fillBubble(b, old, m.att, m.imgs, m.nimg); };
+    const sv = document.createElement("button"); sv.type = "button"; sv.className = "go2"; sv.textContent = "Send";
+    sv.onclick = () => { const v = ta.value.trim(); if (v) editLast(v); };
+    bar.append(cn, sv); b.append(ta, bar); ta.focus();
+  }
+  function editLast(v){
+    if (busy || hist.length < 2) return;
+    const m = hist[hist.length - 2], k = log.children;
+    k[k.length - 1].remove(); k[k.length - 1].remove();
+    hist.splice(-2);
+    const tail = m.content.slice((m.show || "").length);
+    run(v, v + tail, m.att || [], m.imgs || []);
+  }
+
+  /* ---------- CODE TOOLS ---------- */
+  function toggleCode(box){
+    if (box.classList.contains("expanded")){ box.classList.remove("expanded"); box.querySelector(".more").textContent = "⤢ Expand"; }
+    else { box.classList.add("expanded"); box.querySelector(".more").textContent = "⤡ Collapse"; }
+  }
+  const RUN_JS = "const AF=Object.getPrototypeOf(async function(){}).constructor;\nconst fmt=a=>a.map(x=>typeof x===\"string\"?x:(()=>{try{return JSON.stringify(x,null,1)}catch(_){return String(x)}})()).join(\" \");\nonmessage=async e=>{console.log=(...a)=>postMessage({t:\"o\",s:fmt(a)});console.info=console.log;console.warn=(...a)=>postMessage({t:\"e\",s:fmt(a)});console.error=console.warn;\n for(const k of [\"fetch\",\"XMLHttpRequest\",\"WebSocket\",\"EventSource\",\"importScripts\",\"indexedDB\"]){try{self[k]=undefined}catch(_){}}\n try{const r=await new AF(e.data.code)();if(r!==undefined)postMessage({t:\"o\",s:\"\\u2192 \"+fmt([r])})}catch(err){postMessage({t:\"e\",s:String(err&&err.stack||err)})}\n postMessage({t:\"d\"})}";
+  const RUN_PY = "let py=null;\nonmessage=async e=>{try{\n if(!py){postMessage({t:\"s\",s:\"Loading Python (one-time download, about 10 MB)...\"});\n  importScripts(\"https://cdn.jsdelivr.net/pyodide/v0.29.4/full/pyodide.js\");\n  py=await loadPyodide({indexURL:\"https://cdn.jsdelivr.net/pyodide/v0.29.4/full/\"})}\n py.setStdout({batched:s=>postMessage({t:\"o\",s})});py.setStderr({batched:s=>postMessage({t:\"e\",s})});\n postMessage({t:\"r\"});\n try{await py.loadPackagesFromImports(e.data.code)}catch(_){}\n const r=await py.runPythonAsync(e.data.code);if(r!==undefined&&r!==null)postMessage({t:\"o\",s:\"\\u2192 \"+String(r)})\n }catch(err){postMessage({t:\"e\",s:String(err&&err.message||err)})}\n postMessage({t:\"d\"})}";
+  let pyW = null;
+  const mkW = src => new Worker(URL.createObjectURL(new Blob([src], { type: "text/javascript" })));
+  function runCode(box, kind, btn){
+    if (box._stop){ box._stop(); return; }
+    let out = box.querySelector(".out");
+    if (!out){ out = document.createElement("div"); out.className = "out"; box.appendChild(out); }
+    out.textContent = "";
+    const code = box.querySelector("pre").textContent;
+    let size = 0, w, tm, done = false, hadErr = false;
+    const add = (cls, s) => { size += s.length; const sp = document.createElement("div"); sp.className = cls; sp.textContent = s; out.appendChild(sp); out.scrollTop = out.scrollHeight; };
+    const end = note => {
+      if (done) return;
+      done = true; clearTimeout(tm);
+      if (note) add("o-s", note);
+      btn.textContent = "Run"; box._stop = null;
+      if (kind === "js" && w){ try { w.terminate(); } catch(_) {} }
+      if (hadErr){
+        const fx = document.createElement("button");
+        fx.type = "button"; fx.className = "fix-btn"; fx.setAttribute("data-fix", "");
+        fx.innerHTML = "🔧 Fix with Zyro";
+        if (!box.querySelector("[data-fix]")) out.appendChild(fx);
+      }
+    };
+    const kill = note => { try { w && w.terminate(); } catch(_) {} if (kind === "py") pyW = null; end(note); };
+    const arm = ms => { clearTimeout(tm); tm = setTimeout(() => kill("Stopped after " + Math.round(ms / 1000) + " s."), ms); };
+    btn.textContent = "Stop"; box._stop = () => kill("Stopped.");
+    if (kind === "py"){ if (!pyW) pyW = mkW(RUN_PY); w = pyW; } else w = mkW(RUN_JS);
+    arm(kind === "py" ? 90000 : 10000);
+    w.onmessage = ev => {
+      if (done) return;
+      const m = ev.data || {};
+      if (m.t === "s") add("o-s", m.s);
+      else if (m.t === "r") arm(15000);
+      else if (m.t === "o"){ if (size > 20000){ kill("Output limit reached."); return; } add("o-o", m.s); }
+      else if (m.t === "e"){ hadErr = true; add("o-e", m.s); }
+      else if (m.t === "d") end(out.childNodes.length ? "" : "(no output)");
+    };
+    w.onerror = () => { hadErr = true; kill("Couldn't start the runner."); };
+    w.postMessage({ code });
+  }
+
+  /* ---------- SEND STATE ---------- */
+  function updateSendState(){
+    const has = t.value.trim().length > 0 || pending.length > 0;
+    go.classList.toggle("on", has);
+  }
+
+  /* ---------- WIRING ---------- */
+  { const b = $("burger"); if (b) b.onclick = openD; }
+  { const s = $("scrim"); if (s) s.onclick = closeD; }
+  { const c = $("closeD"); if (c) c.onclick = closeD; }
+  { const n1 = $("newc"); if (n1) n1.onclick = newChat; }
+
+  document.addEventListener("keydown", e => {
+    if (e.key === "Escape"){ closeD(); closePV(); $("cv").classList.remove("on"); $("modal").classList.remove("on"); closeAuth(); const d = $("acctDrop"); if (d) d.classList.remove("open"); }
+  });
+  t.addEventListener("input", () => {
+    t.style.height = "auto";
+    t.style.height = Math.min(t.scrollHeight, 160) + "px";
+    updateSendState();
+  });
+  t.addEventListener("keydown", e => {
+    if (e.key === "Enter" && !e.shiftKey && !e.isComposing && matchMedia("(hover:hover)").matches){
+      e.preventDefault();
+      if (!busy) $("f").requestSubmit();
+    }
+  });
+
+  updateSendState();
+  updateTokenUI();
+
+  if (new URLSearchParams(location.search).get("auth")){
+    openAuth("signin");
+    history.replaceState(null, "", location.pathname);
+  }
+}
+
+if (document.readyState === "loading"){ document.addEventListener("DOMContentLoaded", boot); }
+else { boot(); }
