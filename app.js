@@ -191,12 +191,8 @@ function boot(){
     ["Fix my error","Fix this error and explain what caused it:\n\n","Chat"],
     ["Solve a problem","","Solver"],
     ["Quiz me","Quiz me on ","Exam"],
-    ["Exam answer","Give me a proper exam answer (5 marks) for: ","Exam"],
     ["Teach me step by step","Teach me ","Socratic"],
     ["📚 Notes → Flashcards → Quiz","","Chat",1,"notes"],
-    ["Notes from my PDF","Make short revision notes from the attached PDF.","Chat",1],
-    ["Viva questions","Give me 10 viva questions with short answers on ","Chat"],
-    ["Build a web page","Build a web page for ","Chat"]
   ];
 
   const hiddenMode = $("mode");
