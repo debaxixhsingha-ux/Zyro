@@ -611,7 +611,6 @@ function boot(){
     (pro ? '' : '<button class="btn-up" id="upBtn">Upgrade · ₹199 / mo</button>');
   const tokenSection = document.querySelector(".token-section");
   if (tokenSection && tokenSection.parentNode) tokenSection.parentNode.insertBefore(proPanel, tokenSection.nextSibling);
-    }
   /* ---------- UPGRADE MODAL ---------- */
   const upModal = document.createElement("div");
   upModal.className = "up-modal"; upModal.id = "upModal";
