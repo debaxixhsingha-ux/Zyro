@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Zyro — AI for code, studies and big ideas</title>
-<meta name="description" content="Zyro is a free AI assistant that writes code, explains B.Tech topics, reads your PDFs and builds web pages you can preview instantly. Sign-up optional.">
+<title>Zyro — The AI study partner for Indian students</title>
+<meta name="description" content="Zyro is the free AI study assistant built for Indian students. Snap a textbook question, get exam-ready answers with marks breakdown, and turn any chapter into flashcards, quizzes, and mock papers.">
 <meta name="theme-color" content="#0a0a0a">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='%23d97757' d='M12 2l2.6 7.4L22 12l-7.4 2.6L12 22l-2.6-7.4L2 12l7.4-2.6z'/%3E%3C/svg%3E">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
@@ -65,7 +65,6 @@ a{color:inherit;text-decoration:none}
 :focus-visible{outline:2px solid var(--acc);outline-offset:3px;border-radius:8px}
 .wrap{width:100%;max-width:1120px;margin:0 auto;padding:0 20px;position:relative;z-index:2}
 
-/* ============ NAV ============ */
 nav{
   position:sticky;top:0;z-index:20;
   backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);
@@ -95,36 +94,14 @@ nav .wrap{display:flex;align-items:center;justify-content:space-between;height:6
 .btn.sec{background:none}
 .btn.sm{padding:7px 14px;font-size:13.5px}
 
-/* ============ HERO ============ */
 .hero{position:relative;padding:74px 0 40px;text-align:center;isolation:isolate;overflow-x:clip}
-
-/* Star wrapper: handles centering (static transform).
-   Inner SVG: handles rotation (its own transform).
-   They are separate elements → they can never conflict. */
 .mark-wrap{
-  position:absolute;
-  top:-20px;
-  left:50%;
-  transform:translateX(-50%);
-  width:min(680px,100vw);
-  height:min(680px,100vw);
-  z-index:-1;
-  pointer-events:none;
-  color:var(--acc);
-  opacity:.05;
-  overflow:visible;
+  position:absolute;top:-20px;left:50%;transform:translateX(-50%);
+  width:min(680px,100vw);height:min(680px,100vw);
+  z-index:-1;pointer-events:none;color:var(--acc);opacity:.05;overflow:visible;
 }
-.mark{
-  width:100%;
-  height:100%;
-  display:block;
-  transform-origin:center center;
-  animation:spinSlow 40s linear infinite;
-}
-@keyframes spinSlow{
-  from{transform:rotate(0deg)}
-  to{transform:rotate(360deg)}
-}
+.mark{width:100%;height:100%;display:block;transform-origin:center center;animation:spinSlow 40s linear infinite}
+@keyframes spinSlow{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
 
 .pill{
   display:inline-flex;align-items:center;gap:8px;
@@ -139,7 +116,7 @@ nav .wrap{display:flex;align-items:center;justify-content:space-between;height:6
 }
 @keyframes pulseDot{0%,100%{opacity:1}50%{opacity:.4}}
 h1{
-  font-weight:400;font-size:clamp(38px,8.5vw,76px);
+  font-weight:400;font-size:clamp(36px,7.8vw,72px);
   line-height:1.05;letter-spacing:-.045em;
   margin:24px auto 20px;max-width:900px;
 }
@@ -149,14 +126,12 @@ h1{
   background-size:220% 100%;animation:shim 6s linear infinite;
 }
 @keyframes shim{to{background-position:-220% 0}}
-.sub{max-width:620px;margin:0 auto 30px;font-size:clamp(16px,2.3vw,18px);color:var(--dim)}
+.sub{max-width:640px;margin:0 auto 30px;font-size:clamp(16px,2.3vw,18px);color:var(--dim)}
 
-/* HERO CTA — smaller */
 .cta{display:flex;gap:8px;justify-content:center;flex-wrap:wrap}
 .cta .btn{font-size:13.5px;padding:9px 18px;font-weight:500}
 .note{margin-top:14px;font-size:13px;color:var(--dim-2)}
 
-/* ============ DEMO ============ */
 .demo{
   max-width:680px;margin:48px auto 0;text-align:left;
   border:1px solid var(--line);background:var(--box);
@@ -173,7 +148,7 @@ h1{
   background:var(--box-2);border:1px solid var(--line-2);
   border-right:2px solid var(--acc);
   border-radius:14px 14px 4px 14px;
-  padding:10px 15px;font-size:15px;
+  padding:10px 15px;font-size:15px;white-space:pre-wrap;
 }
 .a{font-size:15.5px}
 .a p{margin:0 0 10px;white-space:pre-wrap;color:var(--ink)}
@@ -212,7 +187,23 @@ h1{
 @keyframes blink{50%{opacity:0}}
 .k{color:var(--acc)}.s{color:var(--ink)}
 
-/* ============ SECTIONS ============ */
+/* Exam answer preview (mini) */
+.exam-preview{
+  background:var(--box);border:1px solid var(--line);
+  border-radius:12px;padding:12px 14px;font-size:14px;
+  display:flex;flex-direction:column;gap:6px;
+}
+.exam-marks{
+  display:inline-block;background:var(--acc-soft);color:var(--acc);
+  border:1px solid var(--acc-line);border-radius:8px;
+  padding:2px 9px;font-size:11.5px;font-weight:600;align-self:flex-start;
+}
+.exam-preview ol{margin:2px 0 6px;padding-left:20px}
+.exam-preview ol li{margin:2px 0}
+.key-terms{font-size:12.5px;color:var(--dim);display:flex;gap:6px;flex-wrap:wrap}
+.key-terms b{color:var(--ink)}
+.key-terms span{background:var(--box-2);padding:2px 8px;border-radius:6px;border:1px solid var(--line)}
+
 section{padding:76px 0}
 .eyebrow{
   font-size:12.5px;letter-spacing:.16em;text-transform:uppercase;
@@ -277,11 +268,12 @@ footer a:hover{color:var(--ink)}
 .foot-links{display:flex;gap:20px;flex-wrap:wrap}
 .foot-links a{color:var(--dim);transition:color .2s}
 
-/* ============ MOBILE ============ */
+.tagline{font-size:12.5px;color:var(--dim-2);letter-spacing:.08em;text-transform:uppercase;margin-top:6px}
+
 @media(max-width:640px){
   .hero{padding:34px 0 20px}
   .mark-wrap{width:min(520px,110vw);height:min(520px,110vw);top:-10px}
-  h1{font-size:clamp(30px,7.8vw,42px);margin:18px auto 14px;letter-spacing:-.04em}
+  h1{font-size:clamp(30px,8vw,44px);margin:18px auto 14px;letter-spacing:-.04em}
   .pill{padding:6px 12px;font-size:12.5px}
   .sub{font-size:15px;margin-bottom:22px;line-height:1.5}
 
@@ -375,64 +367,64 @@ footer a:hover{color:var(--ink)}
     <svg class="mark" viewBox="0 0 24 24"><path fill="currentColor" d="M12 2l2.6 7.4L22 12l-7.4 2.6L12 22l-2.6-7.4L2 12l7.4-2.6z"/></svg>
   </div>
   <div class="wrap">
-    <span class="pill"><i></i>Free to use · No sign-up needed</span>
-    <h1>Your AI for code, studies &amp; <span class="shim">big ideas.</span></h1>
-    <p class="sub">Zyro writes and fixes code, explains B.Tech topics, reads your PDFs, solves math, and builds web pages you can preview in one tap.</p>
+    <span class="pill"><i></i>Free · No sign-up needed · Made in India</span>
+    <h1>Study smarter.<br><span class="shim">Score higher.</span></h1>
+    <p class="sub">Zyro is the AI study partner built for Indian students. Snap a textbook question, get exam-ready answers with marks breakdown, and turn any chapter into flashcards, quizzes, and full mock papers.</p>
     <div class="cta">
-      <a class="btn pri" href="app.html">Start chatting <span aria-hidden="true">→</span></a>
+      <a class="btn pri" href="app.html">Start studying <span aria-hidden="true">→</span></a>
       <a class="btn" href="#how">How it works</a>
     </div>
-    <p class="note">Start instantly without an account — or sign up free to sync your chats across devices.</p>
+    <p class="note">Free forever. Sign up only if you want to sync across devices.</p>
 
-    <div class="demo" aria-label="Example conversation with Zyro">
-      <div class="dh"><b></b><b></b><b></b><span>zyro — demo</span></div>
+    <div class="demo" aria-label="Example study session with Zyro">
+      <div class="dh"><b></b><b></b><b></b><span>zyro — study demo</span></div>
       <div class="chat" aria-live="off"><div class="u" id="dq"></div><div class="a" id="da"></div></div>
     </div>
   </div>
 </header>
 
 <div class="strip"><div class="wrap">
-  <p>Built for students, developers &amp; makers</p>
-  <div class="strip-row"><span>B.Tech</span><span>Python</span><span>JavaScript</span><span>Math</span><span>ML &amp; AI</span><span>Web Dev</span></div>
+  <p>Built for Indian students</p>
+  <div class="strip-row"><span>B.Tech</span><span>JEE</span><span>NEET</span><span>CBSE</span><span>ICSE</span><span>State Boards</span></div>
 </div></div>
 
 <section id="uses"><div class="wrap">
   <p class="eyebrow">What you can do</p>
-  <h2>Ask anything. Get answers that actually help.</h2>
-  <p class="lead">Not a chatbot that wastes your time — a tool for real work, real study, real code.</p>
+  <h2>Your exam is coming. Zyro helps you actually prepare.</h2>
+  <p class="lead">Built by a student, for students. Every feature is designed around one goal — helping you score higher in less time.</p>
   <div class="uses">
-    <div class="use"><span class="num">01</span><div class="txt"><b>Explain a concept in plain English</b><span>“Explain recursion like I'm 12” · “What's a foreign key in SQL?” · “How does HTTPS work?”</span></div><span class="arr">→</span></div>
-    <div class="use"><span class="num">02</span><div class="txt"><b>Write, fix, or explain code</b><span>Paste an error and get a fix. Or ask for a function in Python, JS, C, Java, Rust — anything.</span></div><span class="arr">→</span></div>
-    <div class="use"><span class="num">03</span><div class="txt"><b>Solve math &amp; engineering problems</b><span>Step-by-step solutions with formulas. Great for B.Tech, ML, physics, and competitive exams.</span></div><span class="arr">→</span></div>
-    <div class="use"><span class="num">04</span><div class="txt"><b>Read your PDFs &amp; notes</b><span>Attach a PDF, textbook chapter, or code file and ask questions, get summaries, or make flashcards.</span></div><span class="arr">→</span></div>
-    <div class="use"><span class="num">05</span><div class="txt"><b>Build web pages you can preview</b><span>“Build me a landing page for my bakery” — Zyro writes the code and you can preview it live.</span></div><span class="arr">→</span></div>
-    <div class="use"><span class="num">06</span><div class="txt"><b>Study smarter, not harder</b><span>Socratic tutor mode, quiz generator, viva prep, revision notes — all built in.</span></div><span class="arr">→</span></div>
+    <div class="use"><span class="num">01</span><div class="txt"><b>Snap a question, get an exam answer</b><span>Take a photo of any textbook question. Zyro reads it and gives a proper exam-format answer with marks breakdown.</span></div><span class="arr">→</span></div>
+    <div class="use"><span class="num">02</span><div class="txt"><b>Notes → Flashcards → Quiz</b><span>Upload notes or a chapter. Get short revision notes, 12 flashcards, and a 5-question quiz — all in one tap.</span></div><span class="arr">→</span></div>
+    <div class="use"><span class="num">03</span><div class="txt"><b>Exam-format answers</b><span>Answers written the way examiners want: marks breakdown, numbered points, key terms to mention.</span></div><span class="arr">→</span></div>
+    <div class="use"><span class="num">04</span><div class="txt"><b>Full mock papers</b><span>Generate a complete exam paper with marking scheme for any subject. Pro feature.</span></div><span class="arr">→</span></div>
+    <div class="use"><span class="num">05</span><div class="txt"><b>Viva practice</b><span>Answer questions out loud, get graded on each one. Perfect for practical exams and vivas. Pro feature.</span></div><span class="arr">→</span></div>
+    <div class="use"><span class="num">06</span><div class="txt"><b>Solve any problem, step by step</b><span>Math, physics, chemistry, coding — worked solutions with formulas shown. Under 350 words.</span></div><span class="arr">→</span></div>
   </div>
 </div></section>
 
 <section id="features" style="padding-top:0"><div class="wrap">
   <p class="eyebrow">Features</p>
-  <h2>Everything you need. Nothing you don't.</h2>
-  <p class="lead">A clean, focused assistant that works the way you think — on your phone or laptop.</p>
+  <h2>Everything a student needs. Nothing they don't.</h2>
+  <p class="lead">No bloat. No US-centric content. Just the tools that help you prepare, practice, and pass.</p>
   <div class="grid">
-    <div class="card"><div class="ci"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L4 14h7l-1 8 9-12h-7z"/></svg></div><h3>Three speeds</h3><p>Fast for quick answers, Auto for balance, Thinking for hard problems — with the model's reasoning shown.</p></div>
-    <div class="card"><div class="ci"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 7l-5 5 5 5M16 7l5 5-5 5M14 4l-4 16"/></svg></div><h3>Code that works</h3><p>Syntax-highlighted code blocks, one-tap copy, and Run buttons for Python &amp; JavaScript right in the chat.</p></div>
-    <div class="card"><div class="ci"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h4"/></svg></div><h3>Read your files</h3><p>Attach PDFs, notes, or code files and ask questions. Up to 3 files at a time, up to 8 MB each.</p></div>
-    <div class="card"><div class="ci"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M18 5H8l6 7-6 7h10"/></svg></div><h3>Math, done right</h3><p>Formulas and equations render properly, so ML, physics, and engineering answers are actually readable.</p></div>
-    <div class="card"><div class="ci"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg></div><h3>Knows what's new</h3><p>For recent news, releases, and prices, Zyro searches the web and shows its sources.</p></div>
-    <div class="card"><div class="ci"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></div><h3>Private by design</h3><p>Chats stay on your device by default. Create an account only if you want to sync across devices.</p></div>
+    <div class="card"><div class="ci"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M3 18l5-5 4 4 4-4 5 5"/></svg></div><h3>Photo to answer</h3><p>Point your camera at any question. Zyro reads it and answers in exam format.</p></div>
+    <div class="card"><div class="ci"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg></div><h3>Notes → Flashcards → Quiz</h3><p>Upload a chapter. Get revision notes, flashcards, and a quiz — automatically.</p></div>
+    <div class="card"><div class="ci"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11H5a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2v-7a2 2 0 0 0-2-2z"/><path d="M9 11V7a4 4 0 0 1 4-4h0a4 4 0 0 1 4 4v4"/><path d="M9 15h6"/></svg></div><h3>Three study modes</h3><p>Solver for step-by-step. Socratic for guided learning. Exam prep for marks-ready answers.</p></div>
+    <div class="card"><div class="ci"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l2 7h7l-5.5 4 2 7L12 16l-5.5 4 2-7L3 9h7z"/></svg></div><h3>Deep thinking mode</h3><p>For hard problems, Zyro reasons step by step and shows its thinking.</p></div>
+    <div class="card"><div class="ci"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v1a7 7 0 0 1-14 0v-1"/><path d="M12 19v4"/><path d="M8 23h8"/></svg></div><h3>Voice practice</h3><p>Ask questions by voice. Practice viva and oral exams hands-free.</p></div>
+    <div class="card"><div class="ci"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></div><h3>Private by default</h3><p>Chats stay on your device. Sign in only if you want them synced.</p></div>
   </div>
 </div></section>
 
 <section id="how" style="padding-top:0"><div class="wrap">
   <p class="eyebrow">How it works</p>
-  <h2>From question to answer in seconds.</h2>
-  <p class="lead">No setup, no API keys, no credit card. Open it and start typing — sign up only if you want cloud sync.</p>
+  <h2>From question to exam answer in seconds.</h2>
+  <p class="lead">No setup, no credit card. Open it, snap a question, and start studying.</p>
   <div class="steps">
-    <div class="step"><h3>Ask anything</h3><p>Type a question, paste code, attach a PDF, or drop in an image. Zyro handles code, math, files and photos.</p></div>
-    <div class="step"><h3>Pick a mode</h3><p>Fast, Auto, or Thinking. Plus a study selector — Chat, Solver, Socratic, or Exam prep — for how you want to learn.</p></div>
-    <div class="step"><h3>Get a real answer</h3><p>Copy code with one tap, run Python/JS right in the chat, preview web pages live, or edit your message and retry.</p></div>
-    <div class="step"><h3>Save &amp; sync</h3><p>Chats stay on your device automatically. Sign in free to sync them across phone, laptop, and tablet.</p></div>
+    <div class="step"><h3>Snap or ask</h3><p>Type a question, paste code, or snap a photo of any textbook question.</p></div>
+    <div class="step"><h3>Pick a study mode</h3><p>Chat, Solver, Socratic, or Exam prep — Zyro adapts to how you want to learn.</p></div>
+    <div class="step"><h3>Get exam-ready answers</h3><p>Marks breakdown, numbered points, key terms. Written the way examiners want.</p></div>
+    <div class="step"><h3>Practice &amp; review</h3><p>Flashcards, quizzes, mock papers, viva practice — all built in.</p></div>
   </div>
 </div></section>
 
@@ -442,21 +434,21 @@ footer a:hover{color:var(--ink)}
     <h2 style="margin-inline:auto;text-align:center">Questions, answered.</h2>
   </div>
   <div class="faq">
-    <details class="qa" open><summary>Is Zyro really free?<span class="plus"></span></summary><div class="answer">Yes. Free to use with a daily limit that refills every day. No credit card, no trial timer. Create an account only if you want to sync chats across devices.</div></details>
-    <details class="qa"><summary>Do I need to create an account?<span class="plus"></span></summary><div class="answer">No. You can start chatting immediately and your chats stay on your device. If you want to sync chats across devices, create a free account — it takes about 20 seconds.</div></details>
-    <details class="qa"><summary>What can I attach to a message?<span class="plus"></span></summary><div class="answer">Up to 3 files or images per message. Files can be PDFs, code files, or text files up to 8 MB each. Images can be JPG, PNG, or WebP and get shrunk automatically before sending.</div></details>
-    <details class="qa"><summary>What's the difference between Fast, Auto, and Thinking?<span class="plus"></span></summary><div class="answer">Fast gives short, quick answers — great for simple questions. Auto balances speed and depth for everyday use. Thinking takes longer and reasons through the problem step by step — best for hard math, tricky code, and complex topics.</div></details>
-    <details class="qa"><summary>What are the study modes?<span class="plus"></span></summary><div class="answer">Four modes, chosen with the dropdown next to the mode picker. <b>Chat</b> is normal conversation. <b>Solver</b> walks through problems step by step with formulas. <b>Socratic</b> guides you with questions instead of just giving the answer. <b>Exam prep</b> quizzes you one question at a time and tracks your score.</div></details>
-    <details class="qa"><summary>Can Zyro run code?<span class="plus"></span></summary><div class="answer">Yes — Python and JavaScript code blocks have a <b>Run</b> button that executes them safely in your browser and shows the output. Python takes a few seconds the first time (one-time download).</div></details>
-    <details class="qa"><summary>Does Zyro make mistakes?<span class="plus"></span></summary><div class="answer">Yes — any AI can. Always check important code, facts, formulas, and numbers before relying on them. Zyro is a tool to help you, not a replacement for thinking.</div></details>
+    <details class="qa" open><summary>Is Zyro really free?<span class="plus"></span></summary><div class="answer">Yes. Free to use with a daily limit that refills every 5 hours. No credit card. Pro (₹349/month) unlocks 10× more tokens, mock papers, viva practice, and larger file limits.</div></details>
+    <details class="qa"><summary>Do I need an account?<span class="plus"></span></summary><div class="answer">No. Start studying immediately and your chats stay on your device. Sign up free (20 seconds) if you want to sync across phone, laptop, and tablet.</div></details>
+    <details class="qa"><summary>Is Zyro built for Indian students?<span class="plus"></span></summary><div class="answer">Yes. Zyro is built by a 17-year-old B.Tech student in Assam, and every feature is designed around Indian exams — CBSE, ICSE, state boards, JEE, NEET, and university syllabi. Answers follow Indian exam format with marks breakdowns.</div></details>
+    <details class="qa"><summary>What's "exam format"?<span class="plus"></span></summary><div class="answer">Answers structured the way examiners want — a marks estimate, numbered points that hit each marking criterion, and a list of key terms to mention. Not a wall of text.</div></details>
+    <details class="qa"><summary>Can I snap a photo of a question?<span class="plus"></span></summary><div class="answer">Yes. Use the "📸 Snap a question" chip or attach any image. Zyro reads the question and gives a proper exam-format answer.</div></details>
+    <details class="qa"><summary>What are the study modes?<span class="plus"></span></summary><div class="answer"><b>Chat</b> — normal conversation. <b>Solver</b> — step-by-step solutions with formulas. <b>Socratic</b> — guided learning with questions. <b>Exam prep</b> — marks-ready answers in exam format.</div></details>
+    <details class="qa"><summary>Does Zyro make mistakes?<span class="plus"></span></summary><div class="answer">Yes — any AI can. Always verify important answers, formulas, and numbers. Zyro is a study tool, not a replacement for your brain.</div></details>
   </div>
 </div></section>
 
 <div class="wrap"><div class="band">
-  <h2>Ready when you are.</h2>
-  <p>Free, works on your phone, and there's nothing to install.</p>
+  <h2>Your next exam starts today.</h2>
+  <p>Free. Works on your phone. Nothing to install.</p>
   <div class="cta" style="margin-bottom:0">
-    <a class="btn pri" href="app.html">Start chatting <span aria-hidden="true">→</span></a>
+    <a class="btn pri" href="app.html">Start studying <span aria-hidden="true">→</span></a>
     <a class="btn" href="app.html?auth=1">Create free account</a>
   </div>
 </div></div>
@@ -468,10 +460,11 @@ footer a:hover{color:var(--ink)}
       <svg class="star" viewBox="0 0 24 24" aria-hidden="true" style="width:14px;height:14px"><path fill="#d97757" d="M12 2l2.6 7.4L22 12l-7.4 2.6L12 22l-2.6-7.4L2 12l7.4-2.6z"/></svg>
       Zyro
     </div>
-    <span>© 2026 · AI can make mistakes. Check important code and facts.</span>
+    <span>© 2026 · AI can make mistakes. Always check important answers.</span>
+    <div class="tagline">Made in India 🇮🇳 · For Indian students</div>
   </div>
   <div class="foot-links">
-    <a href="app.html">Open app</a><a href="#uses">Use cases</a><a href="#features">Features</a><a href="#faq">FAQ</a>
+    <a href="app.html">Open app</a><a href="#uses">What you can do</a><a href="#features">Features</a><a href="#faq">FAQ</a>
   </div>
 </div></footer>
 
@@ -494,10 +487,39 @@ footer a:hover{color:var(--ink)}
   window.addEventListener("scroll", onScroll, { passive: true });
 
   const SCRIPTS = [
-    { q:"Explain recursion in one line", a:"Recursion is when a function solves a problem by calling itself on a smaller piece of the same problem — until it reaches a base case simple enough to answer directly." },
-    { q:"Python function to reverse a string", a:"Slicing with a step of -1 does it in one line:", code:'<span class="k">def</span> reverse(s):\n    <span class="k">return</span> s[::-<span class="s">1</span>]' },
-    { q:"Build a landing page for my bakery", a:"Done. It has a hero, a menu section with photos, and a contact form. Tap Preview to see it live." },
-    { q:"Solve x² - 5x + 6 = 0", a:"Factor it: (x − 2)(x − 3) = 0, so x = 2 or x = 3. Or use the quadratic formula — same answer." }
+    {
+      q: "Snap a question",
+      a: "Reading the textbook photo…",
+      exam: {
+        marks: "For 5 marks",
+        points: [
+          "Photosynthesis converts light energy into chemical energy stored in glucose.",
+          "Chlorophyll in chloroplasts absorbs light, mainly in the blue and red regions.",
+          "Water splits (photolysis) releasing O₂, H⁺, and electrons.",
+          "ATP and NADPH are produced, then used in the Calvin cycle to fix CO₂ into sugar."
+        ],
+        terms: ["Chlorophyll","Chloroplast","Photolysis","Calvin cycle","NADPH"]
+      }
+    },
+    {
+      q: "Make notes → flashcards → quiz",
+      a: "Done. Here's your revision kit:",
+      notes: "**Newton's Second Law** states that the rate of change of momentum of a body is directly proportional to the applied force.\n\n**Formula:** F = ma. Force (N), mass (kg), acceleration (m/s²).\n\n**Momentum:** p = mv. Impulse = F·t = Δp. Important for collision problems.\n\n**Applications:** rocket propulsion, seatbelt design, cricket catches."
+    },
+    {
+      q: "Solve x² - 5x + 6 = 0",
+      a: "Here's the step-by-step:",
+      steps: [
+        "Identify: a=1, b=−5, c=6",
+        "Factor: (x − 2)(x − 3) = 0",
+        "Set each factor = 0: x = 2 or x = 3"
+      ],
+      final: "x = 2 or x = 3"
+    },
+    {
+      q: "Explain recursion simply",
+      a: "Recursion is when a function solves a problem by calling itself on a smaller piece of the same problem — until it reaches a base case simple enough to answer directly."
+    }
   ];
   const sleep = ms => new Promise(r => setTimeout(r, ms));
   const wait = async ms => { await sleep(ms); while (document.hidden) await sleep(400); };
@@ -515,14 +537,35 @@ footer a:hover{color:var(--ink)}
     }
     c.remove();
   }
+  function renderExam(el, exam){
+    let h = '<div class="exam-preview">';
+    h += '<span class="exam-marks">' + exam.marks + '</span>';
+    h += '<ol>';
+    exam.points.forEach(p => { h += '<li>' + p + '</li>'; });
+    h += '</ol>';
+    h += '<div class="key-terms"><b>Key terms:</b>' + exam.terms.map(t => '<span>' + t + '</span>').join('') + '</div>';
+    h += '</div>';
+    el.innerHTML = h;
+  }
+  function renderNotes(el, notes){
+    const parts = notes.split("\n\n").map(p => "<p style='margin:0 0 10px'>" + p.replace(/\*\*(.+?)\*\*/g, "<b>$1</b>") + "</p>").join("");
+    el.innerHTML = parts;
+  }
+  function renderSteps(el, steps, final){
+    let h = '<ol style="margin:6px 0 10px;padding-left:20px">';
+    steps.forEach(s => { h += "<li style='margin:4px 0'>" + s + "</li>"; });
+    h += "</ol><p style='margin:0'><b>Final answer: " + final + "</b></p>";
+    el.innerHTML = h;
+  }
   function staticShow(){
-    const s = SCRIPTS[1];
+    const s = SCRIPTS[0];
     $("dq").textContent = s.q;
-    $("da").innerHTML = "<p style='margin:0'>" + s.a + "</p><pre>" + s.code + "</pre>";
+    const da = $("da");
+    renderExam(da, s.exam);
   }
   async function loop(){
     if (reduce){ staticShow(); return; }
-    const stages = ["Thinking", "Analyzing", "Writing"];
+    const stages = ["Reading photo", "Thinking", "Writing answer"];
     for (let i = 0; ; i = (i + 1) % SCRIPTS.length){
       const s = SCRIPTS[i];
       $("da").innerHTML = "";
@@ -538,9 +581,12 @@ footer a:hover{color:var(--ink)}
       }, 1100);
       await wait(1800);
       clearInterval(cyc);
-      $("da").innerHTML = '<p style="margin:0" id="dp"></p>';
-      await type($("dp"), s.a);
-      if (s.code){ const pre = document.createElement("pre"); $("da").appendChild(pre); pre.innerHTML = s.code; }
+      $("da").innerHTML = '<div id="dp"></div>';
+      const dp = $("dp");
+      if (s.exam) renderExam(dp, s.exam);
+      else if (s.notes) renderNotes(dp, s.notes);
+      else if (s.steps) renderSteps(dp, s.steps, s.final);
+      else await type(dp, s.a);
       await wait(3400);
     }
   }
@@ -548,4 +594,4 @@ footer a:hover{color:var(--ink)}
 })();
 </script>
 </body>
-</html>
+  </html>
