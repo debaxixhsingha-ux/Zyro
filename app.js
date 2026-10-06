@@ -1,5 +1,5 @@
 /* =========================================================
-   ZYRO app.js — v27
+   ZYRO app.js — v28
    ========================================================= */
 
 /* ---------- TOP HELPERS ---------- */
@@ -44,6 +44,7 @@ let chats=[],cur=null;
 let ctrl=null,hist=[],busy=false,streaming=false;
 let pending=[],pendingKind=null;
 let sid=0,follow=true,uAcc=0,uT=null,syncT=null;
+let busyWatchdog=null;
 const LIM=12000;
 
 /* ---------- INJECTED STUDY STYLES ---------- */
@@ -127,7 +128,21 @@ function boot(){
   const sleep = ms => new Promise(r => setTimeout(r, ms));
   const getCI = () => { try { return localStorage.getItem(CI) || ""; } catch(_) { return ""; } };
 
-  /* ---------- TOKENS (5-hour reset) ---------- */
+  /* ---------- BUSY WATCHDOG ---------- */
+  function armBusyWatchdog(){
+    clearTimeout(busyWatchdog);
+    busyWatchdog = setTimeout(function(){
+      if (busy){
+        try { if (ctrl) ctrl.abort(); } catch(_) {}
+        busy = false; streaming = false;
+        setGo(false);
+        toast("Request timed out — try again");
+      }
+    }, STREAM_TIMEOUT_MS + 15000);
+  }
+  function clearBusyWatchdog(){ clearTimeout(busyWatchdog); }
+
+  /* ---------- TOKENS ---------- */
   function getTokens(){
     try {
       const d = JSON.parse(localStorage.getItem(TOKEN_KEY) || "null");
@@ -162,19 +177,13 @@ function boot(){
 
   function updateTokenUI(){
     const d = getTokens(); paintBar(d.used, d.last);
-    const tn = $("tNote");
-    if (tn){
-      if (pro) tn.textContent = "PRO · 1M tokens / 5 hours";
-      else if (tokensOut()) tn.textContent = "Tokens out — refills at " + nextRefillTime();
-      else tn.textContent = "Free · 100k tokens / 5 hours";
-    }
     applyLimits();
   }
 
   function applyLimits(){
     const out = tokensOut();
     if (!pro){
-      ["upb","imb","fileBtn","imgBtn"].forEach(id => { const el = $(id); if (el) el.disabled = out; });
+      ["imb","fileBtn","imgBtn"].forEach(id => { const el = $(id); if (el) el.disabled = out; });
     }
     const mb = $("mode");
     if (mb){
@@ -309,7 +318,7 @@ function boot(){
   { const fb = $("fileBtn"); if (fb) fb.onclick = () => $("file").click(); }
   { const mb = $("moreBtn"); if (mb) mb.onclick = () => toast("More attachments coming soon"); }
 
-  /* ---------- VOICE INPUT ---------- */
+  /* ---------- VOICE INPUT (SVG built in JS) ---------- */
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   let recog = null, listening = false;
   if (SR){
@@ -317,7 +326,20 @@ function boot(){
     micBtn.type = "button";
     micBtn.className = "mic-btn";
     micBtn.title = "Voice input";
-    micBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 17v5M8 22h8"/></svg>';
+    micBtn.setAttribute("aria-label", "Voice input");
+    const micSvg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    micSvg.setAttribute("viewBox", "0 0 24 24");
+    micSvg.setAttribute("fill", "none");
+    micSvg.setAttribute("stroke", "currentColor");
+    micSvg.setAttribute("stroke-width", "1.8");
+    micSvg.setAttribute("stroke-linecap", "round");
+    micSvg.setAttribute("stroke-linejoin", "round");
+    const r1 = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+    r1.setAttribute("x","9"); r1.setAttribute("y","2"); r1.setAttribute("width","6"); r1.setAttribute("height","12"); r1.setAttribute("rx","3");
+    const p1 = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    p1.setAttribute("d","M5 10a7 7 0 0 0 14 0M12 17v5M8 22h8");
+    micSvg.appendChild(r1); micSvg.appendChild(p1);
+    micBtn.appendChild(micSvg);
     const row = document.querySelector(".row");
     if (row && go) row.insertBefore(micBtn, go);
     micBtn.onclick = () => {
@@ -357,7 +379,7 @@ function boot(){
     }
   }
 
-  /* ---------- SUPABASE AUTH ---------- */
+  /* ---------- SUPABASE ---------- */
   function sbClient(){
     if (!SUPABASE_URL) return Promise.resolve(null);
     if (sb) return Promise.resolve(sb);
@@ -368,7 +390,7 @@ function boot(){
     return sbP;
   }
 
-  /* ---------- WAITLIST CARD (persistent) ---------- */
+  /* ---------- WAITLIST ---------- */
   const waitlistSlot = $("waitlistSlot");
   const waitlistCard = document.createElement("div");
   waitlistCard.className = "waitlist-card";
@@ -380,7 +402,6 @@ function boot(){
     '<div class="ok" id="wlOk">✅ You\'re on the list!</div>';
   if (waitlistSlot) waitlistSlot.appendChild(waitlistCard);
 
-  // Restore submitted state
   function waitlistAlreadyDone(){
     try { return localStorage.getItem(WAITLIST_DONE_KEY) === "1"; } catch(_) { return false; }
   }
@@ -451,9 +472,7 @@ function boot(){
         '</div>' +
       '</div>' +
 
-      (user ? (
-        created ? '<div class="tl" style="margin:0">Account created ' + created + '</div>' : '' 
-      ) : '') +
+      (user && created ? '<div class="tl" style="margin:0">Account created ' + created + '</div>' : '') +
 
       '<div class="acct-actions">' +
         (user
@@ -489,7 +508,6 @@ function boot(){
 
   /* ---------- AUTH MODAL ---------- */
   function renderAuth(){
-    // No drawer auth section anymore — profile lives in the account dropdown
     const ab = $("authBtn");
     if (ab){
       if (user){
@@ -635,7 +653,7 @@ function boot(){
     else { renderAuth(); renderAcct(); }
   })();
 
-  /* ---------- RECENT CHATS TOGGLE ---------- */
+  /* ---------- RECENT TOGGLE ---------- */
   const recentToggle = $("recentToggle");
   const listEl = $("list");
   function setRecentOpen(open){
@@ -1237,7 +1255,6 @@ function boot(){
     net: "Can't reach the server. Check your connection and retry."
   };
 
-  /* ---------- AUTO TITLE ---------- */
   async function autoTitle(chatId, firstUser, firstAI){
     if (!firstUser || !firstAI) return;
     try {
@@ -1255,7 +1272,6 @@ function boot(){
     } catch(_) {}
   }
 
-  /* ---------- CONTINUE ---------- */
   async function continueReply(aEl){
     if (busy) return;
     const body = aEl.querySelector(".body");
@@ -1268,11 +1284,11 @@ function boot(){
     $("f").requestSubmit();
   }
 
-  /* ---------- RUN ---------- */
   async function run(show, full, names, imgs){
     imgs = imgs || [];
     if (busy) return;
     busy = true; streaming = true;
+    armBusyWatchdog();
     ctrl = new AbortController();
     setGo(true);
     log.querySelectorAll("[data-regen]").forEach(x => x.remove());
@@ -1374,7 +1390,7 @@ function boot(){
       }
       thinkFinish(d, "0", hadThought);
     }
-    busy = false; ctrl = null; setGo(false); syncPill(); down();
+    busy = false; ctrl = null; clearBusyWatchdog(); setGo(false); syncPill(); down();
   }
 
   $("f").onsubmit = e => {
@@ -1420,13 +1436,19 @@ function boot(){
   const openD = () => { renderList(); markTh(); updateTokenUI(); $("drawer").classList.add("on"); $("scrim").classList.add("on"); };
   const closeD = () => { $("drawer").classList.remove("on"); $("scrim").classList.remove("on"); };
   function newChat(){
-    if (busy){ toast("Wait for the reply"); return; }
+    if (busy){
+      try { if (ctrl) ctrl.abort(); } catch(_) {}
+      busy = false; streaming = false; setGo(false); clearBusyWatchdog();
+    }
     cur = null; hist = []; log.innerHTML = ""; log.classList.remove("on");
     $("hero").classList.remove("hide");
     closeD(); t.focus();
   }
   function openChat(id){
-    if (busy){ toast("Wait for the reply"); return; }
+    if (busy){
+      try { if (ctrl) ctrl.abort(); } catch(_) {}
+      busy = false; streaming = false; setGo(false); clearBusyWatchdog();
+    }
     const c = chats.find(x => x.id === id); if (!c) return;
     cur = c; hist = c.msgs; log.innerHTML = "";
     $("hero").classList.add("hide"); log.classList.add("on");
@@ -1449,7 +1471,7 @@ function boot(){
     closeD(); down(1);
   }
   function delChat(id){
-    if (busy){ toast("Wait for the reply"); return; }
+    if (busy){ try { if (ctrl) ctrl.abort(); } catch(_) {} busy = false; streaming = false; setGo(false); clearBusyWatchdog(); }
     if (!confirm("Delete this chat?")) return;
     const c = chats.find(x => x.id === id);
     chats = chats.filter(x => x.id !== id);
@@ -1546,6 +1568,10 @@ function boot(){
   };
   function readImg(f){
     return new Promise((ok, no) => {
+      if (!/^image\//i.test(f.type)){
+        no(new Error("not an image"));
+        return;
+      }
       const url = URL.createObjectURL(f), im = new Image();
       im.onload = () => {
         try {
@@ -1569,11 +1595,19 @@ function boot(){
       if (tokensOut() && !pro){ toast("Uploads paused — refills at " + nextRefillTime()); break; }
       if (pending.length >= 3){ toast("Max 3 attachments"); break; }
       if (!/^image\//.test(f.type)){ toast("Not an image"); continue; }
+      if (f.size > 8e6){ toast(f.name + " is too big (max 8 MB)"); continue; }
       try {
         const im = await readImg(f);
         if (im.data.length > 1100000){ toast("Image too large"); continue; }
         pending.push({ name: f.name || "image", img: im });
-      } catch(_) { toast("Couldn't read " + (f.name || "image")); }
+      } catch(_) {
+        const ext = (f.name || "").split(".").pop().toLowerCase();
+        if (ext === "heic" || ext === "heif"){
+          toast("HEIC not supported — try a JPG/PNG");
+        } else {
+          toast("Couldn't read " + (f.name || "image"));
+        }
+      }
     }
     renderAtts(); updateSendState();
   };
