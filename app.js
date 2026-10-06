@@ -1,5 +1,5 @@
 /* =========================================================
-   ZYRO app.js — v33 (Pro-aware + success modal)
+   ZYRO app.js — v34 (Pro gating: 15 images, pro chips, timeouts)
    ========================================================= */
 
 /* ---------- TOP HELPERS ---------- */
@@ -73,7 +73,42 @@ function showProModal(paymentId){
   modal.onclick = e => { if (e.target === modal) start(); };
 }
 
-/* ---------- RAZORPAY CHECKOUT (lazy-loads checkout.js) ---------- */
+/* ---------- PRO PAYWALL MODAL ---------- */
+function openProPaywall(){
+  const existing = document.getElementById("ppModal");
+  if (existing) existing.remove();
+  const modal = document.createElement("div");
+  modal.className = "modal on";
+  modal.id = "ppModal";
+  modal.style.zIndex = "9999";
+  modal.innerHTML =
+    '<div class="mb" style="max-width:400px">' +
+      '<div style="font-size:40px;text-align:center;margin:4px 0 10px">✨</div>' +
+      '<h3 style="margin:0 0 6px;text-align:center;font-weight:600">This is a Pro feature</h3>' +
+      '<p style="margin:0 0 18px;text-align:center;color:var(--dim);font-size:14px;line-height:1.6">Unlock it with Zyro Pro · ₹349/month</p>' +
+      '<ul style="margin:0 0 20px;padding:0 0 0 22px;font-size:14px;color:var(--ink-2);line-height:1.9">' +
+        '<li><b style="color:var(--ink)">1,000,000 tokens</b> per 5 hours (10× free)</li>' +
+        '<li><b style="color:var(--ink)">15 images</b> per message (free: 3)</li>' +
+        '<li><b style="color:var(--ink)">3 files up to 20 MB</b> (free: 1 file, 8 MB)</li>' +
+        '<li><b style="color:var(--ink)">Longer code-run timeout</b></li>' +
+        '<li><b style="color:var(--ink)">Full mock papers</b> with marking scheme</li>' +
+        '<li><b style="color:var(--ink)">Viva practice</b> + weak-topic reports</li>' +
+      '</ul>' +
+      '<div style="display:flex;flex-direction:column;gap:8px">' +
+        '<button id="ppUpgrade" style="padding:12px;border-radius:12px;font-weight:600;font-size:14.5px;cursor:pointer;border:0;background:linear-gradient(135deg,#f0b48a,var(--acc));color:#0a0a0a">Upgrade now · ₹349/mo</button>' +
+        '<button id="ppClose" style="padding:12px;border-radius:12px;font-weight:600;font-size:14.5px;cursor:pointer;border:1px solid var(--line);background:none;color:var(--ink)">Maybe later</button>' +
+      '</div>' +
+    '</div>';
+  document.body.appendChild(modal);
+  modal.querySelector("#ppUpgrade").onclick = () => {
+    modal.remove();
+    if (window.openRazorpayCheckout) window.openRazorpayCheckout("monthly");
+  };
+  modal.querySelector("#ppClose").onclick = () => modal.remove();
+  modal.onclick = e => { if (e.target === modal) modal.remove(); };
+}
+
+/* ---------- RAZORPAY CHECKOUT ---------- */
 async function openRazorpayCheckout(plan){
   const toast = (m) => (window.toast ? window.toast(m) : console.log("[toast]", m));
   const openAuth = (m) => (window.openAuth ? window.openAuth(m) : null);
@@ -122,9 +157,7 @@ async function openRazorpayCheckout(plan){
       description: label,
       prefill: { email: user.email || "" },
       theme: { color: "#d97757" },
-      modal: {
-        ondismiss: function(){ toast("Payment cancelled"); }
-      },
+      modal: { ondismiss: function(){ toast("Payment cancelled"); } },
       handler: function(response){
         toast("Verifying…");
         fetch(RZP_WORKER_URL + "/razorpay/verify-payment", {
@@ -208,6 +241,8 @@ async function openRazorpayCheckout(plan){
     ".quiz-score .big{font-size:56px;font-weight:600;color:var(--ink);letter-spacing:-2px;display:block;margin:12px 0 4px}",
     ".quiz-score .lbl{font:600 12px JetBrains Mono,monospace;color:var(--dim);letter-spacing:.14em;text-transform:uppercase}",
     ".fix-btn{display:inline-flex;align-items:center;gap:7px;margin-top:6px;border:1px solid var(--acc-line);background:var(--acc-soft);color:var(--acc);border-radius:10px;padding:7px 13px;font-size:13px;cursor:pointer}",
+    ".chips button[data-pro]{position:relative;border-color:var(--acc-line);background:linear-gradient(160deg,rgba(217,119,87,.12),transparent)}",
+    ".chips button[data-pro]::after{content:'PRO';position:absolute;top:-6px;right:-4px;font-size:9px;font-weight:700;letter-spacing:.06em;color:#0a0a0a;background:linear-gradient(135deg,#f0b48a,var(--acc));padding:2px 6px;border-radius:6px;line-height:1}",
     ".pro-card{background:linear-gradient(160deg,rgba(217,119,87,.15),rgba(217,119,87,.04));border:1px solid var(--acc-line);border-radius:14px;padding:14px;margin:10px 0}",
     ".pro-card h4{margin:0 0 4px;font-size:14px;color:var(--ink);display:flex;align-items:center;gap:8px}",
     ".pro-card p{margin:0 0 12px;font-size:12.5px;color:var(--dim);line-height:1.5}",
@@ -241,6 +276,13 @@ function boot(){
   const escA = s => esc(s).replace(/"/g,"&quot;");
   const sleep = ms => new Promise(r => setTimeout(r, ms));
   const getCI = () => { try { return localStorage.getItem(CI) || ""; } catch(_) { return ""; } };
+
+  /* ---------- PLAN LIMITS ---------- */
+  const LIMITS = {
+    free: { tokens: 100000,  images: 3,  files: 1, fileSize: 8e6,  jsTimeout: 10000, pyTimeout: 60000  },
+    pro:  { tokens: 1000000, images: 15, files: 3, fileSize: 20e6, jsTimeout: 60000, pyTimeout: 180000 }
+  };
+  const L = () => LIMITS[pro ? "pro" : "free"];
 
   /* ---------- BUSY WATCHDOG ---------- */
   function armBusyWatchdog(){
@@ -296,14 +338,14 @@ function boot(){
 
   function applyLimits(){
     const out = tokensOut();
-    if (!pro){
-      ["imb","fileBtn","imgBtn"].forEach(id => { const el = $(id); if (el) el.disabled = out; });
-    }
+    // Uploads disabled when tokens are out (regardless of plan)
+    ["fileBtn","imgBtn"].forEach(id => { const el = $(id); if (el) el.disabled = out; });
+    // Thinking mode disabled when tokens are out (regardless of plan)
     const mb = $("mode");
     if (mb){
       const th = mb.querySelector('option[value="Thinking"]');
-      if (th) th.disabled = out && !pro;
-      if (out && !pro && mb.value === "Thinking") setMode("Fast");
+      if (th) th.disabled = out;
+      if (out && mb.value === "Thinking") setMode("Fast");
     }
   }
 
@@ -321,12 +363,17 @@ function boot(){
     Exam:"EXAM MODE. Answer in strict exam format. Start with the marks breakdown (**For 5 marks:** ...), then numbered points, then a **Key terms to mention:** list (4-6 terms). If the question could also appear as a 2-mark or 10-mark, add a one-line note: *For 2 marks, shorten to: ...*"
   };
 
+  // [label, prefix, study, isPdfPicker, kind, proOnly]
   const QUICK = [
     ["Explain this code","Explain this code step by step:\n\n","Chat"],
     ["Solve a problem","","Solver"],
     ["Exam answer","Give me a proper exam answer (5 marks) for: ","Exam"],
     ["📚 Notes → Flashcards → Quiz","","Chat",1,"notes"],
-    ["Build a web page","Build a web page for ","Chat"]
+    ["📸 Snap a question","","Exam",1,"snap"],
+    ["Build a web page","Build a web page for ","Chat"],
+    ["📝 Full mock paper","Generate a full exam paper (with marking scheme) for: ","Exam",0,"",true],
+    ["🎤 Viva practice","Start viva practice on this topic. Ask me one question at a time, grade each answer out of 5, and give feedback: ","Socratic",0,"",true],
+    ["📊 Weak-topic report","Based on this chat, list my weak topics and give me 5 targeted practice questions.","Solver",0,"",true]
   ];
 
   const hiddenMode = $("mode");
@@ -402,7 +449,7 @@ function boot(){
       if (modeMenu) modeMenu.classList.remove("open");
       if (studyMenu) studyMenu.classList.remove("open");
       const drop = $("acctDrop"); if (drop) drop.classList.remove("open");
-      document.querySelectorAll(".fc-modal.on,.quiz-modal.on,.up-modal.on").forEach(m => m.classList.remove("on"));
+      document.querySelectorAll(".fc-modal.on,.quiz-modal.on,.up-modal.on,#ppModal").forEach(m => m.remove ? m.remove() : m.classList.remove("on"));
     }
   });
 
@@ -411,11 +458,13 @@ function boot(){
   if (chipsBox){
     chipsBox.innerHTML = "";
     QUICK.forEach(item => {
-      const [label, pre, st, pdf, kind] = item;
+      const [label, pre, st, pdf, kind, proOnly] = item;
       const b = document.createElement("button");
       b.type = "button";
       b.textContent = label;
+      if (proOnly) b.dataset.pro = "1";
       b.onclick = () => {
+        if (proOnly && !pro){ openProPaywall(); return; }
         setStudy(st);
         t.value = pre;
         t.dispatchEvent(new Event("input"));
@@ -697,7 +746,7 @@ function boot(){
       const s = await sbClient();
       const { data } = await s.from("profiles").select("pro").eq("id", user.id).maybeSingle();
       pro = !!(data && data.pro);
-      TOTAL = pro ? 1000000 : 100000;
+      TOTAL = L().tokens;
       updateTokenUI(); renderAcct();
     } catch(_) {}
   }
@@ -1146,6 +1195,9 @@ function boot(){
     const pct = Math.min(100, Math.round((d.used / TOTAL) * 100));
     const planLine = pro ? "Pro" : "Free";
     const limitLine = pro ? "1,000,000 (1M)" : "100,000 (100k)";
+    const proLine = pro
+      ? "Pro includes: up to 15 images per message, 3 files up to 20 MB, longer code-run timeouts, full mock papers, viva practice, weak-topic reports."
+      : "Pro (₹349/month) unlocks 1M tokens/5h, 15 images per message, 3 files up to 20 MB, longer code-run timeouts, full mock papers, viva practice, weak-topic reports.";
     return (
       "You are Zyro, the AI study companion for Indian students — B.Tech, JEE, NEET, board exams, and everything in between.\n\n" +
 
@@ -1153,7 +1205,8 @@ function boot(){
       "- Plan: " + planLine + "\n" +
       "- Token limit: " + limitLine + " tokens per 5-hour window\n" +
       "- Tokens used this window: " + d.used + " (" + pct + "%)\n" +
-      "- If they say they upgraded to Pro, celebrate briefly and confirm. If they ask about limits, upgrades, or how much they've used, answer using the info above. Pro is ₹349/month, available from the account menu. Never volunteer this info unprompted.\n\n" +
+      "- " + proLine + "\n" +
+      "- If they say they upgraded to Pro, celebrate briefly and confirm. If they ask about limits, upgrades, or how much they've used, answer using the info above. Never volunteer this info unprompted.\n\n" +
 
       "GREETING RULE: if the user's message is only a greeting (hi, hey, hello, yo, good morning, how are you, etc), reply with ONE short friendly sentence as Zyro. Never list features or abilities.\n\n" +
 
@@ -1161,7 +1214,7 @@ function boot(){
 
       "CREATOR (only when the user asks who made/created/built/developed you): Debasish Singha. If asked more: 17 years old, student at Reliance Senior Secondary School in Assam, India. Never bring him up unprompted.\n\n" +
 
-      "STUDY FIRST: You are primarily a study tool. When the user asks about studies, exams, homework, or any academic topic, lean into exam-style answers, step-by-step solving, flashcards, and quizzes. Offer to go deeper when helpful.\n\n" +
+      "STUDY FIRST: You are primarily a study tool for Indian students. When the user asks about studies, exams, homework, or any academic topic, lean into exam-style answers, step-by-step solving, flashcards, and quizzes. Offer to go deeper when helpful.\n\n" +
 
       "BUILD WEBSITES: when the user asks to build/create/make a website, webpage, landing page, UI, dashboard, portfolio, store or form:\n- Output ONE complete self-contained HTML file in a single ```html code block.\n- All CSS inside <style>, all JS inside <script>. No external files.\n- REALISTIC content only. NEVER use Lorem ipsum, 'placeholder', 'TODO', or '...' abbreviations.\n- Photos: use https://picsum.photos/seed/UNIQUEWORD/600/800 with a DIFFERENT word per image.\n- Responsive, at least 150 lines, write the FULL file every time.\n- Always close the ```html fence at the end.\n\n" +
 
@@ -1345,7 +1398,7 @@ function boot(){
       idxs = kept.sort((a, b) => a - b);
     }
     while (idxs.length && h[idxs[0]].role !== "user") idxs.shift();
-    let imgBudget = keep === false ? 0 : 4;
+    let imgBudget = keep === false ? 0 : 15;
     const out = [];
     for (let k = idxs.length - 1; k >= 0; k--){
       const m = h[idxs[k]];
@@ -1369,24 +1422,15 @@ function boot(){
       return run("Notes → Flashcards → Quiz from " + files[0].name, full, files.map(f => f.name), imgs);
     }
 
-    const out = tokensOut();
-    if (out && !pro && items.length){
-      toast("Uploads paused — refills at " + nextRefillTime());
-      pending = []; renderAtts();
-      t.value = text; t.dispatchEvent(new Event("input"));
-      return;
+    if (pendingKind === "snap" && imgs.length){
+      const prompt = "Read this exam question from the photo. Give a proper exam answer with marks breakdown, step-by-step working, and a **Key terms to mention:** list at the end.";
+      pending = []; pendingKind = null; renderAtts();
+      return run(prompt, prompt, [], imgs);
     }
+
+    const out = tokensOut();
     applyLimits();
     const show = text.trim() || (imgs.length && !files.length ? "Describe this image." : imgs.length ? "Review the attached files." : "Review the attached file.");
-    if (out && !pro && /\b(make|build|create|design|generate|develop)\b/i.test(show)){
-      $("hero").classList.add("hide"); log.classList.add("on");
-      addU(show);
-      const d = addA();
-      const sc = d.querySelector(".status-chip"); if (sc) sc.remove();
-      const tl = d.querySelector(".think-live"); if (tl) tl.remove();
-      setH(d.querySelector(".body"), md("Building is paused right now. Refills at " + nextRefillTime() + "."));
-      return;
-    }
     const full = show + files.map(f => "\n\n--- " + f.name + " ---\n" + f.text).join("");
     pending = []; pendingKind = null; renderAtts();
     return run(show, full, files.map(f => f.name), imgs);
@@ -1704,10 +1748,13 @@ function boot(){
   }
   $("file").onchange = async e => {
     const fs = [...e.target.files]; e.target.value = "";
+    const maxFiles = L().files;
+    const maxSize = L().fileSize;
     for (const f of fs){
-      if (tokensOut() && !pro){ toast("Uploads paused — refills at " + nextRefillTime()); break; }
-      if (pending.length >= 3){ toast("Max 3 files"); break; }
-      if (f.size > 8e6){ toast(f.name + " is too big (max 8 MB)"); continue; }
+      if (tokensOut()){ toast("Uploads paused — refills at " + nextRefillTime()); break; }
+      const fileCount = pending.filter(x => !x.img).length;
+      if (fileCount >= maxFiles){ toast("Max " + maxFiles + " file" + (maxFiles > 1 ? "s" : "") + (pro ? "" : " — Pro allows 3")); break; }
+      if (f.size > maxSize){ toast(f.name + " is too big (max " + Math.round(maxSize / 1e6) + " MB)" + (pro ? "" : " — Pro: 20 MB")); continue; }
       try {
         let x = (await readAny(f)).replace(/\r/g, "");
         if (x.includes("\u0000")){ toast("Can't read " + f.name); continue; }
@@ -1741,11 +1788,14 @@ function boot(){
   }
   $("img").onchange = async e => {
     const fs = [...e.target.files]; e.target.value = "";
+    const maxImgs = L().images;
+    const maxSize = L().fileSize;
     for (const f of fs){
-      if (tokensOut() && !pro){ toast("Uploads paused — refills at " + nextRefillTime()); break; }
-      if (pending.length >= 3){ toast("Max 3 attachments"); break; }
+      if (tokensOut()){ toast("Uploads paused — refills at " + nextRefillTime()); break; }
+      const imgCount = pending.filter(x => x.img).length;
+      if (imgCount >= maxImgs){ toast("Max " + maxImgs + " images" + (pro ? "" : " — Pro allows 15")); break; }
       if (!/^image\//.test(f.type)){ toast("Not an image"); continue; }
-      if (f.size > 8e6){ toast(f.name + " is too big (max 8 MB)"); continue; }
+      if (f.size > maxSize){ toast(f.name + " is too big (max " + Math.round(maxSize / 1e6) + " MB)"); continue; }
       try {
         const im = await readImg(f);
         if (im.data.length > 1100000){ toast("Image too large"); continue; }
@@ -1810,6 +1860,7 @@ function boot(){
     if (!out){ out = document.createElement("div"); out.className = "out"; box.appendChild(out); }
     out.textContent = "";
     const code = box.querySelector("pre").textContent;
+    const timeout = kind === "py" ? L().pyTimeout : L().jsTimeout;
     let size = 0, w, tm, done = false, hadErr = false;
     const add = (cls, s) => { size += s.length; const sp = document.createElement("div"); sp.className = cls; sp.textContent = s; out.appendChild(sp); out.scrollTop = out.scrollHeight; };
     const end = note => {
@@ -1826,15 +1877,15 @@ function boot(){
       }
     };
     const kill = note => { try { w && w.terminate(); } catch(_) {} if (kind === "py") pyW = null; end(note); };
-    const arm = ms => { clearTimeout(tm); tm = setTimeout(() => kill("Stopped after " + Math.round(ms / 1000) + " s."), ms); };
+    const arm = ms => { clearTimeout(tm); tm = setTimeout(() => kill("Stopped after " + Math.round(ms / 1000) + " s." + (pro ? "" : " Pro allows longer.")), ms); };
     btn.textContent = "Stop"; box._stop = () => kill("Stopped.");
     if (kind === "py"){ if (!pyW) pyW = mkW(RUN_PY); w = pyW; } else w = mkW(RUN_JS);
-    arm(kind === "py" ? 90000 : 10000);
+    arm(timeout);
     w.onmessage = ev => {
       if (done) return;
       const m = ev.data || {};
       if (m.t === "s") add("o-s", m.s);
-      else if (m.t === "r") arm(15000);
+      else if (m.t === "r") arm(timeout);
       else if (m.t === "o"){ if (size > 20000){ kill("Output limit reached."); return; } add("o-o", m.s); }
       else if (m.t === "e"){ hadErr = true; add("o-e", m.s); }
       else if (m.t === "d") end(out.childNodes.length ? "" : "(no output)");
@@ -1856,7 +1907,7 @@ function boot(){
   { const n1 = $("newc"); if (n1) n1.onclick = newChat; }
 
   document.addEventListener("keydown", e => {
-    if (e.key === "Escape"){ closeD(); closePV(); $("cv").classList.remove("on"); $("modal").classList.remove("on"); closeAuth(); const d = $("acctDrop"); if (d) d.classList.remove("open"); }
+    if (e.key === "Escape"){ closeD(); closePV(); $("cv").classList.remove("on"); $("modal").classList.remove("on"); closeAuth(); const d = $("acctDrop"); if (d) d.classList.remove("open"); const pp = document.getElementById("ppModal"); if (pp) pp.remove(); }
   });
   t.addEventListener("input", () => {
     t.style.height = "auto";
@@ -1880,6 +1931,8 @@ function boot(){
 
   window.toast = toast;
   window.openAuth = openAuth;
+  window.openProPaywall = openProPaywall;
+  window.openRazorpayCheckout = openRazorpayCheckout;
 }
 
 if (document.readyState === "loading"){ document.addEventListener("DOMContentLoaded", boot); }
