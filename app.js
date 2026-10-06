@@ -1,5 +1,5 @@
 /* =========================================================
-   ZYRO app.js — v30 (with Razorpay)
+   ZYRO app.js — v31 (Razorpay lazy-load fix)
    ========================================================= */
 
 /* ---------- TOP HELPERS ---------- */
@@ -49,10 +49,17 @@ const LIM=12000;
 
 const RZP_WORKER_URL = WORKER_URL.replace(/\/$/, "");
 
-/* ---------- RAZORPAY CHECKOUT ---------- */
-function openRazorpayCheckout(plan){
+/* ---------- RAZORPAY CHECKOUT (lazy-loads checkout.js on first use) ---------- */
+async function openRazorpayCheckout(plan){
+  // Local fallbacks in case boot() hasn't wired the globals yet
+  const toast = (m) => (window.toast ? window.toast(m) : console.log("[toast]", m));
+  const openAuth = (m) => (window.openAuth ? window.openAuth(m) : null);
+
   if (typeof Razorpay === "undefined"){
-    toast("Payment library not loaded — refresh the page");
+    try { await loadJS("https://checkout.razorpay.com/v1/checkout.js"); } catch(_) {}
+  }
+  if (typeof Razorpay === "undefined"){
+    toast("Couldn't load payment library — check your connection");
     return;
   }
   if (!user){
@@ -402,6 +409,16 @@ function boot(){
   { const ib = $("imgBtn"); if (ib) ib.onclick = () => $("img").click(); }
   { const fb = $("fileBtn"); if (fb) fb.onclick = () => $("file").click(); }
   { const mb = $("moreBtn"); if (mb) mb.onclick = () => toast("More attachments coming soon"); }
+
+  /* ---------- RIGHT-ALIGN SEND GROUP ---------- */
+  {
+    const row = document.querySelector(".row");
+    if (row && go){
+      const sp = document.createElement("div");
+      sp.style.cssText = "flex:1 1 0;min-width:0;pointer-events:none";
+      row.insertBefore(sp, go);
+    }
+  }
 
   /* ---------- VOICE INPUT ---------- */
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -1816,6 +1833,10 @@ function boot(){
     openAuth("signin");
     history.replaceState(null, "", location.pathname);
   }
+
+  // ---------- EXPOSE HELPERS FOR TOP-LEVEL openRazorpayCheckout ----------
+  window.toast = toast;
+  window.openAuth = openAuth;
 }
 
 if (document.readyState === "loading"){ document.addEventListener("DOMContentLoaded", boot); }
