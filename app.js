@@ -27,8 +27,10 @@ const SUPABASE_ANON_KEY="sb_publishable_LC3DrFcQAsG3HSILCekaFw_SOVVDxjA";
 const TOKEN_KEY="zyro_tokens";
 const CI="zyro_ci";
 const CK="zyro_chats";
-const STREAM_TIMEOUT_MS = 90000; // 90s hard cap
-const FIRST_TOKEN_MS = 45000;    // 45s to first token
+const WAITLIST_KEY="zyro_waitlist";
+const TOKEN_RESET_MS = 5 * 60 * 60 * 1000; // 5 hours
+const STREAM_TIMEOUT_MS = 90000;
+const FIRST_TOKEN_MS = 45000;
 
 let TOTAL=100000;
 let sb=null,sbP=null,user=null,pro=false;
@@ -38,7 +40,7 @@ let pending=[],pendingKind=null;
 let sid=0,follow=true,uAcc=0,uT=null,syncT=null;
 const LIM=12000;
 
-/* ============ STUDY STYLE ============ */
+/* ============ INJECTED STYLES ============ */
 (function(){
   if (document.getElementById("zyro-study-style")) return;
   var s = document.createElement("style");
@@ -58,7 +60,6 @@ const LIM=12000;
     ".fc-head{display:flex;align-items:center;justify-content:space-between;color:var(--dim);font-size:13px;font-family:JetBrains Mono,monospace}",
     ".fc-head button{background:none;border:0;color:var(--dim);font-size:14px;padding:6px 10px;border-radius:8px;cursor:pointer}",
     ".fc-card{background:var(--bg-2);border:1px solid var(--line-2);border-radius:24px;padding:44px 28px;min-height:280px;display:flex;align-items:center;justify-content:center;text-align:center;font-size:22px;line-height:1.4;cursor:pointer;user-select:none;position:relative}",
-    ".fc-card:active{transform:scale(.98)}",
     ".fc-card .side{position:absolute;top:16px;left:20px;font:600 10px JetBrains Mono,monospace;color:var(--dim);letter-spacing:.15em;text-transform:uppercase}",
     ".fc-card .hint{position:absolute;bottom:16px;left:50%;transform:translateX(-50%);font-size:11.5px;color:var(--dim-2)}",
     ".fc-card.back{background:linear-gradient(145deg,rgba(217,119,87,.14),var(--bg-2));border-color:var(--acc-line)}",
@@ -102,7 +103,25 @@ const LIM=12000;
     ".up-box .actions{display:flex;gap:8px}",
     ".up-box .actions button{flex:1;padding:12px;border-radius:12px;font-weight:600;font-size:14.5px;cursor:pointer;border:1px solid var(--line)}",
     ".up-box .actions button.primary{background:linear-gradient(135deg,#f0b48a,var(--acc));color:#0a0a0a;border:0}",
-    ".up-box .actions button.ghost{background:none;color:var(--ink)}"
+    ".up-box .actions button.ghost{background:none;color:var(--ink)}",
+    ".waitlist-card{background:var(--box);border:1px solid var(--line);border-radius:14px;padding:14px;margin:10px 0}",
+    ".waitlist-card h4{margin:0 0 4px;font-size:13.5px;color:var(--ink);font-weight:600}",
+    ".waitlist-card p{margin:0 0 10px;font-size:12px;color:var(--dim);line-height:1.5}",
+    ".waitlist-card .wl-row{display:flex;gap:6px}",
+    ".waitlist-card input{flex:1;min-width:0;background:var(--bg-2);border:1px solid var(--line);border-radius:10px;padding:8px 10px;color:var(--ink);font-size:13px;outline:0}",
+    ".waitlist-card input:focus{border-color:var(--acc-line)}",
+    ".waitlist-card button{background:var(--ink);color:var(--bg);border:0;border-radius:10px;padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap}",
+    ".waitlist-card button:hover{background:#fff}",
+    ".waitlist-card button:disabled{opacity:.4;cursor:not-allowed}",
+    ".waitlist-card .ok{color:#3ecf8e;font-size:12px;margin-top:8px;display:none}",
+    ".waitlist-card.done .wl-row{display:none}",
+    ".waitlist-card.done .ok{display:block}",
+    ".mic-btn{background:var(--box);border:1px solid var(--line);color:var(--dim);border-radius:50%;width:36px;height:36px;display:grid;place-items:center;cursor:pointer;margin-left:auto;transition:background .2s,color .2s,border-color .2s}",
+    ".mic-btn:hover{background:var(--box-2);color:var(--ink);border-color:var(--line-2)}",
+    ".mic-btn.rec{background:rgba(229,72,77,.15);border-color:rgba(229,72,77,.5);color:#e5484d;animation:pulseMic 1.4s ease-in-out infinite}",
+    "@keyframes pulseMic{0%,100%{box-shadow:0 0 0 0 rgba(229,72,77,.4)}50%{box-shadow:0 0 0 8px rgba(229,72,77,0)}}",
+    ".acts button[data-copy] svg,.acts button[data-like] svg,.acts button[data-dislike] svg{width:14px;height:14px;display:block}",
+    ".token-refill{color:var(--dim-2);font-size:11px;margin-top:2px}"
   ].join("");
   document.head.appendChild(s);
 })();
@@ -118,17 +137,15 @@ function boot(){
   const sleep = ms => new Promise(r => setTimeout(r, ms));
   const getCI = () => { try { return localStorage.getItem(CI) || ""; } catch(_) { return ""; } };
 
-  /* ---------- TOKENS ---------- */
+  /* ---------- TOKENS — 5-hour reset ---------- */
   function getTokens(){
     try {
       const d = JSON.parse(localStorage.getItem(TOKEN_KEY) || "null");
       const now = Date.now();
-      if (!d || !d.reset || now - d.reset > 86400000) return { used:0, last:0, reset:now };
-      if (typeof d.used !== "number"){
-        let s = 0;
-        for (const k in d.used) s += +d.used[k] || 0;
-        d.used = s;
-        try { localStorage.setItem(TOKEN_KEY, JSON.stringify(d)); } catch(_) {}
+      if (!d || !d.reset || now - d.reset > TOKEN_RESET_MS){
+        const fresh = { used:0, last:0, reset:now };
+        try { localStorage.setItem(TOKEN_KEY, JSON.stringify(fresh)); } catch(_) {}
+        return fresh;
       }
       return d;
     } catch(_) { return { used:0, last:0, reset:Date.now() }; }
@@ -136,19 +153,43 @@ function boot(){
   function saveTokens(d){ try { localStorage.setItem(TOKEN_KEY, JSON.stringify(d)); } catch(_) {} }
   function addTokens(n){ const d = getTokens(); d.used += n; d.last = n; saveTokens(d); updateTokenUI(); cloudUsage(n); }
   const tokensOut = () => getTokens().used >= TOTAL;
+
+  function nextRefillTime(){
+    const d = getTokens();
+    const next = d.reset + TOKEN_RESET_MS;
+    const dt = new Date(next);
+    const hh = String(dt.getHours()).padStart(2, "0");
+    const mm = String(dt.getMinutes()).padStart(2, "0");
+    return hh + ":" + mm;
+  }
+
   function paintBar(used, last){
     const pct = Math.min(100, (used/TOTAL) * 100);
     const p = used > 0 && pct < 0.1 ? "<0.1" : pct < 10 ? pct.toFixed(1) : Math.floor(pct);
-    const tp = $("tPct"); if (tp) tp.textContent = p + "% of 100% used";
+    const tp = $("tPct");
+    if (tp) tp.textContent = p + "% used";
     const f = $("fTotal");
     if (f) { f.style.width = pct + "%"; f.className = "token-fill" + (pct >= 95 ? " danger" : pct >= 80 ? " warn" : ""); }
-    const tl = $("tLast"); if (tl && last) tl.textContent = "last " + last.toLocaleString();
+    const tl = $("tLast");
+    if (tl){
+      const refill = nextRefillTime();
+      if (tokensOut()) tl.textContent = "refills at " + refill;
+      else tl.textContent = "refills at " + refill;
+      tl.className = "token-refill";
+    }
   }
+
   function updateTokenUI(){
     const d = getTokens(); paintBar(d.used, d.last);
-    const tn = $("tNote"); if (tn) tn.textContent = pro ? "PRO · 1M tokens / day" : "Free · 100k tokens / day · refills at midnight";
+    const tn = $("tNote");
+    if (tn){
+      if (pro) tn.textContent = "PRO · 1M tokens / 5 hours";
+      else if (tokensOut()) tn.textContent = "Tokens out — refills at " + nextRefillTime();
+      else tn.textContent = "Free · 100k tokens / 5 hours";
+    }
     applyLimits();
   }
+
   function applyLimits(){
     const out = tokensOut();
     if (!pro){
@@ -162,6 +203,9 @@ function boot(){
     }
   }
 
+  // Refresh refill display every 30s
+  setInterval(updateTokenUI, 30000);
+
   function toast(m){ const e = $("toast"); if (!e) return; e.textContent = m; e.classList.add("on"); setTimeout(() => e.classList.remove("on"), 1600); }
 
   /* ---------- MODES + STUDY ---------- */
@@ -174,7 +218,6 @@ function boot(){
     Exam:"EXAM MODE. Answer in strict exam format. Start with the marks breakdown (**For 5 marks:** ...), then numbered points, then a **Key terms to mention:** list (4-6 terms). If the question could also appear as a 2-mark or 10-mark, add a one-line note: *For 2 marks, shorten to: ...*"
   };
 
-  /* ---------- ONLY 5 CHIPS ---------- */
   const QUICK = [
     ["Explain this code","Explain this code step by step:\n\n","Chat"],
     ["Solve a problem","","Solver"],
@@ -206,10 +249,7 @@ function boot(){
     if (!MODES[m]) m = "Auto";
     if (hiddenMode) hiddenMode.value = m;
     if (modeLabel) modeLabel.textContent = m;
-    if (modeBtn){
-      const old = modeBtn.querySelector(".lead");
-      if (old) old.outerHTML = MODE_ICONS[m];
-    }
+    if (modeBtn){ const old = modeBtn.querySelector(".lead"); if (old) old.outerHTML = MODE_ICONS[m]; }
     if (modeMenu) modeMenu.querySelectorAll(".mode-opt").forEach(o => o.classList.toggle("active", o.dataset.mode === m));
   }
   if (modeBtn && modeMenu){
@@ -257,7 +297,7 @@ function boot(){
     }
   });
 
-  /* ---------- CHIPS RENDER ---------- */
+  /* ---------- QUICK CHIPS ---------- */
   const chipsBox = $("chips");
   if (chipsBox){
     chipsBox.innerHTML = "";
@@ -282,6 +322,41 @@ function boot(){
   { const ib = $("imgBtn"); if (ib) ib.onclick = () => $("img").click(); }
   { const fb = $("fileBtn"); if (fb) fb.onclick = () => $("file").click(); }
   { const mb = $("moreBtn"); if (mb) mb.onclick = () => toast("More attachments coming soon"); }
+
+  /* ---------- VOICE INPUT ---------- */
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  let micBtn = null, recog = null, listening = false;
+  if (SR){
+    micBtn = document.createElement("button");
+    micBtn.type = "button";
+    micBtn.className = "mic-btn";
+    micBtn.title = "Voice input";
+    micBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 17v5M8 22h8"/></svg>';
+    const row = document.querySelector(".prompt-row");
+    if (row && go) row.insertBefore(micBtn, go);
+    micBtn.onclick = () => {
+      if (listening) { try { recog.stop(); } catch(_){} return; }
+      try {
+        recog = new SR();
+        recog.lang = "en-IN";
+        recog.interimResults = true;
+        recog.continuous = false;
+        let base = t.value ? t.value + " " : "";
+        recog.onstart = () => { listening = true; micBtn.classList.add("rec"); };
+        recog.onend = () => { listening = false; micBtn.classList.remove("rec"); };
+        recog.onerror = () => { listening = false; micBtn.classList.remove("rec"); };
+        recog.onresult = e => {
+          let text = "";
+          for (let i = e.resultIndex; i < e.results.length; i++){
+            text += e.results[i][0].transcript;
+          }
+          t.value = base + text;
+          t.dispatchEvent(new Event("input"));
+        };
+        recog.start();
+      } catch(_) { toast("Voice not supported here"); }
+    };
+  }
 
   /* ---------- PASSWORD EYE ---------- */
   const EYE_OPEN = '<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/>';
@@ -312,6 +387,44 @@ function boot(){
   authsec.className = "authsec";
   const drawerDh = document.querySelector("#drawer .dh");
   if (drawerDh) drawerDh.insertAdjacentElement("afterend", authsec);
+
+  /* ---------- WAITLIST CARD ---------- */
+  const waitlistCard = document.createElement("div");
+  waitlistCard.className = "waitlist-card";
+  waitlistCard.id = "waitlistCard";
+  waitlistCard.innerHTML =
+    '<h4>Get notified when Pro launches</h4>' +
+    '<p>We\'ll email you when Zyro Pro is live. No spam, ever.</p>' +
+    '<div class="wl-row"><input type="email" id="wlEmail" placeholder="you@example.com" autocomplete="email"><button id="wlGo">Notify me</button></div>' +
+    '<div class="ok" id="wlOk">✅ You\'re on the list!</div>';
+  const drawerList = document.querySelector("#drawer .list");
+  if (drawerList && drawerList.parentNode) drawerList.parentNode.insertBefore(waitlistCard, drawerList.nextSibling);
+
+  { const wlGo = waitlistCard.querySelector("#wlGo");
+    const wlEmail = waitlistCard.querySelector("#wlEmail");
+    const wlOk = waitlistCard.querySelector("#wlOk");
+    if (wlGo){
+      wlGo.onclick = async () => {
+        const em = (wlEmail.value || "").trim().toLowerCase();
+        if (!em || !/^\S+@\S+\.\S+$/.test(em)){ toast("Enter a valid email"); return; }
+        wlGo.disabled = true; wlGo.textContent = "…";
+        // Save locally always
+        try {
+          const arr = JSON.parse(localStorage.getItem(WAITLIST_KEY) || "[]");
+          if (!arr.includes(em)) arr.push(em);
+          localStorage.setItem(WAITLIST_KEY, JSON.stringify(arr));
+        } catch(_) {}
+        // Try Supabase
+        try {
+          const s = await sbClient();
+          if (s) await s.from("waitlist").insert({ email: em });
+        } catch(_) {}
+        waitlistCard.classList.add("done");
+        wlOk.textContent = "✅ You're on the list! We'll email " + em + ".";
+        toast("You're on the waitlist 🎉");
+      };
+    }
+  }
 
   function renderAuth(){
     const d = $("authsec");
@@ -382,7 +495,7 @@ function boot(){
   { const c = $("amCancel"); if (c) c.onclick = closeAuth; }
   { const s = $("amSwitch"); if (s) s.onclick = e => { e.preventDefault(); setAuthMode(authMode === "signin" ? "signup" : "signin"); }; }
   { const g = $("amGo"); if (g) g.onclick = async () => {
-      const em = $("amEmail").value.trim(), pw = $("amPw").value, msg = $("amMsg"), btn = $("amGo");
+      const em = $("amEmail").value.trim().toLowerCase(), pw = $("amPw").value, msg = $("amMsg"), btn = $("amGo");
       if (!em || pw.length < 6){ msg.style.color = "#e5484d"; msg.textContent = "Enter an email and a password with 6+ characters."; return; }
       msg.style.color = "var(--dim)"; msg.textContent = "Working…"; btn.disabled = true;
       const s = await sbClient();
@@ -494,11 +607,11 @@ function boot(){
   proPanel.className = "pro-card";
   proPanel.innerHTML =
     '<h4>' + (pro ? '💎 Pro member' : '💎 Go Pro') + '</h4>' +
-    '<p>' + (pro ? 'You have unlimited access to all features.' : 'Unlock 1M tokens/day, unlimited PDFs, Notes → Flashcards → Quiz, and priority speed.') + '</p>' +
+    '<p>' + (pro ? 'You have unlimited access to all features.' : 'Unlock 1M tokens/5h, unlimited PDFs, Notes → Flashcards → Quiz, and priority speed.') + '</p>' +
     (pro ? '' : '<button class="btn-up" id="upBtn">Upgrade · ₹199 / mo</button>');
   const tokenSection = document.querySelector(".token-section");
   if (tokenSection && tokenSection.parentNode) tokenSection.parentNode.insertBefore(proPanel, tokenSection.nextSibling);
-
+    }
   /* ---------- UPGRADE MODAL ---------- */
   const upModal = document.createElement("div");
   upModal.className = "up-modal"; upModal.id = "upModal";
@@ -509,7 +622,7 @@ function boot(){
       '<p class="price">₹199 <em>/ month</em></p>' +
       '<p class="sub" style="margin:0">or ₹999 / year — save 58%</p>' +
       '<ul>' +
-        '<li>1M tokens daily — 10× the free limit</li>' +
+        '<li>1M tokens every 5 hours — 10× the free limit</li>' +
         '<li>Unlimited PDFs & images per message</li>' +
         '<li>Notes → Flashcards → Quiz from any PDF</li>' +
         '<li>Exam-mode answers with mark breakdowns</li>' +
@@ -586,13 +699,19 @@ function boot(){
     body.innerHTML = h;
   }
 
+  /* ---------- GLOBAL CLICK for modals ---------- */
   document.body.addEventListener("click", e => {
     if (e.target.id === "upBtn"){ upModal.classList.add("on"); return; }
     if (e.target.id === "upCancel"){ upModal.classList.remove("on"); return; }
     if (e.target.id === "upGo"){
       upModal.classList.remove("on");
       if (!user){ toast("Sign in first to upgrade"); openAuth("signup"); return; }
-      toast("Payment coming soon — we'll email you when it's live");
+      // Scroll to waitlist card in drawer
+      openD();
+      setTimeout(() => {
+        const wl = $("waitlistCard");
+        if (wl){ wl.scrollIntoView({ behavior: "smooth", block: "center" }); wl.style.outline = "1px solid var(--acc)"; setTimeout(() => wl.style.outline = "", 2000); }
+      }, 300);
       return;
     }
     if (e.target.id === "fcClose"){ fcModal.classList.remove("on"); return; }
@@ -797,15 +916,15 @@ function boot(){
     }
   }
 
-  /* ---------- RENDER MESSAGES ---------- */
+  /* ---------- MESSAGES ---------- */
   function fillBubble(b, txt, names, imgs, nimg){
     b.textContent = txt;
     if (imgs && imgs.length){
       const w = document.createElement("div"); w.className = "th";
-      imgs.forEach(im => { const i = document.createElement("img"); i.alt = "attached image"; i.src = "data:" + im.mime + ";base64," + im.data; w.appendChild(i); });
+      imgs.forEach(im => { const i = document.createElement("img"); i.alt = ""; i.src = "data:" + im.mime + ";base64," + im.data; w.appendChild(i); });
       b.appendChild(w);
     } else if (nimg){
-      const f = document.createElement("div"); f.className = "fl"; f.textContent = "🖼 " + nimg + " image" + (nimg > 1 ? "s" : "") + " (not saved)"; b.appendChild(f);
+      const f = document.createElement("div"); f.className = "fl"; f.textContent = "🖼 " + nimg + " image" + (nimg > 1 ? "s" : ""); b.appendChild(f);
     }
     if (names && names.length){
       const f = document.createElement("div"); f.className = "fl"; f.textContent = "📎 " + names.join(", "); b.appendChild(f);
@@ -894,7 +1013,11 @@ function boot(){
   }
 
   function copy(txt, btn){
-    const ok = () => { btn.textContent = "Copied"; setTimeout(() => btn.textContent = "Copy", 1200); };
+    const ok = () => {
+      const prev = btn.innerHTML;
+      btn.innerHTML = "✓";
+      setTimeout(() => btn.innerHTML = prev, 1200);
+    };
     const fb = () => {
       const a = document.createElement("textarea");
       a.value = txt; a.style.cssText = "position:fixed;opacity:0";
@@ -905,12 +1028,35 @@ function boot(){
     navigator.clipboard ? navigator.clipboard.writeText(txt).then(ok).catch(fb) : fb();
   }
 
+  /* ---------- SVG ICONS (black / white per theme) ---------- */
+  const SVG_COPY = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
+  const SVG_LIKE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 10v12"/><path d="M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h2.76a2 2 0 0 0 1.79-1.11L12 2h0a3.13 3.13 0 0 1 3 3.88Z"/></svg>';
+  const SVG_DISLIKE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 14V2"/><path d="M9 18.12 10 14H4.17a2 2 0 0 1-1.92-2.56l2.33-8A2 2 0 0 1 6.5 2H20a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-2.76a2 2 0 0 0-1.79 1.11L12 22h0a3.13 3.13 0 0 1-3-3.88Z"/></svg>';
+  const SVG_REGEN = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/><path d="M3 21v-5h5"/></svg>';
+  const SVG_CONT = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>';
+
   log.addEventListener("click", e => {
     const vw = e.target.closest("[data-v]"); if (vw) return toggleCode(vw.closest(".cb"));
     const rb = e.target.closest("[data-run]"); if (rb) return runCode(rb.closest(".cb"), rb.dataset.run, rb);
     const eb = e.target.closest("[data-edit]"); if (eb) return startEdit(eb.closest(".u"));
     const cb = e.target.closest("[data-c]"); if (cb) return copy(cb.closest(".cb").querySelector("pre").textContent, cb);
     const pv = e.target.closest("[data-p]"); if (pv){ $("pvf").srcdoc = pv.closest(".cb").querySelector("pre").textContent; $("pv").classList.add("on"); return; }
+
+    // Copy whole message
+    const cp = e.target.closest("[data-copywhole]");
+    if (cp){
+      const a = cp.closest(".a");
+      const body = a && a.querySelector(".body");
+      if (body) copy(body.innerText, cp);
+      return;
+    }
+    // Continue
+    const cont = e.target.closest("[data-cont]");
+    if (cont){
+      const a = cont.closest(".a");
+      if (a && a === log.lastElementChild) continueReply(a);
+      return;
+    }
     const fx = e.target.closest("[data-fix]");
     if (fx){
       const cb2 = fx.closest(".cb");
@@ -924,9 +1070,9 @@ function boot(){
     const rg = e.target.closest("[data-regen]");
     if (rg){ if (rg.closest(".a") === log.lastElementChild) regen(); else toast("Only the last reply can be regenerated"); return; }
     const lk = e.target.closest("[data-like]");
-    if (lk){ lk.classList.add("active"); lk.parentElement.querySelector("[data-dislike]").classList.remove("active"); toast("Thanks!"); return; }
+    if (lk){ lk.classList.add("active"); const d = lk.parentElement.querySelector("[data-dislike]"); if (d) d.classList.remove("active"); toast("Thanks!"); return; }
     const dk = e.target.closest("[data-dislike]");
-    if (dk){ dk.classList.add("active"); dk.parentElement.querySelector("[data-like]").classList.remove("active"); toast("Thanks!"); }
+    if (dk){ dk.classList.add("active"); const l = dk.parentElement.querySelector("[data-like]"); if (l) l.classList.remove("active"); toast("Thanks!"); }
   });
 
   const todayStr = () => new Date().toLocaleDateString("en", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
@@ -959,7 +1105,7 @@ function boot(){
       const f = document.createElement("iframe");
       f.className = "sep";
       f.setAttribute("sandbox", "allow-popups allow-popups-to-escape-sandbox");
-      f.title = "Google Search suggestions";
+      f.title = "Search";
       f.srcdoc = sep;
       w.appendChild(f);
     }
@@ -973,7 +1119,6 @@ function boot(){
     else { go.innerHTML = ARROW; go.classList.remove("on"); go.setAttribute("aria-label", "Send"); }
   }
 
-  /* ---------- WORKER STREAM (with timeout) ---------- */
   async function workerStream(messages, onText, signal, fast, onThought, search, meta){
     let r;
     try {
@@ -996,9 +1141,7 @@ function boot(){
     let full = "", th = "", used = 0, aborted = false, gotFirst = false;
     const rd = r.body.getReader(), dec = new TextDecoder();
     let buf = "";
-    let firstTokenTimer = setTimeout(() => {
-      try { rd.cancel(); } catch(_) {}
-    }, FIRST_TOKEN_MS);
+    let firstTokenTimer = setTimeout(() => { try { rd.cancel(); } catch(_) {} }, FIRST_TOKEN_MS);
 
     try {
       for (;;){
@@ -1038,7 +1181,7 @@ function boot(){
       }
     } catch(e){
       if (e && e.name === "AbortError") aborted = true;
-      else if (gotFirst) { /* partial — keep what we have */ }
+      else if (gotFirst) { /* partial — keep */ }
       else throw e;
     } finally {
       clearTimeout(firstTokenTimer);
@@ -1053,7 +1196,6 @@ function boot(){
     return full;
   }
 
-  /* ---------- MEMORY ---------- */
   const api = (h, keep) => {
     if (!h.length) return [];
     const N = 15, MAX = 30000;
@@ -1107,7 +1249,7 @@ function boot(){
 
     const out = tokensOut();
     if (out && !pro && items.length){
-      toast("Uploads paused — try again tomorrow");
+      toast("Uploads paused — refills at " + nextRefillTime());
       pending = []; renderAtts();
       t.value = text; t.dispatchEvent(new Event("input"));
       return;
@@ -1120,7 +1262,7 @@ function boot(){
       const d = addA();
       const sc = d.querySelector(".status-chip"); if (sc) sc.remove();
       const tl = d.querySelector(".think-live"); if (tl) tl.remove();
-      setH(d.querySelector(".body"), md("Building is paused right now. Try a shorter question, or come back tomorrow."));
+      setH(d.querySelector(".body"), md("Building is paused right now. Refills at " + nextRefillTime() + "."));
       return;
     }
     const full = show + files.map(f => "\n\n--- " + f.name + " ---\n" + f.text).join("");
@@ -1128,10 +1270,12 @@ function boot(){
     return run(show, full, files.map(f => f.name), imgs);
   }
 
-  function actsHTML(noRegen){
-    return '<button type="button" data-like title="Helpful">👍</button>' +
-      '<button type="button" data-dislike title="Not helpful">👎</button>' +
-      (noRegen ? '' : '<button type="button" data-regen>↻ Regenerate</button>');
+  function actsHTML(noRegen, allowContinue){
+    return '<button type="button" data-like title="Helpful">' + SVG_LIKE + '</button>' +
+      '<button type="button" data-dislike title="Not helpful">' + SVG_DISLIKE + '</button>' +
+      '<button type="button" data-copywhole title="Copy full reply">' + SVG_COPY + '</button>' +
+      (allowContinue ? '<button type="button" data-cont title="Continue reply">' + SVG_CONT + ' Continue</button>' : '') +
+      (noRegen ? '' : '<button type="button" data-regen>' + SVG_REGEN + ' Regenerate</button>');
   }
 
   const ERR = {
@@ -1140,10 +1284,45 @@ function boot(){
     origin: "This site isn't allowed to use the server.",
     big: "That message or file is too large. Try a smaller one.",
     empty: "Zyro sent back nothing. Try rephrasing.",
-    thoughtonly: "Zyro reasoned about the answer but didn't finish. Please try again or switch to Auto mode.",
+    thoughtonly: "Zyro reasoned about the answer but didn't finish. Try again or switch to Auto mode.",
     net: "Can't reach the server. Check your connection and retry."
   };
 
+  /* ---------- AUTO CHAT TITLE ---------- */
+  async function autoTitle(chatId, firstUser, firstAI){
+    if (!firstUser || !firstAI) return;
+    try {
+      const prompt = "Give a 3-4 word title for a chat that starts with this message. Return ONLY the title, no quotes, no period.\n\nMessage: " + firstUser.slice(0, 300);
+      const msgs = [{ role: "user", content: prompt }];
+      const chunks = [];
+      await workerStream(msgs, x => chunks.push(x), null, true, null, false, { src: [], sep: "" });
+      const title = (chunks[chunks.length - 1] || "").split("\n")[0].replace(/^["']|["']$/g, "").trim().slice(0, 40);
+      if (!title || title.length < 2) return;
+      const c = chats.find(x => x.id === chatId);
+      if (c && (c.title.length >= 40 || c.title.includes(" "))){
+        // Only rename if it still looks auto-generated
+        c.title = title;
+        save();
+        renderList();
+      }
+    } catch(_) {}
+  }
+
+  /* ---------- CONTINUE REPLY ---------- */
+  async function continueReply(aEl){
+    if (busy) return;
+    const body = aEl.querySelector(".body");
+    if (!body) return;
+    const prev = body.innerText || "";
+    if (!prev.trim()) return;
+    toast("Continuing…");
+    // Push the partial text as assistant, then ask to continue
+    hist.push({ role: "assistant", content: prev });
+    t.value = "Continue from where you stopped. Do not repeat anything. Just keep going.";
+    $("f").requestSubmit();
+  }
+
+  /* ---------- RUN ---------- */
   async function run(show, full, names, imgs){
     imgs = imgs || [];
     if (busy) return;
@@ -1183,7 +1362,6 @@ function boot(){
       paintBar(baseUsed + Math.round(x.length / 4), 0);
     };
 
-    // Hard cap the whole run
     const runTimeout = setTimeout(() => {
       if (ctrl && !ctrl.signal.aborted){
         try { ctrl.abort(); } catch(_) {}
@@ -1211,9 +1389,13 @@ function boot(){
       const secs = ((Date.now() - t0) / 1000).toFixed(1);
       thinkFinish(d, secs, hadThought);
 
+      // Detect if reply looks cut off → offer Continue
+      const trimmed = out.trim();
+      const looksCut = trimmed.length > 200 && !/[.!?)\]}"'`]\s*$/.test(trimmed) && !/```\s*$/.test(trimmed);
+
       const acts = document.createElement("div");
       acts.className = "acts";
-      acts.innerHTML = actsHTML(false);
+      acts.innerHTML = actsHTML(false, looksCut);
       d.appendChild(acts);
 
       const rt = document.createElement("div");
@@ -1232,11 +1414,15 @@ function boot(){
       chats = [cur, ...chats.filter(x => x !== cur)];
       save();
       c.done();
+
+      // Kick off auto-title on first user message
+      if (hist.length === 2){
+        autoTitle(cur.id, show, out);
+      }
     } catch(e){
       clearTimeout(runTimeout);
       streaming = false; c.stop();
       if (e && e.name === "AbortError"){
-        // Was it our timeout or user stop?
         const wasTimeout = (Date.now() - t0) >= STREAM_TIMEOUT_MS - 500;
         if (wasTimeout){
           body.innerHTML = '<span style="color:#e5484d">(timed out — try again or rephrase)</span>';
@@ -1317,7 +1503,7 @@ function boot(){
         addGround(d, m.src, m.sep);
         const acts = document.createElement("div");
         acts.className = "acts";
-        acts.innerHTML = actsHTML(i !== c.msgs.length - 1);
+        acts.innerHTML = actsHTML(i !== c.msgs.length - 1, false);
         d.appendChild(acts);
       }
     });
@@ -1409,7 +1595,7 @@ function boot(){
   $("file").onchange = async e => {
     const fs = [...e.target.files]; e.target.value = "";
     for (const f of fs){
-      if (tokensOut() && !pro){ toast("Uploads paused — try again tomorrow"); break; }
+      if (tokensOut() && !pro){ toast("Uploads paused — refills at " + nextRefillTime()); break; }
       if (pending.length >= 3){ toast("Max 3 files"); break; }
       if (f.size > 8e6){ toast(f.name + " is too big (max 8 MB)"); continue; }
       try {
@@ -1445,7 +1631,7 @@ function boot(){
   $("img").onchange = async e => {
     const fs = [...e.target.files]; e.target.value = "";
     for (const f of fs){
-      if (tokensOut() && !pro){ toast("Uploads paused — try again tomorrow"); break; }
+      if (tokensOut() && !pro){ toast("Uploads paused — refills at " + nextRefillTime()); break; }
       if (pending.length >= 3){ toast("Max 3 attachments"); break; }
       if (!/^image\//.test(f.type)){ toast("Not an image"); continue; }
       try {
