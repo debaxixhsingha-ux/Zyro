@@ -57,6 +57,7 @@ body{
 }
 button{font:inherit;color:inherit;cursor:pointer;background:none;border:0}
 button:disabled{opacity:.4;cursor:not-allowed}
+img{max-width:100%}
 
 header{display:flex;justify-content:space-between;align-items:center;padding:12px 18px;position:relative;z-index:100}
 .icon-btn{background:var(--box);border:1px solid var(--line);width:36px;height:36px;border-radius:10px;color:var(--dim);display:grid;place-items:center;cursor:pointer;transition:background .15s,color .15s,border-color .15s}
@@ -65,6 +66,7 @@ header{display:flex;justify-content:space-between;align-items:center;padding:12p
 main{flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;display:flex;flex-direction:column;position:relative;z-index:2}
 .wrap{width:100%;max-width:720px;margin:0 auto;padding:0 18px;flex:1;display:flex;flex-direction:column}
 .hero{margin:auto 0;padding:6vh 0;text-align:center}
+.hero.hide{display:none !important}
 .hero h1{font:400 clamp(30px,7.5vw,48px)/1.15 'Space Grotesk',sans-serif;margin:0;letter-spacing:-1.5px;background:linear-gradient(180deg,#fff 0%,#8a8a8a 100%);-webkit-background-clip:text;background-clip:text;color:transparent}
 :root[data-theme="light"] .hero h1{background:linear-gradient(180deg,#000 0%,#666 100%);-webkit-background-clip:text;background-clip:text}
 @media(prefers-color-scheme:light){:root:not([data-theme="dark"]) .hero h1{background:linear-gradient(180deg,#000 0%,#666 100%);-webkit-background-clip:text;background-clip:text}}
@@ -77,8 +79,18 @@ main{flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;display:flex;flex-dir
 #log.on{display:block}
 #log,.a,.body{min-width:0;max-width:100%}
 
+/* STRICT image containment */
+.u img, .a img, .body img, .th img{
+  max-width:84px !important;max-height:84px !important;
+  width:84px !important;height:84px !important;
+  object-fit:cover !important;border-radius:10px !important;
+  display:block !important;flex:0 0 auto !important;
+}
+.body img{max-width:100% !important;height:auto !important;width:auto !important}
+
 .u{margin:20px 0 6px;display:flex;justify-content:flex-end}
-.u>div{background:var(--box-2);border:1px solid var(--line-2);padding:10px 16px;border-radius:18px 18px 6px 18px;max-width:88%;white-space:pre-wrap;word-break:break-word;color:var(--ink)}
+.u>div{background:var(--box-2);border:1px solid var(--line-2);padding:10px 16px;border-radius:18px 18px 6px 18px;max-width:88%;white-space:pre-wrap;word-break:break-word;color:var(--ink);overflow:hidden}
+.u .th{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
 
 .a{margin:14px 0;display:flex;flex-direction:column;gap:12px}
 .body{font-size:15.5px;line-height:1.75;color:var(--ink);word-break:break-word}
@@ -149,7 +161,6 @@ main{flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;display:flex;flex-dir
 .att>span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:140px}
 .att button{background:none;border:0;color:var(--dim);padding:0 4px;font-size:12px}
 
-/* ============ DRAWER ============ */
 .scrim{position:fixed;inset:0;background:#0008;opacity:0;pointer-events:none;transition:opacity .25s;z-index:60}
 .scrim.on{opacity:1;pointer-events:auto}
 .drawer{
@@ -165,13 +176,13 @@ main{flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;display:flex;flex-dir
 .dh{display:flex;gap:8px;align-items:center;margin-bottom:12px;width:100%}
 .newc{
   flex:1;min-width:0;
-  display:inline-flex;align-items:center;gap:8px;
+  display:flex;align-items:center;justify-content:flex-start;gap:8px;
   border:1px solid var(--line);background:var(--box);
   border-radius:14px;padding:10px 14px;font-weight:500;font-size:14px;
-  color:var(--ink);text-align:left;
+  color:var(--ink);text-align:left;pointer-events:auto;
 }
 .newc:hover{background:var(--hover)}
-.newc svg{width:14px;height:14px;flex:none}
+.newc .plus{font-size:18px;font-weight:300;line-height:1;flex:none;color:var(--dim)}
 .recent-toggle{
   display:flex;align-items:center;justify-content:space-between;gap:8px;
   width:100%;padding:10px 4px;background:none;border:0;
@@ -210,7 +221,6 @@ main{flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;display:flex;flex-dir
 .waitlist-card.done .wl-row{display:none}
 .waitlist-card.done .ok{display:block}
 
-/* ============ ACCOUNT DROPDOWN ============ */
 .acct-drop{
   position:fixed;top:60px;right:12px;
   width:min(300px,calc(100vw - 24px));
@@ -241,7 +251,6 @@ main{flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;display:flex;flex-dir
 .acct-actions button.primary{background:var(--ink);color:var(--bg);border-color:var(--ink)}
 .acct-actions button:hover{opacity:.9}
 
-/* ============ PROMPT ============ */
 footer{padding:6px 18px 12px;position:relative;z-index:50}
 .attach-row{display:flex;gap:6px;align-items:center;margin-bottom:8px;padding-left:4px;flex-wrap:wrap}
 .tool-chip{display:inline-flex;align-items:center;gap:6px;padding:6px 12px 6px 10px;border-radius:999px;border:1px solid var(--line);background:var(--bg-2);color:var(--dim);font-size:13px;transition:background .15s,color .15s,border-color .15s}
@@ -348,8 +357,8 @@ textarea::placeholder{color:var(--dim-2)}
 <aside class="drawer" id="drawer">
   <div class="dh">
     <button class="newc" id="newc" type="button">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
-      New chat
+      <span class="plus">+</span>
+      <span>New chat</span>
     </button>
     <button class="icon-btn" id="closeD" aria-label="Close">✕</button>
   </div>
@@ -370,7 +379,7 @@ textarea::placeholder{color:var(--dim-2)}
 
   <div id="waitlistSlot"></div>
 
-  <div class="df">Chats saved on this device · Zyro v27</div>
+  <div class="df">Chats saved on this device · Zyro v28</div>
 </aside>
 
 <header>
@@ -509,6 +518,6 @@ textarea::placeholder{color:var(--dim-2)}
 
 <div class="toast" id="toast"></div>
 
-<script src="app.js?v=28"></script>
+<script src="app.js?v=29"></script>
 </body>
 </html>
