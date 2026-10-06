@@ -1,5 +1,5 @@
 /* =========================================================
-   ZYRO app.js — complete
+   ZYRO app.js — v27
    ========================================================= */
 
 /* ---------- TOP HELPERS ---------- */
@@ -32,6 +32,8 @@ const TOKEN_KEY="zyro_tokens";
 const CI="zyro_ci";
 const CK="zyro_chats";
 const WAITLIST_KEY="zyro_waitlist";
+const WAITLIST_DONE_KEY="zyro_waitlist_done";
+const RECENT_OPEN_KEY="zyro_recent_open";
 const TOKEN_RESET_MS = 5 * 60 * 60 * 1000;
 const STREAM_TIMEOUT_MS = 90000;
 const FIRST_TOKEN_MS = 45000;
@@ -107,20 +109,7 @@ const LIM=12000;
     ".up-box .actions{display:flex;gap:8px}",
     ".up-box .actions button{flex:1;padding:12px;border-radius:12px;font-weight:600;font-size:14.5px;cursor:pointer;border:1px solid var(--line)}",
     ".up-box .actions button.primary{background:linear-gradient(135deg,#f0b48a,var(--acc));color:#0a0a0a;border:0}",
-    ".up-box .actions button.ghost{background:none;color:var(--ink)}",
-    ".waitlist-card{background:var(--box);border:1px solid var(--line);border-radius:14px;padding:14px;margin:10px 0}",
-    ".waitlist-card h4{margin:0 0 4px;font-size:13.5px;color:var(--ink);font-weight:600}",
-    ".waitlist-card p{margin:0 0 10px;font-size:12px;color:var(--dim);line-height:1.5}",
-    ".waitlist-card .wl-row{display:flex;gap:6px}",
-    ".waitlist-card input{flex:1;min-width:0;background:var(--bg-2);border:1px solid var(--line);border-radius:10px;padding:8px 10px;color:var(--ink);font-size:13px;outline:0}",
-    ".waitlist-card input:focus{border-color:var(--acc-line)}",
-    ".waitlist-card button{background:var(--ink);color:var(--bg);border:0;border-radius:10px;padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap}",
-    ".waitlist-card button:hover{background:#fff}",
-    ".waitlist-card button:disabled{opacity:.4;cursor:not-allowed}",
-    ".waitlist-card .ok{color:#3ecf8e;font-size:12px;margin-top:8px;display:none}",
-    ".waitlist-card.done .wl-row{display:none}",
-    ".waitlist-card.done .ok{display:block}",
-    ".token-refill{color:var(--dim-2);font-size:11px;margin-top:2px}"
+    ".up-box .actions button.ghost{background:none;color:var(--ink)}"
   ].join("");
   document.head.appendChild(s);
 })();
@@ -157,11 +146,8 @@ function boot(){
 
   function nextRefillTime(){
     const d = getTokens();
-    const next = d.reset + TOKEN_RESET_MS;
-    const dt = new Date(next);
-    const hh = String(dt.getHours()).padStart(2, "0");
-    const mm = String(dt.getMinutes()).padStart(2, "0");
-    return hh + ":" + mm;
+    const dt = new Date(d.reset + TOKEN_RESET_MS);
+    return String(dt.getHours()).padStart(2, "0") + ":" + String(dt.getMinutes()).padStart(2, "0");
   }
 
   function paintBar(used, last){
@@ -282,11 +268,17 @@ function boot(){
   document.addEventListener("click", e => {
     if (modeWrap && !modeWrap.contains(e.target) && modeMenu) modeMenu.classList.remove("open");
     if (studyWrap && !studyWrap.contains(e.target) && studyMenu) studyMenu.classList.remove("open");
+    const drop = $("acctDrop");
+    const authBtnEl = $("authBtn");
+    if (drop && drop.classList.contains("open")){
+      if (!drop.contains(e.target) && (!authBtnEl || !authBtnEl.contains(e.target))) drop.classList.remove("open");
+    }
   });
   document.addEventListener("keydown", e => {
     if (e.key === "Escape"){
       if (modeMenu) modeMenu.classList.remove("open");
       if (studyMenu) studyMenu.classList.remove("open");
+      const drop = $("acctDrop"); if (drop) drop.classList.remove("open");
       document.querySelectorAll(".fc-modal.on,.quiz-modal.on,.up-modal.on").forEach(m => m.classList.remove("on"));
     }
   });
@@ -376,13 +368,8 @@ function boot(){
     return sbP;
   }
 
-  const authsec = document.createElement("div");
-  authsec.id = "authsec";
-  authsec.className = "authsec";
-  const drawerDh = document.querySelector("#drawer .dh");
-  if (drawerDh) drawerDh.insertAdjacentElement("afterend", authsec);
-
-  /* ---------- WAITLIST CARD ---------- */
+  /* ---------- WAITLIST CARD (persistent) ---------- */
+  const waitlistSlot = $("waitlistSlot");
   const waitlistCard = document.createElement("div");
   waitlistCard.className = "waitlist-card";
   waitlistCard.id = "waitlistCard";
@@ -391,8 +378,22 @@ function boot(){
     '<p>We\'ll email you when Zyro Pro is live. No spam, ever.</p>' +
     '<div class="wl-row"><input type="email" id="wlEmail" placeholder="you@example.com" autocomplete="email"><button id="wlGo">Notify me</button></div>' +
     '<div class="ok" id="wlOk">✅ You\'re on the list!</div>';
-  const drawerList = document.querySelector("#drawer .list");
-  if (drawerList && drawerList.parentNode) drawerList.parentNode.insertBefore(waitlistCard, drawerList.nextSibling);
+  if (waitlistSlot) waitlistSlot.appendChild(waitlistCard);
+
+  // Restore submitted state
+  function waitlistAlreadyDone(){
+    try { return localStorage.getItem(WAITLIST_DONE_KEY) === "1"; } catch(_) { return false; }
+  }
+  function restoreWaitlistState(){
+    if (!waitlistCard) return;
+    if (waitlistAlreadyDone()){
+      waitlistCard.classList.add("done");
+      const em = (function(){ try { const arr = JSON.parse(localStorage.getItem(WAITLIST_KEY) || "[]"); return arr[arr.length-1] || ""; } catch(_) { return ""; } })();
+      const wlOk = $("wlOk");
+      if (wlOk) wlOk.textContent = em ? ("✅ On the list — " + em) : "✅ You're on the list!";
+    }
+  }
+  restoreWaitlistState();
 
   { const wlGo = waitlistCard.querySelector("#wlGo");
     const wlEmail = waitlistCard.querySelector("#wlEmail");
@@ -406,6 +407,7 @@ function boot(){
           const arr = JSON.parse(localStorage.getItem(WAITLIST_KEY) || "[]");
           if (!arr.includes(em)) arr.push(em);
           localStorage.setItem(WAITLIST_KEY, JSON.stringify(arr));
+          localStorage.setItem(WAITLIST_DONE_KEY, "1");
         } catch(_) {}
         try {
           const s = await sbClient();
@@ -418,39 +420,88 @@ function boot(){
     }
   }
 
-  function renderAuth(){
-    const d = $("authsec");
-    if (!d) return;
-    const ab = $("authBtn");
-    const tokenSec = document.querySelector(".token-section");
-    const themeDiv = document.querySelector(".theme");
+  /* ---------- ACCOUNT DROPDOWN ---------- */
+  const acctDrop = $("acctDrop");
+  function renderAcct(){
+    if (!acctDrop) return;
+    const initial = user ? esc((user.email || "Z").toUpperCase()[0]) : "?";
+    const emailLine = user ? esc(user.email || "") : "Not signed in";
+    const metaLine = user ? ("Signed in · " + (pro ? "Pro" : "Free")) : "Tap to sign in or create account";
+    const created = user && user.created_at ? new Date(user.created_at).toLocaleDateString("en", { year: "numeric", month: "short", day: "numeric" }) : "";
+    const d = getTokens();
+    const pct = Math.min(100, (d.used/TOTAL) * 100);
+    const p = d.used > 0 && pct < 0.1 ? "<0.1" : pct < 10 ? pct.toFixed(1) : Math.floor(pct);
 
-    if (user){
-      const initial = esc((user.email || "Z").toUpperCase()[0]);
-      d.innerHTML = '<div class="arow"><span class="ava">' + initial + '</span><span class="amail">' + esc(user.email || "") + '</span>' + (pro ? '<em class="pro">PRO</em>' : '') + '<button class="icon-btn" id="signout" aria-label="Sign out" title="Sign out">⎋</button></div>';
-      const so = $("signout");
-      if (so) so.onclick = async () => {
+    acctDrop.innerHTML =
+      '<div class="acct-head">' +
+        '<span class="ava">' + initial + '</span>' +
+        '<div class="info">' +
+          '<div class="em">' + emailLine + '</div>' +
+          '<div class="meta">' + metaLine + '</div>' +
+        '</div>' +
+        (pro ? '<em class="pro-pill">PRO</em>' : '') +
+      '</div>' +
+
+      '<div class="token-section">' +
+        '<div class="tl" style="margin:0 0 8px">Tokens</div>' +
+        '<div class="token-bar">' +
+          '<div class="token-info"><span>' + p + '% used</span><span>refills ' + nextRefillTime() + '</span></div>' +
+          '<div class="token-progress"><div class="token-fill' + (pct >= 95 ? ' danger' : pct >= 80 ? ' warn' : '') + '" style="width:' + pct + '%"></div></div>' +
+          '<div class="tn">' + (pro ? 'PRO · 1M tokens / 5 hours' : 'Free · 100k tokens / 5 hours') + '</div>' +
+        '</div>' +
+      '</div>' +
+
+      (user ? (
+        created ? '<div class="tl" style="margin:0">Account created ' + created + '</div>' : '' 
+      ) : '') +
+
+      '<div class="acct-actions">' +
+        (user
+          ? '<button type="button" id="acctSignOut">Sign out</button>'
+          : '<button type="button" class="primary" id="acctSignIn">Sign in / Sign up</button>'
+        ) +
+      '</div>';
+  }
+
+  { const ab = $("authBtn"); if (ab){
+      ab.onclick = e => {
+        e.stopPropagation();
+        if (user){ renderAcct(); acctDrop.classList.toggle("open"); }
+        else openAuth("signin");
+      };
+    }
+  }
+
+  document.addEventListener("click", e => {
+    if (e.target.id === "acctSignIn"){ const d = $("acctDrop"); if (d) d.classList.remove("open"); openAuth("signin"); return; }
+    if (e.target.id === "acctSignOut"){
+      (async () => {
         const s = await sbClient();
         if (s){ try { await s.auth.signOut(); } catch(_) {} }
         user = null; pro = false; TOTAL = 100000;
-        renderAuth(); updateTokenUI();
-        toast("Signed out — chats stay on this device");
-      };
-      if (ab){
+        renderAcct(); renderAuth(); updateTokenUI();
+        const d = $("acctDrop"); if (d) d.classList.remove("open");
+        toast("Signed out");
+      })();
+      return;
+    }
+  });
+
+  /* ---------- AUTH MODAL ---------- */
+  function renderAuth(){
+    // No drawer auth section anymore — profile lives in the account dropdown
+    const ab = $("authBtn");
+    if (ab){
+      if (user){
+        const initial = esc((user.email || "Z").toUpperCase()[0]);
         ab.innerHTML = '<span style="font-weight:600;font-size:14px">' + initial + '</span>';
         ab.title = user.email || "Account";
-      }
-      if (tokenSec && d.parentNode) d.parentNode.insertBefore(tokenSec, d.nextSibling);
-    } else {
-      d.innerHTML = "";
-      if (ab){
+      } else {
         ab.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-7 8-7s8 3 8 7"/></svg>';
         ab.title = "Sign in";
       }
-      if (tokenSec && themeDiv && themeDiv.parentNode) themeDiv.parentNode.insertBefore(tokenSec, themeDiv);
     }
   }
-  renderAuth();
 
   let authMode = "signin";
   function setAuthMode(m){
@@ -475,7 +526,6 @@ function boot(){
   function openAuth(m){ setAuthMode(m || "signin"); $("authModal").classList.add("on"); setTimeout(() => $("amEmail").focus(), 60); }
   function closeAuth(){ const am = $("authModal"); if (am) am.classList.remove("on"); if ($("amPw")) $("amPw").value = ""; if ($("amMsg")) $("amMsg").textContent = ""; }
 
-  { const ab = $("authBtn"); if (ab) ab.onclick = () => { if (user) openD(); else openAuth("signin"); }; }
   { const c = $("amCancel"); if (c) c.onclick = closeAuth; }
   { const s = $("amSwitch"); if (s) s.onclick = e => { e.preventDefault(); setAuthMode(authMode === "signin" ? "signup" : "signin"); }; }
   { const g = $("amGo"); if (g) g.onclick = async () => {
@@ -503,7 +553,7 @@ function boot(){
       const { data } = await s.from("profiles").select("pro").eq("id", user.id).maybeSingle();
       pro = !!(data && data.pro);
       TOTAL = pro ? 1000000 : 100000;
-      updateTokenUI();
+      updateTokenUI(); renderAcct();
     } catch(_) {}
   }
   async function syncUsageFromCloud(){
@@ -562,169 +612,46 @@ function boot(){
     }, 15000);
   }
   async function afterSignIn(){
-    renderAuth();
+    renderAuth(); renderAcct();
     await loadProfile();
     await pullCloud();
     await syncUsageFromCloud();
-    renderAuth();
+    renderAuth(); renderAcct();
   }
   (async () => {
     let s;
     try { s = await sbClient(); } catch(_) {}
-    if (!s){ renderAuth(); return; }
+    if (!s){ renderAuth(); renderAcct(); return; }
     try {
       const { data } = await s.auth.getSession();
       user = (data && data.session && data.session.user) || null;
     } catch(_) {}
     s.auth.onAuthStateChange((_e, ses) => {
       user = (ses && ses.user) || null;
-      if (!user){ pro = false; TOTAL = 100000; renderAuth(); updateTokenUI(); }
+      if (!user){ pro = false; TOTAL = 100000; renderAuth(); renderAcct(); updateTokenUI(); }
       else afterSignIn();
     });
     if (user) await afterSignIn();
-    else renderAuth();
+    else { renderAuth(); renderAcct(); }
   })();
 
-  /* ---------- PRO PANEL ---------- */
-  const proPanel = document.createElement("div");
-  proPanel.id = "proPanel";
-  proPanel.className = "pro-card";
-  proPanel.innerHTML =
-    '<h4>' + (pro ? '💎 Pro member' : '💎 Go Pro') + '</h4>' +
-    '<p>' + (pro ? 'You have unlimited access to all features.' : 'Unlock 1M tokens/5h, unlimited PDFs, Notes → Flashcards → Quiz, priority model.') + '</p>' +
-    (pro ? '' : '<button class="btn-up" id="upBtn">Upgrade · ₹199 / mo</button>');
-  const tokenSection = document.querySelector(".token-section");
-  if (tokenSection && tokenSection.parentNode) tokenSection.parentNode.insertBefore(proPanel, tokenSection.nextSibling);
-
-  /* ---------- UPGRADE MODAL ---------- */
-  const upModal = document.createElement("div");
-  upModal.className = "up-modal"; upModal.id = "upModal";
-  upModal.innerHTML =
-    '<div class="up-box">' +
-      '<h3>Zyro Pro</h3>' +
-      '<p class="sub">Everything free, plus more.</p>' +
-      '<p class="price">₹199 <em>/ month</em></p>' +
-      '<p class="sub" style="margin:0">or ₹999 / year — save 58%</p>' +
-      '<ul>' +
-        '<li>1M tokens every 5 hours — 10× the free limit</li>' +
-        '<li>Unlimited PDFs & images per message</li>' +
-        '<li>Notes → Flashcards → Quiz from any PDF</li>' +
-        '<li>Exam-mode answers with mark breakdowns</li>' +
-        '<li>Priority Pro model access</li>' +
-      '</ul>' +
-      '<div class="actions">' +
-        '<button class="ghost" id="upCancel">Maybe later</button>' +
-        '<button class="primary" id="upGo">Notify me</button>' +
-      '</div>' +
-    '</div>';
-  document.body.appendChild(upModal);
-
-  /* ---------- FLASHCARD MODAL ---------- */
-  const fcModal = document.createElement("div");
-  fcModal.className = "fc-modal"; fcModal.id = "fcModal";
-  fcModal.innerHTML = '<div class="fc-stage"><div class="fc-head"><span id="fcCount">1 / 1</span><button id="fcClose">Close ✕</button></div><div class="fc-card" id="fcCard"><span class="side" id="fcSide">Front</span><span id="fcText"></span><span class="hint">Tap to flip</span></div><div class="fc-nav"><button id="fcPrev">←</button><button id="fcFlip">Flip</button><button id="fcNext">→</button></div></div>';
-  document.body.appendChild(fcModal);
-
-  /* ---------- QUIZ MODAL ---------- */
-  const quizModal = document.createElement("div");
-  quizModal.className = "quiz-modal"; quizModal.id = "quizModal";
-  quizModal.innerHTML = '<div class="quiz-stage"><div class="quiz-head"><span id="qIdx">Q 1 / 1</span><button id="qClose">Close ✕</button></div><div id="qBody"></div></div>';
-  document.body.appendChild(quizModal);
-
-  let fcCards = [], fcIdx = 0, fcFlipped = false;
-  function openFlashcards(cards){
-    if (!cards.length) return;
-    fcCards = cards; fcIdx = 0; fcFlipped = false;
-    fcModal.classList.add("on"); paintCard();
+  /* ---------- RECENT CHATS TOGGLE ---------- */
+  const recentToggle = $("recentToggle");
+  const listEl = $("list");
+  function setRecentOpen(open){
+    if (!recentToggle || !listEl) return;
+    recentToggle.classList.toggle("open", open);
+    listEl.classList.toggle("open", open);
+    try { localStorage.setItem(RECENT_OPEN_KEY, open ? "1" : "0"); } catch(_) {}
   }
-  function paintCard(){
-    const c = fcCards[fcIdx];
-    const card = $("fcCard"), txt = $("fcText"), side = $("fcSide"), cnt = $("fcCount");
-    side.textContent = fcFlipped ? "Back" : "Front";
-    txt.textContent = fcFlipped ? c.b : c.a;
-    cnt.textContent = (fcIdx + 1) + " / " + fcCards.length;
-    card.classList.toggle("back", fcFlipped);
-    $("fcPrev").disabled = fcIdx === 0;
-    $("fcNext").disabled = fcIdx === fcCards.length - 1;
+  if (recentToggle && listEl){
+    const saved = (function(){ try { return localStorage.getItem(RECENT_OPEN_KEY); } catch(_) { return null; } })();
+    setRecentOpen(saved === null ? true : saved === "1");
+    recentToggle.onclick = () => {
+      setRecentOpen(!recentToggle.classList.contains("open"));
+      if (listEl.classList.contains("open")) renderList();
+    };
   }
-
-  let quizQs = [], quizIdx = 0, quizScore = 0, quizAnswered = false;
-  function openQuiz(qs){
-    if (!qs.length) return;
-    quizQs = qs; quizIdx = 0; quizScore = 0; quizAnswered = false;
-    quizModal.classList.add("on"); paintQuiz();
-  }
-  function paintQuiz(){
-    const q = quizQs[quizIdx];
-    const body = $("qBody");
-    $("qIdx").textContent = "Q " + (quizIdx + 1) + " / " + quizQs.length + (quizAnswered ? " · score " + quizScore : "");
-    let h = '<div class="quiz-q">' + esc(q.q) + '</div><div class="quiz-opts">';
-    q.opts.forEach((opt, i) => {
-      const letter = String.fromCharCode(65 + i);
-      let cls = "quiz-opt";
-      if (quizAnswered){
-        if (letter === q.ans) cls += " correct";
-        else if (letter === q.picked) cls += " wrong";
-      }
-      h += '<button class="' + cls + '" data-letter="' + letter + '"><span class="letter">' + letter + '</span><span>' + esc(opt) + '</span></button>';
-    });
-    h += '</div>';
-    if (quizAnswered && q.ex) h += '<div class="quiz-exp">' + esc(q.ex) + '</div>';
-    if (quizAnswered){
-      if (quizIdx < quizQs.length - 1){
-        h += '<div style="margin-top:16px;text-align:right"><button class="quiz-opt" id="qNext" style="display:inline-flex;width:auto;padding:10px 20px">Next →</button></div>';
-      } else {
-        const pct = Math.round((quizScore / quizQs.length) * 100);
-        h += '<div class="quiz-score"><span class="lbl">Your score</span><span class="big">' + quizScore + ' / ' + quizQs.length + '</span><span class="lbl">' + pct + '%</span></div>';
-        h += '<div style="text-align:center"><button id="qRestart" style="background:var(--box-2);border:1px solid var(--line);color:var(--ink);padding:10px 22px;border-radius:12px;cursor:pointer;font-size:14px">Try again</button></div>';
-      }
-    }
-    body.innerHTML = h;
-  }
-
-  /* ---------- GLOBAL MODAL CLICKS ---------- */
-  document.body.addEventListener("click", e => {
-    if (e.target.id === "upBtn"){ upModal.classList.add("on"); return; }
-    if (e.target.id === "upCancel"){ upModal.classList.remove("on"); return; }
-    if (e.target.id === "upGo"){
-      upModal.classList.remove("on");
-      openD();
-      setTimeout(() => {
-        const wl = $("waitlistCard");
-        if (wl){ wl.scrollIntoView({ behavior: "smooth", block: "center" }); wl.style.outline = "1px solid var(--acc)"; setTimeout(() => wl.style.outline = "", 2000); }
-      }, 300);
-      return;
-    }
-    if (e.target.id === "fcClose"){ fcModal.classList.remove("on"); return; }
-    if (e.target.closest("#fcCard")){ fcFlipped = !fcFlipped; paintCard(); return; }
-    if (e.target.id === "fcFlip"){ fcFlipped = !fcFlipped; paintCard(); return; }
-    if (e.target.id === "fcPrev"){ if (fcIdx > 0){ fcIdx--; fcFlipped = false; paintCard(); } return; }
-    if (e.target.id === "fcNext"){ if (fcIdx < fcCards.length - 1){ fcIdx++; fcFlipped = false; paintCard(); } return; }
-    if (e.target.classList.contains("fc-trigger")){
-      const idx = +e.target.dataset.idx;
-      const cards = window._zyroFCsets && window._zyroFCsets[idx];
-      if (cards) openFlashcards(cards);
-      return;
-    }
-    if (e.target.id === "qClose"){ quizModal.classList.remove("on"); return; }
-    if (e.target.id === "qRestart"){ quizIdx = 0; quizScore = 0; quizAnswered = false; paintQuiz(); return; }
-    if (e.target.id === "qNext"){ quizIdx++; quizAnswered = false; paintQuiz(); return; }
-    const opt = e.target.closest(".quiz-opt");
-    if (opt && !quizAnswered && opt.dataset.letter){
-      const q = quizQs[quizIdx];
-      q.picked = opt.dataset.letter;
-      if (opt.dataset.letter === q.ans) quizScore++;
-      quizAnswered = true;
-      paintQuiz();
-      return;
-    }
-    if (e.target.classList.contains("quiz-trigger")){
-      const idx = +e.target.dataset.idx;
-      const qs = window._zyroQuizSets && window._zyroQuizSets[idx];
-      if (qs) openQuiz(qs);
-      return;
-    }
-  });
 
   /* ---------- MARKDOWN ---------- */
   const MR = /\$\$([\s\S]+?)\$\$|\\\[([\s\S]+?)\\\]|\\\(([\s\S]+?)\\\)|\$([^\s$](?:[^$\n]*?[^\s$])?)\$(?!\d)/g;
@@ -1005,7 +932,6 @@ function boot(){
     navigator.clipboard ? navigator.clipboard.writeText(txt).then(ok).catch(fb) : fb();
   }
 
-  /* ---------- SVG ICONS ---------- */
   const SVG_COPY = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
   const SVG_LIKE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 10v12"/><path d="M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h2.76a2 2 0 0 0 1.79-1.11L12 2a3.13 3.13 0 0 1 3 3.88Z"/></svg>';
   const SVG_DISLIKE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 14V2"/><path d="M9 18.12 10 14H4.17a2 2 0 0 1-1.92-2.56l2.33-8A2 2 0 0 1 6.5 2H20a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-2.76a2 2 0 0 0-1.79 1.11L12 22a3.13 3.13 0 0 1-3-3.88Z"/></svg>';
@@ -1171,7 +1097,6 @@ function boot(){
       clearTimeout(firstTokenTimer);
     }
 
-    // Auto-continue if a code fence was left open
     const fenceCount = (full.match(/```/g) || []).length;
     const hasOpenFence = fenceCount % 2 === 1;
 
@@ -1535,10 +1460,8 @@ function boot(){
   function renderList(){
     const l = $("list"); if (!l) return;
     l.innerHTML = "";
-    const q = (($("q") && $("q").value) || "").trim().toLowerCase();
-    let arr = chats.filter(c => !q || c.title.toLowerCase().includes(q) || c.msgs.some(m => (m.show || m.content || "").toLowerCase().includes(q)));
-    arr = [...arr.filter(c => c.pin), ...arr.filter(c => !c.pin)];
-    if (!arr.length){ l.innerHTML = '<div class="empty-l">' + (q ? "No chats match" : "No chats yet") + '</div>'; return; }
+    const arr = [...chats.filter(c => c.pin), ...chats.filter(c => !c.pin)];
+    if (!arr.length){ l.innerHTML = '<div class="empty-l">No chats yet</div>'; return; }
     arr.forEach(c => {
       const d = document.createElement("div");
       d.className = "it" + (c === cur ? " on" : "");
@@ -1750,11 +1673,9 @@ function boot(){
   { const s = $("scrim"); if (s) s.onclick = closeD; }
   { const c = $("closeD"); if (c) c.onclick = closeD; }
   { const n1 = $("newc"); if (n1) n1.onclick = newChat; }
-  { const n2 = $("new"); if (n2) n2.onclick = newChat; }
-  { const q = $("q"); if (q) q.oninput = () => renderList(); }
 
   document.addEventListener("keydown", e => {
-    if (e.key === "Escape"){ closeD(); closePV(); $("cv").classList.remove("on"); $("modal").classList.remove("on"); closeAuth(); }
+    if (e.key === "Escape"){ closeD(); closePV(); $("cv").classList.remove("on"); $("modal").classList.remove("on"); closeAuth(); const d = $("acctDrop"); if (d) d.classList.remove("open"); }
   });
   t.addEventListener("input", () => {
     t.style.height = "auto";
