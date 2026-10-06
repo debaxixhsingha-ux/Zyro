@@ -27,6 +27,9 @@ const SUPABASE_ANON_KEY="sb_publishable_LC3DrFcQAsG3HSILCekaFw_SOVVDxjA";
 const TOKEN_KEY="zyro_tokens";
 const CI="zyro_ci";
 const CK="zyro_chats";
+const STREAM_TIMEOUT_MS = 90000; // 90s hard cap
+const FIRST_TOKEN_MS = 45000;    // 45s to first token
+
 let TOTAL=100000;
 let sb=null,sbP=null,user=null,pro=false;
 let chats=[],cur=null;
@@ -48,14 +51,12 @@ const LIM=12000;
     ".body tr:last-child td{border-bottom:0}",
     ".body td{color:var(--ink-2)}",
     ".fc-trigger{display:inline-flex;align-items:center;gap:9px;border:1px solid var(--acc-line);background:var(--acc-soft);border-radius:12px;padding:10px 14px;margin:12px 0;cursor:pointer;font-size:13.5px;color:var(--ink)}",
-    ".fc-trigger:hover{background:rgba(217,119,87,.16)}",
     ".fc-trigger b{color:var(--acc);font-weight:600}",
     ".fc-modal{position:fixed;inset:0;background:rgba(0,0,0,.85);backdrop-filter:blur(20px);display:none;align-items:center;justify-content:center;z-index:500;padding:20px}",
     ".fc-modal.on{display:flex}",
     ".fc-stage{width:100%;max-width:520px;display:flex;flex-direction:column;gap:18px}",
     ".fc-head{display:flex;align-items:center;justify-content:space-between;color:var(--dim);font-size:13px;font-family:JetBrains Mono,monospace}",
     ".fc-head button{background:none;border:0;color:var(--dim);font-size:14px;padding:6px 10px;border-radius:8px;cursor:pointer}",
-    ".fc-head button:hover{background:var(--hover);color:var(--ink)}",
     ".fc-card{background:var(--bg-2);border:1px solid var(--line-2);border-radius:24px;padding:44px 28px;min-height:280px;display:flex;align-items:center;justify-content:center;text-align:center;font-size:22px;line-height:1.4;cursor:pointer;user-select:none;position:relative}",
     ".fc-card:active{transform:scale(.98)}",
     ".fc-card .side{position:absolute;top:16px;left:20px;font:600 10px JetBrains Mono,monospace;color:var(--dim);letter-spacing:.15em;text-transform:uppercase}",
@@ -64,21 +65,17 @@ const LIM=12000;
     ".fc-card.back .side{color:var(--acc)}",
     ".fc-nav{display:flex;align-items:center;justify-content:center;gap:12px;color:var(--dim);font-size:13.5px}",
     ".fc-nav button{background:var(--box-2);border:1px solid var(--line);color:var(--ink);padding:10px 20px;border-radius:12px;cursor:pointer;font-size:15px}",
-    ".fc-nav button:hover{border-color:var(--line-2)}",
     ".fc-nav button:disabled{opacity:.35;cursor:not-allowed}",
     ".quiz-trigger{display:inline-flex;align-items:center;gap:9px;border:1px solid var(--line-2);background:var(--box);border-radius:12px;padding:10px 14px;margin:12px 0;cursor:pointer;font-size:13.5px;color:var(--ink)}",
-    ".quiz-trigger:hover{background:var(--box-2)}",
     ".quiz-trigger b{color:var(--acc)}",
     ".quiz-modal{position:fixed;inset:0;background:rgba(0,0,0,.88);backdrop-filter:blur(20px);display:none;align-items:flex-start;justify-content:center;z-index:500;padding:20px;overflow-y:auto}",
     ".quiz-modal.on{display:flex}",
     ".quiz-stage{width:100%;max-width:560px;background:var(--bg-2);border:1px solid var(--line-2);border-radius:22px;padding:24px;margin:auto 0;display:flex;flex-direction:column;gap:18px}",
     ".quiz-head{display:flex;align-items:center;justify-content:space-between;font:600 12px JetBrains Mono,monospace;color:var(--dim);letter-spacing:.08em;text-transform:uppercase}",
     ".quiz-head button{background:none;border:0;color:var(--dim);padding:6px 10px;border-radius:8px;cursor:pointer}",
-    ".quiz-head button:hover{background:var(--hover);color:var(--ink)}",
     ".quiz-q{font-size:17px;line-height:1.55;color:var(--ink)}",
     ".quiz-opts{display:flex;flex-direction:column;gap:10px}",
     ".quiz-opt{display:flex;align-items:flex-start;gap:12px;border:1px solid var(--line);background:var(--box);border-radius:14px;padding:13px 16px;cursor:pointer;font-size:15px;color:var(--ink);text-align:left}",
-    ".quiz-opt:hover{background:var(--box-2);border-color:var(--line-2)}",
     ".quiz-opt.correct{background:rgba(62,207,142,.12);border-color:rgba(62,207,142,.5)}",
     ".quiz-opt.wrong{background:rgba(229,72,77,.1);border-color:rgba(229,72,77,.5)}",
     ".quiz-opt .letter{width:24px;height:24px;border-radius:8px;background:var(--box-2);display:grid;place-items:center;font:600 12px JetBrains Mono,monospace;color:var(--dim);flex:none}",
@@ -89,7 +86,6 @@ const LIM=12000;
     ".quiz-score .big{font-size:56px;font-weight:600;color:var(--ink);letter-spacing:-2px;display:block;margin:12px 0 4px}",
     ".quiz-score .lbl{font:600 12px JetBrains Mono,monospace;color:var(--dim);letter-spacing:.14em;text-transform:uppercase}",
     ".fix-btn{display:inline-flex;align-items:center;gap:7px;margin-top:6px;border:1px solid var(--acc-line);background:var(--acc-soft);color:var(--acc);border-radius:10px;padding:7px 13px;font-size:13px;cursor:pointer}",
-    ".fix-btn:hover{background:rgba(217,119,87,.18)}",
     ".pro-card{background:linear-gradient(160deg,rgba(217,119,87,.15),rgba(217,119,87,.04));border:1px solid var(--acc-line);border-radius:14px;padding:14px;margin:10px 0}",
     ".pro-card h4{margin:0 0 4px;font-size:14px;color:var(--ink);display:flex;align-items:center;gap:8px}",
     ".pro-card p{margin:0 0 12px;font-size:12.5px;color:var(--dim);line-height:1.5}",
@@ -103,7 +99,6 @@ const LIM=12000;
     ".up-box .price em{font-style:normal;font-size:14px;font-weight:400;color:var(--dim);letter-spacing:0}",
     ".up-box ul{margin:14px 0 20px;padding:0;list-style:none;display:flex;flex-direction:column;gap:8px}",
     ".up-box li{font-size:13.5px;color:var(--ink-2);display:flex;gap:9px;align-items:flex-start}",
-    ".up-box li svg{width:15px;height:15px;color:var(--acc);flex:none;margin-top:3px}",
     ".up-box .actions{display:flex;gap:8px}",
     ".up-box .actions button{flex:1;padding:12px;border-radius:12px;font-weight:600;font-size:14.5px;cursor:pointer;border:1px solid var(--line)}",
     ".up-box .actions button.primary{background:linear-gradient(135deg,#f0b48a,var(--acc));color:#0a0a0a;border:0}",
@@ -157,10 +152,7 @@ function boot(){
   function applyLimits(){
     const out = tokensOut();
     if (!pro){
-      const up = $("upb"); if (up) up.disabled = out;
-      const ib = $("imb"); if (ib) ib.disabled = out;
-      const fb = $("fileBtn"); if (fb) fb.disabled = out;
-      const ibtn = $("imgBtn"); if (ibtn) ibtn.disabled = out;
+      ["upb","imb","fileBtn","imgBtn"].forEach(id => { const el = $(id); if (el) el.disabled = out; });
     }
     const mb = $("mode");
     if (mb){
@@ -170,12 +162,7 @@ function boot(){
     }
   }
 
-  /* ---------- TOAST ---------- */
-  function toast(m){
-    const e = $("toast"); if (!e) return;
-    e.textContent = m; e.classList.add("on");
-    setTimeout(() => e.classList.remove("on"), 1600);
-  }
+  function toast(m){ const e = $("toast"); if (!e) return; e.textContent = m; e.classList.add("on"); setTimeout(() => e.classList.remove("on"), 1600); }
 
   /* ---------- MODES + STUDY ---------- */
   const MODES = { Fast:"Quick short answer, minimal thinking.", Auto:"Balanced speed and depth.", Thinking:"Deep analysis, long detailed answer." };
@@ -184,15 +171,16 @@ function boot(){
     Chat:"",
     Solver:"Study mode: solve step by step with clear numbered steps, show formulas, put the final answer in bold, end with one line naming the key concept.",
     Socratic:"Study mode: do NOT give the final answer immediately. Guide with one short question or hint at a time, check reasoning, reveal the answer only if they ask or are stuck twice.",
-    Exam:"EXAM MODE. Answer in strict exam format. Start with the marks breakdown (**For 5 marks:** ...), then numbered points, then a **Key terms to mention:** list (4-6 terms). If the question could also appear as a 2-mark or 10-mark, add a one-line note at the end: *For 2 marks, shorten to: ...*"
+    Exam:"EXAM MODE. Answer in strict exam format. Start with the marks breakdown (**For 5 marks:** ...), then numbered points, then a **Key terms to mention:** list (4-6 terms). If the question could also appear as a 2-mark or 10-mark, add a one-line note: *For 2 marks, shorten to: ...*"
   };
+
+  /* ---------- ONLY 5 CHIPS ---------- */
   const QUICK = [
     ["Explain this code","Explain this code step by step:\n\n","Chat"],
-    ["Fix my error","Fix this error and explain what caused it:\n\n","Chat"],
     ["Solve a problem","","Solver"],
-    ["Quiz me","Quiz me on ","Exam"],
-    ["Teach me step by step","Teach me ","Socratic"],
+    ["Exam answer","Give me a proper exam answer (5 marks) for: ","Exam"],
     ["📚 Notes → Flashcards → Quiz","","Chat",1,"notes"],
+    ["Build a web page","Build a web page for ","Chat"]
   ];
 
   const hiddenMode = $("mode");
@@ -255,10 +243,7 @@ function boot(){
       });
     });
   }
-  try {
-    const sv = localStorage.getItem("zyro_study");
-    if (sv) setStudy(sv); else setStudy("Chat");
-  } catch(_) { setStudy("Chat"); }
+  try { const sv = localStorage.getItem("zyro_study"); if (sv) setStudy(sv); else setStudy("Chat"); } catch(_) { setStudy("Chat"); }
 
   document.addEventListener("click", e => {
     if (modeWrap && !modeWrap.contains(e.target) && modeMenu) modeMenu.classList.remove("open");
@@ -272,9 +257,10 @@ function boot(){
     }
   });
 
-  /* ---------- QUICK CHIPS ---------- */
+  /* ---------- CHIPS RENDER ---------- */
   const chipsBox = $("chips");
   if (chipsBox){
+    chipsBox.innerHTML = "";
     QUICK.forEach(item => {
       const [label, pre, st, pdf, kind] = item;
       const b = document.createElement("button");
@@ -330,8 +316,13 @@ function boot(){
   function renderAuth(){
     const d = $("authsec");
     if (!d) return;
+    const ab = $("authBtn");
+    const tokenSec = document.querySelector(".token-section");
+    const themeDiv = document.querySelector(".theme");
+
     if (user){
-      d.innerHTML = '<div class="arow"><span class="ava">' + esc((user.email || "Z").toUpperCase()[0]) + '</span><span class="amail">' + esc(user.email || "") + '</span>' + (pro ? '<em class="pro">PRO</em>' : '') + '<button class="icon-btn" id="signout" aria-label="Sign out" title="Sign out">⎋</button></div>';
+      const initial = esc((user.email || "Z").toUpperCase()[0]);
+      d.innerHTML = '<div class="arow"><span class="ava">' + initial + '</span><span class="amail">' + esc(user.email || "") + '</span>' + (pro ? '<em class="pro">PRO</em>' : '') + '<button class="icon-btn" id="signout" aria-label="Sign out" title="Sign out">⎋</button></div>';
       const so = $("signout");
       if (so) so.onclick = async () => {
         const s = await sbClient();
@@ -340,8 +331,26 @@ function boot(){
         renderAuth(); updateTokenUI();
         toast("Signed out — chats stay on this device");
       };
+
+      if (ab){
+        ab.innerHTML = '<span style="font-weight:600;font-size:14px">' + initial + '</span>';
+        ab.title = user.email || "Account";
+      }
+
+      if (tokenSec && d.parentNode){
+        d.parentNode.insertBefore(tokenSec, d.nextSibling);
+      }
     } else {
       d.innerHTML = "";
+
+      if (ab){
+        ab.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-7 8-7s8 3 8 7"/></svg>';
+        ab.title = "Sign in";
+      }
+
+      if (tokenSec && themeDiv && themeDiv.parentNode){
+        themeDiv.parentNode.insertBefore(tokenSec, themeDiv);
+      }
     }
   }
   renderAuth();
@@ -369,7 +378,7 @@ function boot(){
   function openAuth(m){ setAuthMode(m || "signin"); $("authModal").classList.add("on"); setTimeout(() => $("amEmail").focus(), 60); }
   function closeAuth(){ const am = $("authModal"); if (am) am.classList.remove("on"); if ($("amPw")) $("amPw").value = ""; if ($("amMsg")) $("amMsg").textContent = ""; }
 
-  { const ab = $("authBtn"); if (ab) ab.onclick = () => openAuth("signin"); }
+  { const ab = $("authBtn"); if (ab) ab.onclick = () => { if (user) openD(); else openAuth("signin"); }; }
   { const c = $("amCancel"); if (c) c.onclick = closeAuth; }
   { const s = $("amSwitch"); if (s) s.onclick = e => { e.preventDefault(); setAuthMode(authMode === "signin" ? "signup" : "signin"); }; }
   { const g = $("amGo"); if (g) g.onclick = async () => {
@@ -485,15 +494,14 @@ function boot(){
   proPanel.className = "pro-card";
   proPanel.innerHTML =
     '<h4>' + (pro ? '💎 Pro member' : '💎 Go Pro') + '</h4>' +
-    '<p>' + (pro ? 'You have unlimited access to all features.' : 'Unlock 1M tokens/day, unlimited PDFs, Notes→Flashcards→Quiz, and priority speed.') + '</p>' +
+    '<p>' + (pro ? 'You have unlimited access to all features.' : 'Unlock 1M tokens/day, unlimited PDFs, Notes → Flashcards → Quiz, and priority speed.') + '</p>' +
     (pro ? '' : '<button class="btn-up" id="upBtn">Upgrade · ₹199 / mo</button>');
   const tokenSection = document.querySelector(".token-section");
   if (tokenSection && tokenSection.parentNode) tokenSection.parentNode.insertBefore(proPanel, tokenSection.nextSibling);
 
   /* ---------- UPGRADE MODAL ---------- */
   const upModal = document.createElement("div");
-  upModal.className = "up-modal";
-  upModal.id = "upModal";
+  upModal.className = "up-modal"; upModal.id = "upModal";
   upModal.innerHTML =
     '<div class="up-box">' +
       '<h3>Zyro Pro</h3>' +
@@ -501,9 +509,9 @@ function boot(){
       '<p class="price">₹199 <em>/ month</em></p>' +
       '<p class="sub" style="margin:0">or ₹999 / year — save 58%</p>' +
       '<ul>' +
-        '<li><b>1M tokens daily</b> — 10× the free limit</li>' +
+        '<li>1M tokens daily — 10× the free limit</li>' +
         '<li>Unlimited PDFs & images per message</li>' +
-        '<li><b>Notes → Flashcards → Quiz</b> from any PDF</li>' +
+        '<li>Notes → Flashcards → Quiz from any PDF</li>' +
         '<li>Exam-mode answers with mark breakdowns</li>' +
         '<li>Priority Pro model access</li>' +
         '<li>No ads, ever</li>' +
@@ -517,15 +525,13 @@ function boot(){
 
   /* ---------- FLASHCARD MODAL ---------- */
   const fcModal = document.createElement("div");
-  fcModal.className = "fc-modal";
-  fcModal.id = "fcModal";
+  fcModal.className = "fc-modal"; fcModal.id = "fcModal";
   fcModal.innerHTML = '<div class="fc-stage"><div class="fc-head"><span id="fcCount">1 / 1</span><button id="fcClose">Close ✕</button></div><div class="fc-card" id="fcCard"><span class="side" id="fcSide">Front</span><span id="fcText"></span><span class="hint">Tap to flip</span></div><div class="fc-nav"><button id="fcPrev">←</button><button id="fcFlip">Flip</button><button id="fcNext">→</button></div></div>';
   document.body.appendChild(fcModal);
 
   /* ---------- QUIZ MODAL ---------- */
   const quizModal = document.createElement("div");
-  quizModal.className = "quiz-modal";
-  quizModal.id = "quizModal";
+  quizModal.className = "quiz-modal"; quizModal.id = "quizModal";
   quizModal.innerHTML = '<div class="quiz-stage"><div class="quiz-head"><span id="qIdx">Q 1 / 1</span><button id="qClose">Close ✕</button></div><div id="qBody"></div></div>';
   document.body.appendChild(quizModal);
 
@@ -533,8 +539,7 @@ function boot(){
   function openFlashcards(cards){
     if (!cards.length) return;
     fcCards = cards; fcIdx = 0; fcFlipped = false;
-    fcModal.classList.add("on");
-    paintCard();
+    fcModal.classList.add("on"); paintCard();
   }
   function paintCard(){
     const c = fcCards[fcIdx];
@@ -551,8 +556,7 @@ function boot(){
   function openQuiz(qs){
     if (!qs.length) return;
     quizQs = qs; quizIdx = 0; quizScore = 0; quizAnswered = false;
-    quizModal.classList.add("on");
-    paintQuiz();
+    quizModal.classList.add("on"); paintQuiz();
   }
   function paintQuiz(){
     const q = quizQs[quizIdx];
@@ -761,8 +765,11 @@ function boot(){
   function enhanceStudy(root){
     if (!root) return;
     const full = root.textContent || "";
+    if (full.length < 50) return;
+    if (!/\bF:\s/.test(full) && !/\bQ:\s/.test(full)) return;
+
     const fcMatches = [...full.matchAll(/^\s*F:\s*(.+?)\s*\n\s*B:\s*(.+?)(?=\n\s*F:|\n\s*##|\n\s*$)/gims)];
-    if (fcMatches.length >= 3){
+    if (fcMatches.length >= 3 && !root.querySelector(".fc-trigger")){
       const cards = fcMatches.map(m => ({ a: m[1].trim(), b: m[2].trim() }));
       window._zyroFCsets = window._zyroFCsets || [];
       const idx = window._zyroFCsets.push(cards) - 1;
@@ -772,13 +779,14 @@ function boot(){
       trigger.innerHTML = '📚 <b>' + cards.length + ' flashcards</b> ready · Tap to study';
       root.insertBefore(trigger, root.firstChild);
     }
+
     const quizBlocks = [];
     const quizRe = /^\s*Q:\s*(.+?)\s*\n\s*A\)\s*(.+?)\s*\n\s*B\)\s*(.+?)\s*\n\s*C\)\s*(.+?)\s*\n\s*D\)\s*(.+?)\s*\n\s*Ans:\s*([A-D])\s*(?:\n\s*Ex:\s*(.+?))?(?=\n\s*Q:|\n\s*##|\n\s*$)/gims;
     let m;
     while ((m = quizRe.exec(full))){
       quizBlocks.push({ q: m[1].trim(), opts: [m[2].trim(), m[3].trim(), m[4].trim(), m[5].trim()], ans: m[6].trim().toUpperCase(), ex: (m[7] || "").trim() });
     }
-    if (quizBlocks.length >= 3){
+    if (quizBlocks.length >= 3 && !root.querySelector(".quiz-trigger")){
       window._zyroQuizSets = window._zyroQuizSets || [];
       const idx = window._zyroQuizSets.push(quizBlocks) - 1;
       const trigger = document.createElement("div");
@@ -856,10 +864,6 @@ function boot(){
 
   const distB = () => main.scrollHeight - main.scrollTop - main.clientHeight;
   const syncPill = () => { const j = $("jump"); if (j) j.classList.toggle("on", distB() > 140); };
-  ["wheel", "touchmove"].forEach(ev => main.addEventListener(ev, () => {
-    clearTimeout(main._st);
-    main._st = setTimeout(() => { follow = distB() < 140; syncPill(); }, 80);
-  }));
   main.addEventListener("scroll", () => { if (distB() < 140) follow = true; syncPill(); });
   { const j = $("jump"); if (j) j.onclick = () => { follow = true; main.scrollTo({ top: main.scrollHeight, behavior: "smooth" }); }; }
   function down(f){ if (f || follow) requestAnimationFrame(() => { main.scrollTop = main.scrollHeight; }); }
@@ -874,11 +878,7 @@ function boot(){
     const n = ++sid;
     chip.innerHTML = '<span class="spark"><svg viewBox="0 0 24 24" aria-hidden="true"><defs><linearGradient id="sg' + n + '" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#d97757"/><stop offset=".55" stop-color="#f0b48a"/><stop offset="1" stop-color="#d97757"/></linearGradient></defs><path fill="url(#sg' + n + ')" d="M12 2l2.6 7.4L22 12l-7.4 2.6L12 22l-2.6-7.4L2 12l7.4-2.6z"/></svg></span><span class="shimmer status-text">Thinking</span>';
     const label = chip.querySelector(".status-text");
-    const setL = x => {
-      label.style.opacity = 0;
-      clearTimeout(tm);
-      tm = setTimeout(() => { label.textContent = x; label.style.opacity = 1; }, 170);
-    };
+    const setL = x => { label.style.opacity = 0; clearTimeout(tm); tm = setTimeout(() => { label.textContent = x; label.style.opacity = 1; }, 170); };
     const iv = setInterval(() => { i = (i + 1) % STAGES.length; setL(STAGES[i]); }, 1400);
     return {
       write(){ if (chip.dataset.w) return; chip.dataset.w = 1; clearInterval(iv); setL("Writing"); },
@@ -924,9 +924,9 @@ function boot(){
     const rg = e.target.closest("[data-regen]");
     if (rg){ if (rg.closest(".a") === log.lastElementChild) regen(); else toast("Only the last reply can be regenerated"); return; }
     const lk = e.target.closest("[data-like]");
-    if (lk){ lk.classList.add("active"); lk.parentElement.querySelector("[data-dislike]").classList.remove("active"); toast("Thanks for the feedback!"); return; }
+    if (lk){ lk.classList.add("active"); lk.parentElement.querySelector("[data-dislike]").classList.remove("active"); toast("Thanks!"); return; }
     const dk = e.target.closest("[data-dislike]");
-    if (dk){ dk.classList.add("active"); dk.parentElement.querySelector("[data-like]").classList.remove("active"); toast("Thanks for the feedback!"); }
+    if (dk){ dk.classList.add("active"); dk.parentElement.querySelector("[data-like]").classList.remove("active"); toast("Thanks!"); }
   });
 
   const todayStr = () => new Date().toLocaleDateString("en", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
@@ -940,7 +940,7 @@ function boot(){
     "STYLE:\n- Clear, concise, markdown. No filler.\n- Code in fenced blocks with language tags.\n- Math in LaTeX: $inline$ or $$display$$.\n- Admit uncertainty. Search results win when provided. Never claim to be another company's assistant.\n\n" +
     "CREATOR (only when the user asks who made/created/built/developed you): Debasish Singha. If asked more: 17 years old, student at Reliance Senior Secondary School in Assam, India. Never bring him up unprompted.\n\n" +
     "BUILD WEBSITES: when the user asks to build/create/make a website, webpage, landing page, UI, dashboard, portfolio, store or form:\n- Output ONE complete self-contained HTML file in a single ```html code block.\n- All CSS inside <style>, all JS inside <script>. No external files.\n- REALISTIC content only. NEVER use Lorem ipsum, 'placeholder', 'TODO', or '...' abbreviations.\n- Photos: use https://picsum.photos/seed/UNIQUEWORD/600/800 with a DIFFERENT word per image.\n- Responsive, at least 150 lines, write the FULL file every time.\n\n" +
-    "NOTES PIPELINE: when the user says 'notes pipeline', 'notes flashcards', 'notes → flashcards', or similar, produce EXACTLY these three sections in order:\n## 📖 Notes\n[Short revision notes with key terms bolded. 5-8 paragraphs max.]\n\n## 🎴 Flashcards\nOutput 12 flashcards. Each flashcard EXACTLY in this format on its own lines:\nF: [front — a question or a term]\nB: [back — the answer or definition, one short line]\n\n## 📝 Quiz\nOutput 5 MCQs. Each one EXACTLY in this format:\nQ: [question]\nA) [option]\nB) [option]\nC) [option]\nD) [option]\nAns: [A/B/C/D]\nEx: [one-line explanation]\n\n" +
+    "NOTES PIPELINE: when the user says 'notes pipeline', 'notes flashcards', 'notes → flashcards', or similar, produce EXACTLY these three sections in order:\n## 📖 Notes\n[Short revision notes with key terms bolded. 5-8 paragraphs max.]\n\n## 🎴 Flashcards\nOutput 12 flashcards. Each flashcard EXACTLY in this format on its own lines:\nF: [front]\nB: [back]\n\n## 📝 Quiz\nOutput 5 MCQs. Each one EXACTLY in this format:\nQ: [question]\nA) [option]\nB) [option]\nC) [option]\nD) [option]\nAns: [A/B/C/D]\nEx: [one-line explanation]\n\n" +
     (STUDY[$("study").value] || "") +
     (getCI() ? "\n\nUser's custom instructions: " + getCI().slice(0, 800) : "") +
     "\n\n" + appFacts();
@@ -973,6 +973,7 @@ function boot(){
     else { go.innerHTML = ARROW; go.classList.remove("on"); go.setAttribute("aria-label", "Send"); }
   }
 
+  /* ---------- WORKER STREAM (with timeout) ---------- */
   async function workerStream(messages, onText, signal, fast, onThought, search, meta){
     let r;
     try {
@@ -991,9 +992,14 @@ function boot(){
       throw { code: r.status === 429 ? "rate" : r.status === 403 ? "origin" : r.status === 413 ? "big" : "http", info: r.status + (m ? " " + m.slice(0, 100) : "") };
     }
     if (!r.body) throw { code: "http", info: "empty response" };
-    let full = "", th = "", used = 0, aborted = false;
+
+    let full = "", th = "", used = 0, aborted = false, gotFirst = false;
     const rd = r.body.getReader(), dec = new TextDecoder();
     let buf = "";
+    let firstTokenTimer = setTimeout(() => {
+      try { rd.cancel(); } catch(_) {}
+    }, FIRST_TOKEN_MS);
+
     try {
       for (;;){
         const { done, value } = await rd.read();
@@ -1004,6 +1010,7 @@ function boot(){
         for (const ln of lines){
           if (!ln.startsWith("data:")) continue;
           const dd = ln.slice(5).trim();
+          if (!dd || dd === "[DONE]") continue;
           try {
             const j = JSON.parse(dd);
             const cd = j.candidates && j.candidates[0];
@@ -1011,7 +1018,10 @@ function boot(){
               for (const p of cd.content.parts){
                 if (!p.text) continue;
                 if (p.thought){ th += p.text; if (onThought) onThought(th); }
-                else { full += p.text; onText(full); }
+                else {
+                  if (!gotFirst){ gotFirst = true; clearTimeout(firstTokenTimer); }
+                  full += p.text; onText(full);
+                }
               }
             }
             if (cd && cd.groundingMetadata && meta){
@@ -1028,15 +1038,22 @@ function boot(){
       }
     } catch(e){
       if (e && e.name === "AbortError") aborted = true;
+      else if (gotFirst) { /* partial — keep what we have */ }
       else throw e;
+    } finally {
+      clearTimeout(firstTokenTimer);
     }
+
     if (used > 0) addTokens(used);
     else if (full) addTokens(Math.ceil(full.length / 4));
-    if (!full && !aborted) throw { code: "empty" };
+    if (!full && !aborted){
+      if (th) throw { code: "thoughtonly", info: "model returned reasoning but no answer" };
+      throw { code: "empty" };
+    }
     return full;
   }
 
-  /* ---------- BETTER LONG-CHAT MEMORY ---------- */
+  /* ---------- MEMORY ---------- */
   const api = (h, keep) => {
     if (!h.length) return [];
     const N = 15, MAX = 30000;
@@ -1112,8 +1129,8 @@ function boot(){
   }
 
   function actsHTML(noRegen){
-    return '<button type="button" data-like title="Helpful"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/></svg></button>' +
-      '<button type="button" data-dislike title="Not helpful"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h2.67A2.31 2.31 0 0 1 22 4v7a2.31 2.31 0 0 1-2.33 2H17"/></svg></button>' +
+    return '<button type="button" data-like title="Helpful">👍</button>' +
+      '<button type="button" data-dislike title="Not helpful">👎</button>' +
       (noRegen ? '' : '<button type="button" data-regen>↻ Regenerate</button>');
   }
 
@@ -1123,6 +1140,7 @@ function boot(){
     origin: "This site isn't allowed to use the server.",
     big: "That message or file is too large. Try a smaller one.",
     empty: "Zyro sent back nothing. Try rephrasing.",
+    thoughtonly: "Zyro reasoned about the answer but didn't finish. Please try again or switch to Auto mode.",
     net: "Can't reach the server. Check your connection and retry."
   };
 
@@ -1165,10 +1183,18 @@ function boot(){
       paintBar(baseUsed + Math.round(x.length / 4), 0);
     };
 
+    // Hard cap the whole run
+    const runTimeout = setTimeout(() => {
+      if (ctrl && !ctrl.signal.aborted){
+        try { ctrl.abort(); } catch(_) {}
+      }
+    }, STREAM_TIMEOUT_MS);
+
     try {
       let out;
       if (!WORKER_URL) throw { code: "nowork" };
       const msgs = [{ role: "system", content: SYS() }, ...api(hist, imgs.length === 0), imgs.length ? { role: "user", content: full, images: imgs } : { role: "user", content: full }];
+
       try {
         out = await workerStream(msgs, emit, ctrl.signal, cheap || $("mode").value === "Fast", onThought, search, meta);
       } catch(e1){
@@ -1177,6 +1203,7 @@ function boot(){
           out = await workerStream(msgs, emit, ctrl.signal, cheap || $("mode").value === "Fast", onThought, search, meta);
         } else throw e1;
       }
+      clearTimeout(runTimeout);
       out = out || "(empty response)";
       streaming = false;
       setH(body, md(out));
@@ -1206,9 +1233,16 @@ function boot(){
       save();
       c.done();
     } catch(e){
+      clearTimeout(runTimeout);
       streaming = false; c.stop();
       if (e && e.name === "AbortError"){
-        body.innerHTML = '<span style="color:#e5484d">(stopped)</span>';
+        // Was it our timeout or user stop?
+        const wasTimeout = (Date.now() - t0) >= STREAM_TIMEOUT_MS - 500;
+        if (wasTimeout){
+          body.innerHTML = '<span style="color:#e5484d">(timed out — try again or rephrase)</span>';
+        } else {
+          body.innerHTML = '<span style="color:#e5484d">(stopped)</span>';
+        }
       } else {
         if (e && e.code !== "na"){ t.value = show; t.dispatchEvent(new Event("input")); }
         const msg = (e && ERR[e.code]) || ("Failed: " + (e && e.info || e && e.message || "network problem") + ". Your message is back in the box.");
@@ -1381,8 +1415,8 @@ function boot(){
       try {
         let x = (await readAny(f)).replace(/\r/g, "");
         if (x.includes("\u0000")){ toast("Can't read " + f.name); continue; }
-        if (!x.trim()){ toast("No text found in " + f.name + " (scanned PDF?)"); continue; }
-        if (x.length > LIM){ x = x.slice(0, LIM) + "\n[...trimmed]"; toast(f.name + " trimmed to fit"); }
+        if (!x.trim()){ toast("No text found in " + f.name); continue; }
+        if (x.length > LIM){ x = x.slice(0, LIM) + "\n[...trimmed]"; toast(f.name + " trimmed"); }
         pending.push({ name: f.name, text: x });
       } catch(_) { toast("Couldn't read " + f.name); }
     }
@@ -1413,10 +1447,10 @@ function boot(){
     for (const f of fs){
       if (tokensOut() && !pro){ toast("Uploads paused — try again tomorrow"); break; }
       if (pending.length >= 3){ toast("Max 3 attachments"); break; }
-      if (!/^image\//.test(f.type)){ toast("That isn't an image"); continue; }
+      if (!/^image\//.test(f.type)){ toast("Not an image"); continue; }
       try {
         const im = await readImg(f);
-        if (im.data.length > 1100000){ toast("Image is too large"); continue; }
+        if (im.data.length > 1100000){ toast("Image too large"); continue; }
         pending.push({ name: f.name || "image", img: im });
       } catch(_) { toast("Couldn't read " + (f.name || "image")); }
     }
@@ -1429,7 +1463,7 @@ function boot(){
   document.querySelectorAll("[data-th]").forEach(b => b.onclick = () => { document.documentElement.setAttribute("data-theme", b.dataset.th); try { localStorage.setItem("zyro_theme", b.dataset.th); } catch(_) {} markTh(); });
   markTh();
 
-  /* ---------- EDIT MESSAGES ---------- */
+  /* ---------- EDIT ---------- */
   function addEdit(u){
     if (!u || u.querySelector(".ed")) return;
     const e = document.createElement("button");
@@ -1475,37 +1509,23 @@ function boot(){
     out.textContent = "";
     const code = box.querySelector("pre").textContent;
     let size = 0, w, tm, done = false, hadErr = false;
-    const add = (cls, s) => {
-      size += s.length;
-      const sp = document.createElement("div");
-      sp.className = cls; sp.textContent = s;
-      out.appendChild(sp); out.scrollTop = out.scrollHeight;
-    };
+    const add = (cls, s) => { size += s.length; const sp = document.createElement("div"); sp.className = cls; sp.textContent = s; out.appendChild(sp); out.scrollTop = out.scrollHeight; };
     const end = note => {
       if (done) return;
-      done = true;
-      clearTimeout(tm);
+      done = true; clearTimeout(tm);
       if (note) add("o-s", note);
-      btn.textContent = "Run";
-      box._stop = null;
+      btn.textContent = "Run"; box._stop = null;
       if (kind === "js" && w){ try { w.terminate(); } catch(_) {} }
       if (hadErr){
         const fx = document.createElement("button");
-        fx.type = "button";
-        fx.className = "fix-btn";
-        fx.setAttribute("data-fix", "");
+        fx.type = "button"; fx.className = "fix-btn"; fx.setAttribute("data-fix", "");
         fx.innerHTML = "🔧 Fix with Zyro";
         if (!box.querySelector("[data-fix]")) out.appendChild(fx);
       }
     };
-    const kill = note => {
-      try { w && w.terminate(); } catch(_) {}
-      if (kind === "py") pyW = null;
-      end(note);
-    };
+    const kill = note => { try { w && w.terminate(); } catch(_) {} if (kind === "py") pyW = null; end(note); };
     const arm = ms => { clearTimeout(tm); tm = setTimeout(() => kill("Stopped after " + Math.round(ms / 1000) + " s."), ms); };
-    btn.textContent = "Stop";
-    box._stop = () => kill("Stopped.");
+    btn.textContent = "Stop"; box._stop = () => kill("Stopped.");
     if (kind === "py"){ if (!pyW) pyW = mkW(RUN_PY); w = pyW; } else w = mkW(RUN_JS);
     arm(kind === "py" ? 90000 : 10000);
     w.onmessage = ev => {
@@ -1514,19 +1534,14 @@ function boot(){
       if (m.t === "s") add("o-s", m.s);
       else if (m.t === "r") arm(15000);
       else if (m.t === "o"){ if (size > 20000){ kill("Output limit reached."); return; } add("o-o", m.s); }
-      else if (m.t === "e"){
-        hadErr = true;
-        let s = m.s;
-        if (kind === "py" && /importScripts|Failed to fetch|NetworkError|Failed to load/i.test(s)) s = "Couldn't load Python. It needs an internet connection the first time.";
-        add("o-e", s);
-      }
+      else if (m.t === "e"){ hadErr = true; add("o-e", m.s); }
       else if (m.t === "d") end(out.childNodes.length ? "" : "(no output)");
     };
-    w.onerror = () => { hadErr = true; kill("Couldn't start the runner" + (kind === "py" ? " (Python needs internet the first time)." : ".")); };
+    w.onerror = () => { hadErr = true; kill("Couldn't start the runner."); };
     w.postMessage({ code });
   }
 
-  /* ---------- SEND BUTTON STATE ---------- */
+  /* ---------- SEND STATE ---------- */
   function updateSendState(){
     const has = t.value.trim().length > 0 || pending.length > 0;
     go.classList.toggle("on", has);
@@ -1543,7 +1558,6 @@ function boot(){
   document.addEventListener("keydown", e => {
     if (e.key === "Escape"){ closeD(); closePV(); $("cv").classList.remove("on"); $("modal").classList.remove("on"); closeAuth(); }
   });
-
   t.addEventListener("input", () => {
     t.style.height = "auto";
     t.style.height = Math.min(t.scrollHeight, 160) + "px";
