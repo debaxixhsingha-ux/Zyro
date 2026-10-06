@@ -580,7 +580,7 @@ function boot(){
         (user
           ? (pro
               ? '<button type="button" id="acctSignOut">Sign out</button>'
-              : '<button type="button" class="primary" id="acctUpgrade">Upgrade to Pro · ₹199/mo</button><button type="button" id="acctSignOut">Sign out</button>')
+              : '<button type="button" class="primary" id="acctUpgrade">Upgrade to Pro · ₹349/mo</button><button type="button" id="acctSignOut">Sign out</button>')
           : '<button type="button" class="primary" id="acctSignIn">Sign in / Sign up</button>'
         ) +
       '</div>';
