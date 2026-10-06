@@ -1,5 +1,5 @@
 /* =========================================================
-   ZYRO app.js — v31 (Razorpay lazy-load fix)
+   ZYRO app.js — v32 (webhook-ready: user_id in notes)
    ========================================================= */
 
 /* ---------- TOP HELPERS ---------- */
@@ -51,7 +51,6 @@ const RZP_WORKER_URL = WORKER_URL.replace(/\/$/, "");
 
 /* ---------- RAZORPAY CHECKOUT (lazy-loads checkout.js on first use) ---------- */
 async function openRazorpayCheckout(plan){
-  // Local fallbacks in case boot() hasn't wired the globals yet
   const toast = (m) => (window.toast ? window.toast(m) : console.log("[toast]", m));
   const openAuth = (m) => (window.openAuth ? window.openAuth(m) : null);
 
@@ -79,7 +78,7 @@ async function openRazorpayCheckout(plan){
       amount,
       plan: isYearly ? "yearly" : "monthly",
       receipt: "zyro_" + Date.now(),
-      notes: { email: user.email || "", plan: isYearly ? "yearly" : "monthly" }
+      notes: { email: user.email || "", plan: isYearly ? "yearly" : "monthly", user_id: user.id }
     })
   })
   .then(r => r.json().then(j => ({ ok: r.ok, status: r.status, body: j })))
@@ -1834,7 +1833,6 @@ function boot(){
     history.replaceState(null, "", location.pathname);
   }
 
-  // ---------- EXPOSE HELPERS FOR TOP-LEVEL openRazorpayCheckout ----------
   window.toast = toast;
   window.openAuth = openAuth;
 }
