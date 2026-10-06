@@ -1,5 +1,5 @@
 /* =========================================================
-   ZYRO app.js — v34 (Pro gating: 15 images, pro chips, timeouts)
+   ZYRO app.js — v35 (concise exam mode, 5 chips)
    ========================================================= */
 
 /* ---------- TOP HELPERS ---------- */
@@ -92,7 +92,7 @@ function openProPaywall(){
         '<li><b style="color:var(--ink)">3 files up to 20 MB</b> (free: 1 file, 8 MB)</li>' +
         '<li><b style="color:var(--ink)">Longer code-run timeout</b></li>' +
         '<li><b style="color:var(--ink)">Full mock papers</b> with marking scheme</li>' +
-        '<li><b style="color:var(--ink)">Viva practice</b> + weak-topic reports</li>' +
+        '<li><b style="color:var(--ink)">Viva practice</b></li>' +
       '</ul>' +
       '<div style="display:flex;flex-direction:column;gap:8px">' +
         '<button id="ppUpgrade" style="padding:12px;border-radius:12px;font-weight:600;font-size:14.5px;cursor:pointer;border:0;background:linear-gradient(135deg,#f0b48a,var(--acc));color:#0a0a0a">Upgrade now · ₹349/mo</button>' +
@@ -338,9 +338,7 @@ function boot(){
 
   function applyLimits(){
     const out = tokensOut();
-    // Uploads disabled when tokens are out (regardless of plan)
     ["fileBtn","imgBtn"].forEach(id => { const el = $(id); if (el) el.disabled = out; });
-    // Thinking mode disabled when tokens are out (regardless of plan)
     const mb = $("mode");
     if (mb){
       const th = mb.querySelector('option[value="Thinking"]');
@@ -357,23 +355,38 @@ function boot(){
   const MODES = { Fast:"Quick short answer, minimal thinking.", Auto:"Balanced speed and depth.", Thinking:"Deep analysis, long detailed answer." };
   const STAGES = ["Thinking","Analyzing","Planning steps"];
   const STUDY = {
-    Chat:"",
-    Solver:"Study mode: solve step by step with clear numbered steps, show formulas, put the final answer in bold, end with one line naming the key concept.",
-    Socratic:"Study mode: do NOT give the final answer immediately. Guide with one short question or hint at a time, check reasoning, reveal the answer only if they ask or are stuck twice.",
-    Exam:"EXAM MODE. Answer in strict exam format. Start with the marks breakdown (**For 5 marks:** ...), then numbered points, then a **Key terms to mention:** list (4-6 terms). If the question could also appear as a 2-mark or 10-mark, add a one-line note: *For 2 marks, shorten to: ...*"
+    Chat: "",
+    Solver:
+      "SOLVER. Solve step-by-step. " +
+      "Rules: keep the whole answer under 350 words unless the problem truly needs more. " +
+      "Number each step. Show formulas inline. Put the final answer in **bold** on its own line. " +
+      "End with one line: **Key concept:** [name]. " +
+      "Do NOT add extra examples, side notes, or alternative methods unless the user asks.",
+    Socratic:
+      "SOCRATIC TUTOR. Guide, don't lecture. " +
+      "Rules: reply in under 80 words. Ask ONE question or give ONE hint per turn. " +
+      "Never dump the full answer. If the user is stuck after two tries, give the smallest possible next step, not the whole solution. " +
+      "Stay encouraging and short.",
+    Exam:
+      "EXAM MODE. You are helping an Indian student write exam-ready answers. " +
+      "RULES:\n" +
+      "1. If the user gives a BROAD topic (e.g. 'science', 'physics', 'chapter 5', 'photosynthesis') without a specific question, DO NOT start writing an answer. " +
+      "Reply with a short list of 3-4 likely exam questions on that topic and ask them to pick one. Nothing else. Keep it under 80 words.\n" +
+      "2. If the user gives a SPECIFIC question, answer it in under 400 words total. Format:\n" +
+      "   **Marks:** [2 / 5 / 10 — your best guess]\n" +
+      "   **Answer:** numbered points (3-6 points), tight.\n" +
+      "   **Key terms:** 4-6 terms, comma-separated.\n" +
+      "3. Never write more than 400 words. If they need more, they can ask 'expand'.\n" +
+      "4. No introductions, no conclusions, no filler. Just the answer."
   };
 
-  // [label, prefix, study, isPdfPicker, kind, proOnly]
+  // Exactly 5 chips: 3 free + 2 pro
   const QUICK = [
-    ["Explain this code","Explain this code step by step:\n\n","Chat"],
-    ["Solve a problem","","Solver"],
-    ["Exam answer","Give me a proper exam answer (5 marks) for: ","Exam"],
-    ["📚 Notes → Flashcards → Quiz","","Chat",1,"notes"],
     ["📸 Snap a question","","Exam",1,"snap"],
-    ["Build a web page","Build a web page for ","Chat"],
+    ["📚 Notes → Flashcards → Quiz","","Chat",1,"notes"],
+    ["✍️ Exam answer","Give me a proper exam answer (5 marks) for: ","Exam"],
     ["📝 Full mock paper","Generate a full exam paper (with marking scheme) for: ","Exam",0,"",true],
-    ["🎤 Viva practice","Start viva practice on this topic. Ask me one question at a time, grade each answer out of 5, and give feedback: ","Socratic",0,"",true],
-    ["📊 Weak-topic report","Based on this chat, list my weak topics and give me 5 targeted practice questions.","Solver",0,"",true]
+    ["🎤 Viva practice","Start viva practice. Ask me one question at a time, grade each answer out of 5, and give short feedback: ","Socratic",0,"",true]
   ];
 
   const hiddenMode = $("mode");
@@ -453,7 +466,7 @@ function boot(){
     }
   });
 
-  /* ---------- QUICK CHIPS ---------- */
+  /* ---------- QUICK CHIPS (exactly 5) ---------- */
   const chipsBox = $("chips");
   if (chipsBox){
     chipsBox.innerHTML = "";
@@ -1189,36 +1202,54 @@ function boot(){
 
   function appFacts(){ return "Today is " + todayStr() + "."; }
 
-  /* ---------- SYSTEM PROMPT (Pro-aware) ---------- */
+  /* ---------- SYSTEM PROMPT (Pro-aware + Study-focused) ---------- */
   const SYS = () => {
     const d = getTokens();
     const pct = Math.min(100, Math.round((d.used / TOTAL) * 100));
     const planLine = pro ? "Pro" : "Free";
     const limitLine = pro ? "1,000,000 (1M)" : "100,000 (100k)";
     const proLine = pro
-      ? "Pro includes: up to 15 images per message, 3 files up to 20 MB, longer code-run timeouts, full mock papers, viva practice, weak-topic reports."
-      : "Pro (₹349/month) unlocks 1M tokens/5h, 15 images per message, 3 files up to 20 MB, longer code-run timeouts, full mock papers, viva practice, weak-topic reports.";
+      ? "Pro includes: up to 15 images per message, 3 files up to 20 MB, longer code-run timeouts, full mock papers, viva practice."
+      : "Pro (₹349/month) unlocks 1M tokens/5h, 15 images per message, 3 files up to 20 MB, longer code-run timeouts, full mock papers, viva practice.";
     return (
-      "You are Zyro, the AI study companion for Indian students — B.Tech, JEE, NEET, board exams, and everything in between.\n\n" +
+      "You are Zyro — the AI study companion built for Indian students: B.Tech, JEE, NEET, CBSE/ICSE boards, and state exams.\n\n" +
 
-      "USER ACCOUNT (use this only if they ask):\n" +
+      "PRIMARY PURPOSE: help the student LEARN. Be focused, exam-ready, and concise. " +
+      "Never write essays or 'books' unless explicitly asked. " +
+      "Default to short, structured, exam-format answers. If the user wants more, they'll ask.\n\n" +
+
+      "USER ACCOUNT (only if they ask):\n" +
       "- Plan: " + planLine + "\n" +
       "- Token limit: " + limitLine + " tokens per 5-hour window\n" +
       "- Tokens used this window: " + d.used + " (" + pct + "%)\n" +
       "- " + proLine + "\n" +
-      "- If they say they upgraded to Pro, celebrate briefly and confirm. If they ask about limits, upgrades, or how much they've used, answer using the info above. Never volunteer this info unprompted.\n\n" +
+      "- If they say they upgraded to Pro, celebrate briefly. Never volunteer this info unprompted.\n\n" +
 
-      "GREETING RULE: if the user's message is only a greeting (hi, hey, hello, yo, good morning, how are you, etc), reply with ONE short friendly sentence as Zyro. Never list features or abilities.\n\n" +
+      "GREETING RULE: if the user's message is only a greeting (hi, hey, hello, yo, etc), reply with ONE short friendly sentence. Never list features.\n\n" +
 
-      "STYLE:\n- Clear, concise, markdown. No filler.\n- Code in fenced blocks with language tags. ALWAYS close the code fence.\n- Math in LaTeX: $inline$ or $$display$$.\n- Admit uncertainty. Search results win when provided. Never claim to be another company's assistant.\n\n" +
+      "STYLE:\n" +
+      "- Clear, concise, markdown. No filler, no introductions, no conclusions.\n" +
+      "- Code in fenced blocks with language tags. ALWAYS close the code fence.\n" +
+      "- Math in LaTeX: $inline$ or $$display$$.\n" +
+      "- Admit uncertainty. Search results win when provided. Never claim to be another company's assistant.\n\n" +
 
-      "CREATOR (only when the user asks who made/created/built/developed you): Debasish Singha. If asked more: 17 years old, student at Reliance Senior Secondary School in Assam, India. Never bring him up unprompted.\n\n" +
+      "CREATOR (only when asked): Debasish Singha, 17, student at Reliance Senior Secondary School in Assam, India. Never bring him up unprompted.\n\n" +
 
-      "STUDY FIRST: You are primarily a study tool for Indian students. When the user asks about studies, exams, homework, or any academic topic, lean into exam-style answers, step-by-step solving, flashcards, and quizzes. Offer to go deeper when helpful.\n\n" +
+      "DEFAULT LENGTH: most answers should be under 300 words. For exam questions, under 400. Only go longer if the user explicitly asks for detail, expansion, or 'explain fully'.\n\n" +
 
-      "BUILD WEBSITES: when the user asks to build/create/make a website, webpage, landing page, UI, dashboard, portfolio, store or form:\n- Output ONE complete self-contained HTML file in a single ```html code block.\n- All CSS inside <style>, all JS inside <script>. No external files.\n- REALISTIC content only. NEVER use Lorem ipsum, 'placeholder', 'TODO', or '...' abbreviations.\n- Photos: use https://picsum.photos/seed/UNIQUEWORD/600/800 with a DIFFERENT word per image.\n- Responsive, at least 150 lines, write the FULL file every time.\n- Always close the ```html fence at the end.\n\n" +
+      "If the user gives a VAGUE topic (like 'science' or 'physics') without a specific question, ask them to pick a specific question or sub-topic. Don't dump everything.\n\n" +
 
-      "NOTES PIPELINE: when the user says 'notes pipeline', 'notes flashcards', 'notes → flashcards', or similar, produce EXACTLY these three sections in order:\n## 📖 Notes\n[Short revision notes with key terms bolded. 5-8 paragraphs max.]\n\n## 🎴 Flashcards\nOutput 12 flashcards. Each flashcard EXACTLY in this format on its own lines:\nF: [front]\nB: [back]\n\n## 📝 Quiz\nOutput 5 MCQs. Each one EXACTLY in this format:\nQ: [question]\nA) [option]\nB) [option]\nC) [option]\nD) [option]\nAns: [A/B/C/D]\nEx: [one-line explanation]\n\n" +
+      "BUILD WEBSITES: when the user asks to build/create/make a website, webpage, landing page, UI, dashboard, portfolio, store or form:\n" +
+      "- Output ONE complete self-contained HTML file in a single ```html code block.\n" +
+      "- All CSS inside <style>, all JS inside <script>. No external files.\n" +
+      "- REALISTIC content only. NEVER use Lorem ipsum, 'placeholder', 'TODO', or '...' abbreviations.\n" +
+      "- Photos: use https://picsum.photos/seed/UNIQUEWORD/600/800 with a DIFFERENT word per image.\n" +
+      "- Responsive, at least 150 lines. Always close the ```html fence at the end.\n\n" +
+
+      "NOTES PIPELINE: when the user says 'notes pipeline', 'notes flashcards', 'notes → flashcards', or similar, produce EXACTLY these three sections in order:\n" +
+      "## 📖 Notes\n[Short revision notes. 5-8 paragraphs max.]\n\n" +
+      "## 🎴 Flashcards\nOutput 12 flashcards. Each EXACTLY:\nF: [front]\nB: [back]\n\n" +
+      "## 📝 Quiz\nOutput 5 MCQs. Each EXACTLY:\nQ: [question]\nA) [option]\nB) [option]\nC) [option]\nD) [option]\nAns: [A/B/C/D]\nEx: [one-line explanation]\n\n" +
 
       (STUDY[$("study").value] || "") +
       (getCI() ? "\n\nUser's custom instructions: " + getCI().slice(0, 800) : "") +
@@ -1416,19 +1447,18 @@ function boot(){
     const imgs = items.filter(f => f.img).map(f => f.img);
 
     if (pendingKind === "notes" && (files.length || imgs.length)){
-      const base = "I uploaded a file. Follow the NOTES PIPELINE format exactly: ## 📖 Notes, ## 🎴 Flashcards (F:/B: format), ## 📝 Quiz (Q:/A)/B)/C)/D)/Ans:/Ex: format). Make it exam-relevant.";
+      const base = "I uploaded a file. Follow the NOTES PIPELINE format exactly: ## 📖 Notes, ## 🎴 Flashcards (F:/B: format), ## 📝 Quiz (Q:/A)/B)/C)/D)/Ans:/Ex: format). Keep notes short and exam-relevant.";
       const full = base + files.map(f => "\n\n--- " + f.name + " ---\n" + f.text).join("");
       pending = []; pendingKind = null; renderAtts();
       return run("Notes → Flashcards → Quiz from " + files[0].name, full, files.map(f => f.name), imgs);
     }
 
     if (pendingKind === "snap" && imgs.length){
-      const prompt = "Read this exam question from the photo. Give a proper exam answer with marks breakdown, step-by-step working, and a **Key terms to mention:** list at the end.";
+      const prompt = "Read this exam question from the photo. Give a proper exam answer in under 400 words. Format: **Marks:** [best guess], **Answer:** (numbered points), **Key terms:** (4-6 terms).";
       pending = []; pendingKind = null; renderAtts();
       return run(prompt, prompt, [], imgs);
     }
 
-    const out = tokensOut();
     applyLimits();
     const show = text.trim() || (imgs.length && !files.length ? "Describe this image." : imgs.length ? "Review the attached files." : "Review the attached file.");
     const full = show + files.map(f => "\n\n--- " + f.name + " ---\n" + f.text).join("");
