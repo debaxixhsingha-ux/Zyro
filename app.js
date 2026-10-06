@@ -1,5 +1,5 @@
 /* =========================================================
-   ZYRO app.js — v29
+   ZYRO app.js — v30 (with Razorpay)
    ========================================================= */
 
 /* ---------- TOP HELPERS ---------- */
@@ -46,6 +46,91 @@ let pending=[],pendingKind=null;
 let sid=0,follow=true,uAcc=0,uT=null,syncT=null;
 let busyWatchdog=null;
 const LIM=12000;
+
+const RZP_WORKER_URL = WORKER_URL.replace(/\/$/, "");
+
+/* ---------- RAZORPAY CHECKOUT ---------- */
+function openRazorpayCheckout(plan){
+  if (typeof Razorpay === "undefined"){
+    toast("Payment library not loaded — refresh the page");
+    return;
+  }
+  if (!user){
+    toast("Sign in first to upgrade");
+    openAuth("signup");
+    return;
+  }
+  const isYearly = plan === "yearly";
+  const amount = isYearly ? 99900 : 19900;
+  const label  = isYearly ? "Zyro Pro — Yearly" : "Zyro Pro — Monthly";
+
+  toast("Creating order…");
+  fetch(RZP_WORKER_URL + "/razorpay/create-order", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      amount,
+      plan: isYearly ? "yearly" : "monthly",
+      receipt: "zyro_" + Date.now(),
+      notes: { email: user.email || "", plan: isYearly ? "yearly" : "monthly" }
+    })
+  })
+  .then(r => r.json().then(j => ({ ok: r.ok, status: r.status, body: j })))
+  .then(res => {
+    if (!res.ok){
+      const m = (res.body && res.body.error && res.body.error.message) || "Order failed";
+      toast(m);
+      return;
+    }
+    const o = res.body;
+    const rz = new Razorpay({
+      key: o.key_id,
+      amount: o.amount,
+      currency: o.currency,
+      order_id: o.order_id,
+      name: "Zyro",
+      description: label,
+      prefill: { email: user.email || "" },
+      theme: { color: "#d97757" },
+      modal: {
+        ondismiss: function(){ toast("Payment cancelled"); }
+      },
+      handler: function(response){
+        toast("Verifying…");
+        fetch(RZP_WORKER_URL + "/razorpay/verify-payment", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            razorpay_order_id: response.razorpay_order_id,
+            razorpay_payment_id: response.razorpay_payment_id,
+            razorpay_signature: response.razorpay_signature,
+            user_id: user.id,
+            amount: o.amount,
+            plan: o.plan
+          })
+        })
+        .then(v => v.json().then(j => ({ ok: v.ok, body: j })))
+        .then(v => {
+          if (v.ok && v.body && v.body.ok){
+            pro = true;
+            TOTAL = 1000000;
+            toast("🎉 Welcome to Zyro Pro!");
+            setTimeout(() => location.reload(), 1400);
+          } else {
+            toast("Verification failed — contact support");
+          }
+        })
+        .catch(() => toast("Verification error"));
+      }
+    });
+    rz.on("payment.failed", function(resp){
+      const d = (resp && resp.error && resp.error.description) || "unknown";
+      toast("Payment failed: " + d);
+    });
+    rz.open();
+  })
+  .catch(() => toast("Could not reach payment server"));
+}
 
 /* ---------- INJECTED STUDY STYLES ---------- */
 (function(){
@@ -107,8 +192,8 @@ const LIM=12000;
     ".up-box .price em{font-style:normal;font-size:14px;font-weight:400;color:var(--dim);letter-spacing:0}",
     ".up-box ul{margin:14px 0 20px;padding:0;list-style:none;display:flex;flex-direction:column;gap:8px}",
     ".up-box li{font-size:13.5px;color:var(--ink-2);display:flex;gap:9px;align-items:flex-start}",
-    ".up-box .actions{display:flex;gap:8px}",
-    ".up-box .actions button{flex:1;padding:12px;border-radius:12px;font-weight:600;font-size:14.5px;cursor:pointer;border:1px solid var(--line)}",
+    ".up-box .actions{display:flex;flex-direction:column;gap:8px}",
+    ".up-box .actions button{padding:12px;border-radius:12px;font-weight:600;font-size:14.5px;cursor:pointer;border:1px solid var(--line)}",
     ".up-box .actions button.primary{background:linear-gradient(135deg,#f0b48a,var(--acc));color:#0a0a0a;border:0}",
     ".up-box .actions button.ghost{background:none;color:var(--ink)}"
   ].join("");
@@ -476,7 +561,9 @@ function boot(){
 
       '<div class="acct-actions">' +
         (user
-          ? '<button type="button" id="acctSignOut">Sign out</button>'
+          ? (pro
+              ? '<button type="button" id="acctSignOut">Sign out</button>'
+              : '<button type="button" class="primary" id="acctUpgrade">Upgrade to Pro · ₹199/mo</button><button type="button" id="acctSignOut">Sign out</button>')
           : '<button type="button" class="primary" id="acctSignIn">Sign in / Sign up</button>'
         ) +
       '</div>';
@@ -493,6 +580,7 @@ function boot(){
 
   document.addEventListener("click", e => {
     if (e.target.id === "acctSignIn"){ const d = $("acctDrop"); if (d) d.classList.remove("open"); openAuth("signin"); return; }
+    if (e.target.id === "acctUpgrade"){ const d = $("acctDrop"); if (d) d.classList.remove("open"); openRazorpayCheckout("monthly"); return; }
     if (e.target.id === "acctSignOut"){
       (async () => {
         const s = await sbClient();
@@ -1442,7 +1530,6 @@ function boot(){
   const openD = () => { renderList(); markTh(); updateTokenUI(); $("drawer").classList.add("on"); $("scrim").classList.add("on"); };
   const closeD = () => { $("drawer").classList.remove("on"); $("scrim").classList.remove("on"); };
   function newChat(){
-    // Always force-reset busy state
     try { if (ctrl) ctrl.abort(); } catch(_) {}
     busy = false; streaming = false; setGo(false); clearBusyWatchdog();
     cur = null; hist = []; log.innerHTML = ""; log.classList.remove("on");
