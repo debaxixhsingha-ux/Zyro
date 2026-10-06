@@ -86,7 +86,7 @@ function boot(){
   /* ============ MODES + STUDY ============ */
   const MODES={Fast:"Quick short answer, minimal thinking.",Auto:"Balanced speed and depth.",Thinking:"Deep analysis, long detailed answer."};
   const STAGES=["Thinking","Analyzing","Planning steps"];
-  const STUDY={Chat:"",Solver:"STUDY MODE Solver: solve the problem step by step with clear numbered steps, show the formulas you use, put the final answer in bold, and finish with one line naming the key concept.",Socratic:"STUDY MODE Socratic tutor: do NOT give the final answer straight away. Guide the student with one short question or hint at a time, check their reasoning, and reveal the answer only if they ask for it or are stuck twice.",Exam:"STUDY MODE Exam prep: ask ONE question at a time on the topic the student names (a mix of multiple-choice and short answer), wait for their answer, mark it correct or incorrect with a brief explanation, then ask the next one. After 5 questions give the score and the weak topics."};
+  const STUDY={Chat:"",Solver:"Study mode: solve step by step with clear numbered steps, show formulas, put the final answer in bold, end with one line naming the key concept.",Socratic:"Study mode: do NOT give the final answer immediately. Guide with one short question or hint at a time, check reasoning, reveal the answer only if they ask or are stuck twice.",Exam:"Study mode: quiz one question at a time (mix of MC and short answer). Wait for the answer, mark correct/incorrect with a short explanation, then next question. After 5 questions, give the score and weak topics."};
   const QUICK=[["Explain this code","Explain this code step by step:\n\n","Chat"],["Fix my error","Fix this error and explain what caused it:\n\n","Chat"],["Solve a problem","","Solver"],["Quiz me","Quiz me on ","Exam"],["Teach me step by step","Teach me ","Socratic"],["Notes from my PDF","Make short revision notes from the attached PDF.","Chat",1],["Viva questions","Give me 10 viva questions with short answers on ","Chat"],["Build a web page","Build a web page for ","Chat"]];
 
   const hiddenMode=$("mode");
@@ -153,7 +153,6 @@ function boot(){
   }
   try{const sv=localStorage.getItem("zyro_study"); if(sv) setStudy(sv); else setStudy("Chat");}catch(_){setStudy("Chat");}
 
-  // close both dropdowns on outside click
   document.addEventListener("click",e=>{
     if(modeWrap&&!modeWrap.contains(e.target)&&modeMenu) modeMenu.classList.remove("open");
     if(studyWrap&&!studyWrap.contains(e.target)&&studyMenu) studyMenu.classList.remove("open");
@@ -409,12 +408,28 @@ function boot(){
   const todayStr=()=>new Date().toLocaleDateString("en",{weekday:"long",year:"numeric",month:"long",day:"numeric"});
   const needsSearch=s=>/\b(latest|newest|recent(ly)?|today|tonight|yesterday|tomorrow|this (week|month|year)|news|released?|launch(ed|es)?|new version|prices?|score|weather|who (is|won)|what'?s new|trending|202[4-9]|203\d)\b/i.test(s)||(/\b(claude|chatgpt|gpt-?\d+|openai|anthropic|gemini|grok|deepseek|llama|qwen|mistral|nvidia|iphone|pixel|galaxy|react|next\.?js|python)\b/i.test(s)&&/\b(models?|versions?|releases?|new|newest|latest|vs|versus|compare|comparison|pricing|price|available|exists?|sonnet|opus|haiku|\d+(\.\d+)?)\b/i.test(s));
 
+  /* ============ SLIM SYSTEM PROMPT ============ */
   function appFacts(){
-    return "Today's date is "+todayStr()+". Your built-in knowledge ends before today, so you may not know newer products, model versions or events: never insist that old information is current, and never say something new doesn't exist just because you don't recognise it. If search results are provided, rely on them; if not and the topic is recent, say you may be out of date. Never claim to be another company's assistant; if asked which model powers you, say you are Zyro and don't know the exact model. About this app (answer how-it-works questions only from these facts, and say you are not sure about anything else): users attach up to 3 files or images per message with the + button (PDF, code or text files up to 8 MB, each trimmed to 12,000 characters; images are JPG, PNG or WebP and are shrunk before sending). A selector next to the mode picker switches study modes: Chat, Solver, Socratic and Exam prep. Python and JavaScript code blocks have a Run button, and code blocks are collapsible with an Expand button. The last message can be edited with the pencil icon, and chats can be searched and pinned in the sidebar. Users can optionally sign in with email to sync chats across devices; anonymous chats stay only on the device. IMPORTANT: Never bring up tokens, quotas, limits, or usage meters in any reply unless the user directly asks. Just answer the question normally."
+    return "Today is "+todayStr()+". Your knowledge has a cutoff — if unsure about recent events, say so. Never mention tokens, quotas, or limits unless the user directly asks.";
   }
-  const SYS=()=>"You are Zyro, a friendly expert AI assistant for ANY topic: coding, AI/ML, B.Tech subjects, writing, ideas, studies, plans, daily advice, fun. Mode: "+($("mode")?$("mode").value:"Auto")+". "+(MODES[$("mode").value]||"")+" "+appFacts()+" "+(STUDY[$("study").value]||"")+
-    " ABOUT YOUR CREATOR (only share when the user asks who made/created/built/developed you): You were created by Debasish Singha. If they ask more about him: he is 17 years old, a student currently studying at Reliance Senior Secondary School in Assam, India. Never bring him up unprompted — only when the user asks about your creator or who made you. "+
-    " IMPORTANT: if the user's message is only a greeting (hi, hey, hello, yo, good morning, how are you, etc.), reply with exactly ONE short friendly sentence introducing yourself as Zyro — never list features, subjects or abilities. Put all code in fenced blocks with a language tag. Write math in LaTeX using $...$ inline and $$...$$ for display. When the user asks you to BUILD/CREATE/MAKE a website, web page, landing page, app UI, dashboard, portfolio, store or form: output ONE complete self-contained HTML file inside a single ```html code block. Put ALL CSS inside <style> and ALL JS inside <script>. Write REALISTIC content (real-looking names, prices, hours, paragraphs) — NEVER use Lorem ipsum, placeholder, TODO or filler text. For photos use https://picsum.photos/seed/UNIQUEWORD/600/800 with a DIFFERENT word for each image. Make it visually polished, responsive, at least 150 lines, and NEVER abbreviate with '...' or 'rest of code'. Write the FULL file every time. Never invent other image URLs."+(getCI()?" The user's custom instructions: "+getCI().slice(0,1500):"");
+
+  const SYS=()=>"You are Zyro, an AI assistant for anything: code, studies, writing, ideas, math, daily advice.\n\n"+
+    "GREETING RULE: if the user's message is only a greeting (hi, hey, hello, yo, good morning, how are you, etc), reply with ONE short friendly sentence as Zyro. Never list features or abilities.\n\n"+
+    "STYLE:\n"+
+    "- Clear, concise, markdown. No filler.\n"+
+    "- Code in fenced blocks with language tags.\n"+
+    "- Math in LaTeX: $inline$ or $$display$$.\n"+
+    "- Admit uncertainty. Search results win when provided. Never claim to be another company's assistant.\n\n"+
+    "CREATOR (only when the user asks who made/created/built/developed you): Debasish Singha. If asked more: 17 years old, student at Reliance Senior Secondary School in Assam, India. Never bring him up unprompted.\n\n"+
+    "BUILD WEBSITES: when the user asks to build/create/make a website, webpage, landing page, UI, dashboard, portfolio, store or form:\n"+
+    "- Output ONE complete self-contained HTML file in a single ```html code block.\n"+
+    "- All CSS inside <style>, all JS inside <script>. No external files.\n"+
+    "- REALISTIC content only. NEVER use Lorem ipsum, 'placeholder', 'TODO', or '...' abbreviations.\n"+
+    "- Photos: use https://picsum.photos/seed/UNIQUEWORD/600/800 with a DIFFERENT word per image.\n"+
+    "- Responsive, at least 150 lines, write the FULL file every time.\n\n"+
+    (STUDY[$("study").value]||"")+
+    (getCI()?"\n\nUser's custom instructions: "+getCI().slice(0,800):"")+
+    "\n\n"+appFacts();
 
   function addGround(d,src,sep){const ok=(src||[]).filter(x=>x&&/^https?:\/\//i.test(x.uri));if(!ok.length&&!sep)return;
     const w=document.createElement("div");w.className="ground";
@@ -655,7 +670,7 @@ function boot(){
       const c=document.createElement("span");c.className="att";
       if(f.img){const im=document.createElement("img");im.alt="";im.src="data:"+f.img.mime+";base64,"+f.img.data;c.appendChild(im)}
       const n=document.createElement("span");n.textContent=f.name;c.appendChild(n);
-      const x=document.createElement("button");x.type="button";x.textContent="\u2715";x.onclick=()=>{pending.splice(i,1);renderAtts()};c.appendChild(x);
+      const x=document.createElement("button");x.type="button";x.textContent="\u2715";x.onclick=()=>{pending.splice(i,1);renderAtts();updateSendState()};c.appendChild(x);
       a.appendChild(c)
     });
   }
@@ -681,7 +696,7 @@ function boot(){
         pending.push({name:f.name,text:x})
       }catch(_){toast("Couldn't read "+f.name)}
     }
-    renderAtts();
+    renderAtts();updateSendState();
   };
   function readImg(f){return new Promise((ok,no)=>{const url=URL.createObjectURL(f),im=new Image();
     im.onload=()=>{try{const M=1024,k=Math.min(1,M/Math.max(im.width,im.height)),w=Math.max(1,Math.round(im.width*k)),h=Math.max(1,Math.round(im.height*k)),c=document.createElement("canvas");c.width=w;c.height=h;
@@ -695,7 +710,7 @@ function boot(){
       if(!/^image\//.test(f.type)){toast("That isn't an image");continue}
       try{const im=await readImg(f);if(im.data.length>1100000){toast("Image is too large");continue}pending.push({name:f.name||"image",img:im})}catch(_){toast("Couldn't read "+(f.name||"image"))}
     }
-    renderAtts();
+    renderAtts();updateSendState();
   };
 
   /* ============ THEME ============ */
