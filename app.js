@@ -1,5 +1,5 @@
 /* =========================================================
-   ZYRO app.js — v32 (webhook-ready: user_id in notes)
+   ZYRO app.js — v33 (Pro-aware + success modal)
    ========================================================= */
 
 /* ---------- TOP HELPERS ---------- */
@@ -49,7 +49,31 @@ const LIM=12000;
 
 const RZP_WORKER_URL = WORKER_URL.replace(/\/$/, "");
 
-/* ---------- RAZORPAY CHECKOUT (lazy-loads checkout.js on first use) ---------- */
+/* ---------- PRO SUCCESS MODAL ---------- */
+function showProModal(paymentId){
+  const esc = s => String(s||"").replace(/[&<>]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
+  const modal = document.createElement("div");
+  modal.className = "modal on";
+  modal.style.zIndex = "9999";
+  modal.innerHTML =
+    '<div class="mb" style="max-width:380px;text-align:center">' +
+      '<div style="font-size:56px;line-height:1;margin:8px 0 16px">🎉</div>' +
+      '<h3 style="margin:0 0 8px;font-size:22px;font-weight:600">Welcome to Zyro Pro!</h3>' +
+      '<p style="margin:0 0 18px;color:var(--dim);font-size:14px;line-height:1.6">Your payment was successful. You now have <b style="color:var(--ink)">1,000,000 tokens</b> per 5-hour window — 10× the free limit.</p>' +
+      '<div style="background:var(--box);border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin:0 0 18px;font-family:JetBrains Mono,monospace;font-size:12px;color:var(--dim);word-break:break-all;text-align:left">' +
+        '<div style="color:var(--dim-2);text-transform:uppercase;letter-spacing:.1em;font-size:10px;margin-bottom:4px">Payment ID</div>' +
+        '<div style="color:var(--ink)">' + esc(paymentId) + '</div>' +
+      '</div>' +
+      '<button class="primary" id="proStart" style="width:100%;padding:12px;border-radius:12px;font-weight:600;font-size:14.5px;cursor:pointer;border:0;background:var(--ink);color:var(--bg)">Start using Pro</button>' +
+      '<p style="margin:12px 0 0;font-size:11.5px;color:var(--dim-2)">A receipt has been emailed to you.</p>' +
+    '</div>';
+  document.body.appendChild(modal);
+  const start = () => { modal.remove(); location.reload(); };
+  modal.querySelector("#proStart").onclick = start;
+  modal.onclick = e => { if (e.target === modal) start(); };
+}
+
+/* ---------- RAZORPAY CHECKOUT (lazy-loads checkout.js) ---------- */
 async function openRazorpayCheckout(plan){
   const toast = (m) => (window.toast ? window.toast(m) : console.log("[toast]", m));
   const openAuth = (m) => (window.openAuth ? window.openAuth(m) : null);
@@ -120,8 +144,7 @@ async function openRazorpayCheckout(plan){
           if (v.ok && v.body && v.body.ok){
             pro = true;
             TOTAL = 1000000;
-            toast("🎉 Welcome to Zyro Pro!");
-            setTimeout(() => location.reload(), 1400);
+            showProModal(response.razorpay_payment_id);
           } else {
             toast("Verification failed — contact support");
           }
@@ -1115,18 +1138,40 @@ function boot(){
   const todayStr = () => new Date().toLocaleDateString("en", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
   const needsSearch = s => /\b(latest|newest|recent(ly)?|today|tonight|yesterday|tomorrow|this (week|month|year)|news|released?|launch(ed|es)?|new version|prices?|score|weather|who (is|won)|what'?s new|trending|202[4-9]|203\d)\b/i.test(s) || (/\b(claude|chatgpt|gpt-?\d+|openai|anthropic|gemini|grok|deepseek|llama|qwen|mistral|nvidia|iphone|pixel|galaxy|react|next\.?js|python)\b/i.test(s) && /\b(models?|versions?|releases?|new|newest|latest|vs|versus|compare|comparison|pricing|price|available|exists?|sonnet|opus|haiku|\d+(\.\d+)?)\b/i.test(s));
 
-  function appFacts(){ return "Today is " + todayStr() + ". Your knowledge has a cutoff — if unsure about recent events, say so. Never mention tokens, quotas, or limits unless the user directly asks."; }
+  function appFacts(){ return "Today is " + todayStr() + "."; }
 
-  const SYS = () =>
-    "You are Zyro, an AI assistant for anything: code, studies, writing, ideas, math, daily advice.\n\n" +
-    "GREETING RULE: if the user's message is only a greeting (hi, hey, hello, yo, good morning, how are you, etc), reply with ONE short friendly sentence as Zyro. Never list features or abilities.\n\n" +
-    "STYLE:\n- Clear, concise, markdown. No filler.\n- Code in fenced blocks with language tags. ALWAYS close the code fence.\n- Math in LaTeX: $inline$ or $$display$$.\n- Admit uncertainty. Search results win when provided. Never claim to be another company's assistant.\n\n" +
-    "CREATOR (only when the user asks who made/created/built/developed you): Debasish Singha. If asked more: 17 years old, student at Reliance Senior Secondary School in Assam, India. Never bring him up unprompted.\n\n" +
-    "BUILD WEBSITES: when the user asks to build/create/make a website, webpage, landing page, UI, dashboard, portfolio, store or form:\n- Output ONE complete self-contained HTML file in a single ```html code block.\n- All CSS inside <style>, all JS inside <script>. No external files.\n- REALISTIC content only. NEVER use Lorem ipsum, 'placeholder', 'TODO', or '...' abbreviations.\n- Photos: use https://picsum.photos/seed/UNIQUEWORD/600/800 with a DIFFERENT word per image.\n- Responsive, at least 150 lines, write the FULL file every time.\n- Always close the ```html fence at the end.\n\n" +
-    "NOTES PIPELINE: when the user says 'notes pipeline', 'notes flashcards', 'notes → flashcards', or similar, produce EXACTLY these three sections in order:\n## 📖 Notes\n[Short revision notes with key terms bolded. 5-8 paragraphs max.]\n\n## 🎴 Flashcards\nOutput 12 flashcards. Each flashcard EXACTLY in this format on its own lines:\nF: [front]\nB: [back]\n\n## 📝 Quiz\nOutput 5 MCQs. Each one EXACTLY in this format:\nQ: [question]\nA) [option]\nB) [option]\nC) [option]\nD) [option]\nAns: [A/B/C/D]\nEx: [one-line explanation]\n\n" +
-    (STUDY[$("study").value] || "") +
-    (getCI() ? "\n\nUser's custom instructions: " + getCI().slice(0, 800) : "") +
-    "\n\n" + appFacts();
+  /* ---------- SYSTEM PROMPT (Pro-aware) ---------- */
+  const SYS = () => {
+    const d = getTokens();
+    const pct = Math.min(100, Math.round((d.used / TOTAL) * 100));
+    const planLine = pro ? "Pro" : "Free";
+    const limitLine = pro ? "1,000,000 (1M)" : "100,000 (100k)";
+    return (
+      "You are Zyro, the AI study companion for Indian students — B.Tech, JEE, NEET, board exams, and everything in between.\n\n" +
+
+      "USER ACCOUNT (use this only if they ask):\n" +
+      "- Plan: " + planLine + "\n" +
+      "- Token limit: " + limitLine + " tokens per 5-hour window\n" +
+      "- Tokens used this window: " + d.used + " (" + pct + "%)\n" +
+      "- If they say they upgraded to Pro, celebrate briefly and confirm. If they ask about limits, upgrades, or how much they've used, answer using the info above. Pro is ₹349/month, available from the account menu. Never volunteer this info unprompted.\n\n" +
+
+      "GREETING RULE: if the user's message is only a greeting (hi, hey, hello, yo, good morning, how are you, etc), reply with ONE short friendly sentence as Zyro. Never list features or abilities.\n\n" +
+
+      "STYLE:\n- Clear, concise, markdown. No filler.\n- Code in fenced blocks with language tags. ALWAYS close the code fence.\n- Math in LaTeX: $inline$ or $$display$$.\n- Admit uncertainty. Search results win when provided. Never claim to be another company's assistant.\n\n" +
+
+      "CREATOR (only when the user asks who made/created/built/developed you): Debasish Singha. If asked more: 17 years old, student at Reliance Senior Secondary School in Assam, India. Never bring him up unprompted.\n\n" +
+
+      "STUDY FIRST: You are primarily a study tool. When the user asks about studies, exams, homework, or any academic topic, lean into exam-style answers, step-by-step solving, flashcards, and quizzes. Offer to go deeper when helpful.\n\n" +
+
+      "BUILD WEBSITES: when the user asks to build/create/make a website, webpage, landing page, UI, dashboard, portfolio, store or form:\n- Output ONE complete self-contained HTML file in a single ```html code block.\n- All CSS inside <style>, all JS inside <script>. No external files.\n- REALISTIC content only. NEVER use Lorem ipsum, 'placeholder', 'TODO', or '...' abbreviations.\n- Photos: use https://picsum.photos/seed/UNIQUEWORD/600/800 with a DIFFERENT word per image.\n- Responsive, at least 150 lines, write the FULL file every time.\n- Always close the ```html fence at the end.\n\n" +
+
+      "NOTES PIPELINE: when the user says 'notes pipeline', 'notes flashcards', 'notes → flashcards', or similar, produce EXACTLY these three sections in order:\n## 📖 Notes\n[Short revision notes with key terms bolded. 5-8 paragraphs max.]\n\n## 🎴 Flashcards\nOutput 12 flashcards. Each flashcard EXACTLY in this format on its own lines:\nF: [front]\nB: [back]\n\n## 📝 Quiz\nOutput 5 MCQs. Each one EXACTLY in this format:\nQ: [question]\nA) [option]\nB) [option]\nC) [option]\nD) [option]\nAns: [A/B/C/D]\nEx: [one-line explanation]\n\n" +
+
+      (STUDY[$("study").value] || "") +
+      (getCI() ? "\n\nUser's custom instructions: " + getCI().slice(0, 800) : "") +
+      "\n\n" + appFacts()
+    );
+  };
 
   function addGround(d, src, sep){
     const ok = (src || []).filter(x => x && /^https?:\/\//i.test(x.uri));
