@@ -1,5 +1,5 @@
 /* =========================================================
-   ZYRO app.js — v49 (intent fix, self-knowledge, flashcards)
+   ZYRO app.js — v50 (monthly tokens, new menu, speed)
    ========================================================= */
 
 /* ---------- TOP HELPERS ---------- */
@@ -28,16 +28,15 @@ window.addEventListener("unhandledrejection",function(ev){
 const WORKER_URL="https://zyro-ai.debaxixhsingha.workers.dev/";
 const SUPABASE_URL="https://opeyjksuklfmeicmnxsh.supabase.co";
 const SUPABASE_ANON_KEY="sb_publishable_LC3DrFcQAsG3HSILCekaFw_SOVVDxjA";
-const TOKEN_KEY="zyro_tokens";
+const TOKEN_KEY="zyro_tokens_v2";
 const CI="zyro_ci";
 const CK="zyro_chats";
-const GEN_KEY="zyro_gen_count";
-const TOKEN_RESET_MS = 5 * 60 * 60 * 1000;
+const GEN_KEY="zyro_gen_count_v2";
+const TOKEN_RESET_MS = 30 * 24 * 60 * 60 * 1000; // one month
 const GEN_RESET_MS = 24 * 60 * 60 * 1000;
 const STREAM_TIMEOUT_MS = 90000;
 const FIRST_TOKEN_MS = 45000;
 
-/* Daily limits per feature */
 const DAILY_LIMITS = {
   free: { studykit: 2, flashcard: 3, quiz: 3 },
   pro:  { studykit: 10, flashcard: 15, quiz: 50 }
@@ -59,12 +58,11 @@ const RZP_WORKER_URL = WORKER_URL.replace(/\/$/, "");
 function showProPopup(paymentId){
   const esc = s => String(s||"").replace(/[&<>]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
   const rows = [
-    { em:"🚀", b:"Way more power",      s:"100k → 750k tokens / 5h" },
+    { em:"🚀", b:"Way more power",      s:"100k → 750k tokens / month" },
     { em:"📚", b:"Way more study kits", s:"2/day → 10/day" },
     { em:"🃏", b:"Way more flashcards", s:"3/day → 15/day" },
     { em:"🎯", b:"Way more quizzes",    s:"3/day → 50/day" },
-    { em:"🖼️", b:"Way more images",     s:"3 → 15 per message" },
-    { em:"📎", b:"3× the files",        s:"1 file 8MB → 3 files 20MB" },
+    { em:"📎", b:"More files",          s:"5 files → 10 files per message" },
     { em:"⏱️", b:"Longer code runs",    s:"10s → 60s JS · 60s → 180s Py" },
     { em:"🧪", b:"Full mock tests",     s:"Real exam + marking scheme" }
   ];
@@ -107,11 +105,10 @@ function openProPaywall(reason, feature){
       '<h3 style="margin:0 0 6px;text-align:center">' + title + '</h3>' +
       '<p style="margin:0 0 18px;text-align:center">' + sub + '</p>' +
       '<ul style="margin:0 0 20px;padding:0 0 0 22px;font-size:14px;color:var(--ink-2);line-height:1.9">' +
-        '<li><b style="color:var(--ink)">Way more power</b> — 750k tokens / 5h</li>' +
+        '<li><b style="color:var(--ink)">Way more power</b> — 750k tokens / month</li>' +
         '<li><b style="color:var(--ink)">10 study kits</b> per day (free: 2)</li>' +
         '<li><b style="color:var(--ink)">15 flashcards</b> + <b style="color:var(--ink)">50 quizzes</b> per day</li>' +
-        '<li><b style="color:var(--ink)">15 images</b> per message (free: 3)</li>' +
-        '<li><b style="color:var(--ink)">3 files up to 20 MB</b> (free: 1 file, 8 MB)</li>' +
+        '<li><b style="color:var(--ink)">10 files</b> per message (free: 5)</li>' +
         '<li><b style="color:var(--ink)">Full mock tests</b> with marking scheme</li>' +
       '</ul>' +
       '<div style="display:flex;flex-direction:column;gap:8px">' +
@@ -224,8 +221,8 @@ function boot(){
   const getCI = () => { try { return localStorage.getItem(CI) || ""; } catch(_) { return ""; } };
 
   const LIMITS = {
-    free: { tokens: 100000, images: 3,  files: 1, fileSize: 8e6,  jsTimeout: 10000, pyTimeout: 60000  },
-    pro:  { tokens: 750000, images: 15, files: 3, fileSize: 20e6, jsTimeout: 60000, pyTimeout: 180000 }
+    free: { tokens: 100000, images: 5, files: 5,  fileSize: 10e6, jsTimeout: 10000, pyTimeout: 60000  },
+    pro:  { tokens: 750000, images: 5, files: 10, fileSize: 10e6, jsTimeout: 60000, pyTimeout: 180000 }
   };
   const L = () => LIMITS[pro ? "pro" : "free"];
 
@@ -239,9 +236,6 @@ function boot(){
         try { localStorage.setItem(GEN_KEY, JSON.stringify(fresh)); } catch(_) {}
         return fresh;
       }
-      if (typeof d.count === "number" && d.studykit === undefined){
-        return { studykit: d.count, flashcard: 0, quiz: 0, reset: d.reset };
-      }
       d.studykit = d.studykit || 0;
       d.flashcard = d.flashcard || 0;
       d.quiz = d.quiz || 0;
@@ -254,20 +248,19 @@ function boot(){
     d[kind] = (d[kind] || 0) + 1;
     saveGen(d);
   }
-  function genLeft(kind){
-    const cap = DAILY_LIMITS[pro ? "pro" : "free"][kind] || 0;
-    const d = getGen();
-    return Math.max(0, cap - (d[kind] || 0));
-  }
   function genAllowed(kind){
     const cap = DAILY_LIMITS[pro ? "pro" : "free"][kind] || 0;
     const d = getGen();
     return (d[kind] || 0) < cap;
   }
-  function nextGenReset(){
+  function nextGenResetLabel(){
     const d = getGen();
-    const dt = new Date(d.reset + GEN_RESET_MS);
-    return String(dt.getHours()).padStart(2,"0") + ":" + String(dt.getMinutes()).padStart(2,"0");
+    const remain = d.reset + GEN_RESET_MS - Date.now();
+    if (remain <= 0) return "now";
+    const hrs = Math.floor(remain / 3600000);
+    const mins = Math.floor((remain % 3600000) / 60000);
+    if (hrs > 0) return "in " + hrs + "h " + mins + "m";
+    return "in " + mins + "m";
   }
 
   /* Intent detection */
@@ -282,12 +275,6 @@ function boot(){
     if (/\bnotes?\s*(to|→|->)\s*(flashcards?|quiz|cards)\b/.test(s)) return "studykit";
     return null;
   }
-  function isStudyKitIntent(txt){ return !!detectGenIntent(txt); }
-  function isProOnlyIntent(txt){
-    const k = detectGenIntent(txt);
-    return k === "mock" || k === "viva";
-  }
-
   function checkGenAllowed(kind){
     if (pro) return true;
     if (genAllowed(kind)) return true;
@@ -309,7 +296,7 @@ function boot(){
   }
   function clearBusyWatchdog(){ clearTimeout(busyWatchdog); }
 
-  /* ---------- TOKENS ---------- */
+  /* ---------- TOKENS (MONTHLY) ---------- */
   function getTokens(){
     try {
       const d = JSON.parse(localStorage.getItem(TOKEN_KEY) || "null");
@@ -326,10 +313,16 @@ function boot(){
   function addTokens(n){ const d = getTokens(); d.used += n; d.last = n; saveTokens(d); updateTokenUI(); cloudUsage(n); }
   const tokensOut = () => getTokens().used >= TOTAL;
 
-  function nextRefillTime(){
+  function nextResetLabel(){
     const d = getTokens();
-    const dt = new Date(d.reset + TOKEN_RESET_MS);
-    return String(dt.getHours()).padStart(2, "0") + ":" + String(dt.getMinutes()).padStart(2, "0");
+    const remain = d.reset + TOKEN_RESET_MS - Date.now();
+    if (remain <= 0) return "now";
+    const days = Math.floor(remain / 86400000);
+    const hrs  = Math.floor((remain % 86400000) / 3600000);
+    if (days > 0) return "in " + days + "d " + hrs + "h";
+    const mins = Math.floor((remain % 3600000) / 60000);
+    if (hrs > 0) return "in " + hrs + "h " + mins + "m";
+    return "in " + mins + "m";
   }
 
   function paintBar(){
@@ -340,11 +333,11 @@ function boot(){
     const f = $("fTotal");
     if (f){ f.style.width = pct + "%"; f.className = "token-fill" + (pct >= 95 ? " danger" : pct >= 80 ? " warn" : ""); }
     const tl = $("tLast");
-    if (tl){ tl.textContent = "refills " + nextRefillTime(); }
+    if (tl){ tl.textContent = "resets " + nextResetLabel(); }
     const tp2 = $("tPlan");
-    if (tp2) tp2.textContent = pro ? "PRO · 750k / 5h" : "Free · 100k / 5h";
+    if (tp2) tp2.textContent = pro ? "PRO · 750k / month" : "Free · 100k / month";
     const pp = $("profileTokenPct"); if (pp) pp.textContent = p + "%";
-    const pr = $("profileTokenRefill"); if (pr) pr.textContent = "refills " + nextRefillTime();
+    const pr = $("profileTokenRefill"); if (pr) pr.textContent = "resets " + nextResetLabel();
     const pf = $("profileTokenFill"); if (pf) pf.style.width = pct + "%";
   }
 
@@ -493,6 +486,8 @@ function boot(){
 
   function handleToolAction(tool){
     if (tool === "snap"){ pendingKind = "snap"; $("img").click(); return; }
+    if (tool === "photo"){ pendingKind = null; $("img").click(); return; }
+    if (tool === "file"){ $("file").click(); return; }
     if (tool === "studykit"){
       if (!checkGenAllowed("studykit")) return;
       setStudy("Chat");
@@ -517,10 +512,7 @@ function boot(){
       t.value = "Generate a full mock paper with marking scheme for: ";
       t.dispatchEvent(new Event("input")); t.focus(); return;
     }
-    if (tool === "viva"){
-      toast("Viva practice is coming soon");
-      return;
-    }
+    if (tool === "viva"){ toast("Viva practice is coming soon"); return; }
   }
 
   const plusBtn = $("plusBtn"), actionsMenu = $("actionsMenu");
@@ -542,23 +534,31 @@ function boot(){
     });
   }
 
+  /* ---------- THEME (topbar + menu footer) ---------- */
+  const root = document.documentElement;
   const themeToggle = $("themeToggle"), themeLabel = $("themeLabel");
-  if (themeToggle){
-    const root = document.documentElement;
-    themeToggle.addEventListener("click", e => {
-      e.stopPropagation();
-      const cur = root.getAttribute("data-theme") || "light";
-      const next = cur === "dark" ? "light" : "dark";
-      if (next === "dark") root.setAttribute("data-theme", "dark");
-      else root.removeAttribute("data-theme");
-      if (themeLabel) themeLabel.textContent = next === "dark" ? "Light mode" : "Dark mode";
-      try { localStorage.setItem("zyro_theme", next); } catch(_) {}
-    });
-    try {
-      const savedT = localStorage.getItem("zyro_theme");
-      if (savedT === "dark"){ root.setAttribute("data-theme", "dark"); if (themeLabel) themeLabel.textContent = "Light mode"; }
-    } catch(_) {}
+  const topTheme = $("topTheme"), topThemeIcon = $("topThemeIcon");
+  const SUN_ICON = '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/>';
+  const MOON_ICON = '<path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>';
+
+  function setTheme(next){
+    if (next === "dark") root.setAttribute("data-theme", "dark");
+    else root.removeAttribute("data-theme");
+    if (themeLabel) themeLabel.textContent = next === "dark" ? "Light mode" : "Dark mode";
+    if (topThemeIcon) topThemeIcon.innerHTML = next === "dark" ? SUN_ICON : MOON_ICON;
+    try { localStorage.setItem("zyro_theme", next); } catch(_) {}
   }
+  function toggleTheme(){
+    const cur = root.getAttribute("data-theme") || "light";
+    setTheme(cur === "dark" ? "light" : "dark");
+  }
+  if (themeToggle){ themeToggle.addEventListener("click", e => { e.stopPropagation(); toggleTheme(); }); }
+  if (topTheme){ topTheme.addEventListener("click", e => { e.stopPropagation(); toggleTheme(); }); }
+  try {
+    const savedT = localStorage.getItem("zyro_theme");
+    if (savedT === "dark") setTheme("dark");
+    else setTheme("light");
+  } catch(_) { setTheme("light"); }
 
   ["newcBtn","newChatBtn"].forEach(id => {
     const b = $(id);
@@ -667,7 +667,7 @@ function boot(){
     if (em) em.textContent = user ? (user.email || "") : "Not signed in";
     if (meta) meta.textContent = user ? ("Signed in" + (pro ? " · Pro" : " · Free")) : "Sign in to sync across devices";
     const pn = $("profilePlanName"); if (pn) pn.textContent = pro ? "Pro" : "Free";
-    const pl = $("profilePlanLimit"); if (pl) pl.textContent = pro ? "750k tokens / 5h" : "100k tokens / 5h";
+    const pl = $("profilePlanLimit"); if (pl) pl.textContent = pro ? "750k tokens / month" : "100k tokens / month";
     paintBar();
   }
 
@@ -782,10 +782,6 @@ function boot(){
         await s.from("chats").upsert({ id: cur.id, user_id: user.id, title: cur.title, pin: !!cur.pin, ts: cur.ts, msgs: msgs.slice(-40) }, { onConflict: "id" });
       } catch(_) {}
     }, 1200);
-  }
-  function cloudDelete(id){
-    if (!user) return;
-    sbClient().then(s => { if (s) s.from("chats").delete().eq("id", id).then(() => {}).catch(() => {}); });
   }
   async function pullCloud(){
     try {
@@ -1363,13 +1359,13 @@ function boot(){
   { const cp = $("closePanel"); if (cp) cp.addEventListener("click", closePanel); }
 
   /* ---------- WORKER STREAM ---------- */
-  async function workerStream(messages, onText, signal, fast, onThought, search){
+  async function workerStream(messages, onText, signal, fast, onThought, search, isGen){
     let r;
     try {
       r = await fetch(WORKER_URL, {
         method: "POST", signal,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages, mode: $("mode").value, fast, search: !!search })
+        body: JSON.stringify({ messages, mode: $("mode").value, fast, search: !!search, isGen: !!isGen })
       });
     } catch(e){
       if (e && e.name === "AbortError") return "";
@@ -1463,7 +1459,7 @@ function boot(){
       idxs = kept.sort((a, b) => a - b);
     }
     while (idxs.length && h[idxs[0]].role !== "user") idxs.shift();
-    let imgBudget = 15;
+    let imgBudget = 10;
     const out = [];
     for (let k = idxs.length - 1; k >= 0; k--){
       const m = h[idxs[k]];
@@ -1480,7 +1476,7 @@ function boot(){
     const files = items.filter(f => !f.img);
     const imgs = items.filter(f => f.img).map(f => f.img);
 
-    const isFileKit = (pendingKind === "notes" || pendingKind === "studykit") && files.length;
+    const isFileKit = (pendingKind === "studykit") && files.length;
     const isSnap = pendingKind === "snap" && imgs.length;
     const intent = detectGenIntent(text);
     const proIntent = (intent === "mock" || intent === "viva");
@@ -1502,7 +1498,7 @@ function boot(){
     }
 
     if (isFileKit){
-      const base = "I uploaded a file. Generate a complete study kit based STRICTLY on this content. " +
+      const base = "I uploaded file(s). Generate a complete study kit based STRICTLY on this content. " +
         "Output ONLY these three sections in this exact order. No preamble, no closing, no extra commentary:\n\n" +
         "## 📖 Notes\n[Short revision notes with key terms bolded.]\n\n" +
         "## 🎴 Flashcards\n12 cards. Each EXACTLY:\nF: [front]\nB: [back]\n\n" +
@@ -1510,7 +1506,7 @@ function boot(){
       const full = base + files.map(f => "\n\n--- " + f.name + " ---\n" + f.text).join("");
       pending = []; pendingKind = null; renderAtts();
       if (!pro) bumpGen("studykit");
-      return run("Study kit from " + files[0].name, full, files.map(f => f.name), imgs);
+      return run("Study kit from " + files[0].name, full, files.map(f => f.name), imgs, "studykit");
     }
 
     if (isSnap){
@@ -1518,7 +1514,7 @@ function boot(){
         "Format EXACTLY: **Marks:** [best guess], **Answer:** (numbered points), **Key terms:** (4-6 terms). " +
         "No preamble, no closing.";
       pending = []; pendingKind = null; renderAtts();
-      return run("📸 Snap a question", prompt, [], imgs);
+      return run("📸 Snap a question", prompt, [], imgs, null);
     }
 
     applyLimits();
@@ -1590,14 +1586,14 @@ function boot(){
       "- NEVER say: 'Sure!', 'Great question!', 'Here you go', 'I'd be happy to', 'Let me know if', 'Hope this helps', 'As an AI'.\n" +
       "- Banned words: 'delve', 'utilize', 'furthermore', 'moreover', 'comprehensive', 'in conclusion'.\n\n" +
       "EFFICIENCY:\n- NO preambles. NO closings. NO restating.\n- If unsure, say so in one line. Never invent.\n- Under 300 words unless asked for more.\n\n" +
-      "USER: Plan=" + planLine + ", Limit=" + limitLine + "/5h, Used=" + d.used + " (" + pct + "%)\n\n" +
+      "USER: Plan=" + planLine + ", Limit=" + limitLine + "/month, Used=" + d.used + " (" + pct + "%)\n\n" +
       "ABOUT ZYRO (only mention if the user asks about features, Pro, pricing, limits, or what you can do — never list unprompted):\n" +
       "- Zyro is an AI study buddy for Indian students (CBSE, ICSE, state boards, JEE, NEET, university).\n" +
-      "- Free plan: 100k tokens / 5h, 2 study kits per day, 3 flashcard sets per day, 3 quizzes per day, 3 images per message, 1 file up to 8 MB.\n" +
-      "- Pro plan (₹349/month): 750k tokens / 5h, 10 study kits per day, 15 flashcard sets per day, 50 quizzes per day, 15 images per message, 3 files up to 20 MB, longer code runs (60s JS / 180s Python), and full mock papers with marking scheme.\n" +
+      "- Free plan: 100k tokens per month, 2 study kits per day, 3 flashcard sets per day, 3 quizzes per day, 5 images per message, 5 files per message (max 10 MB each).\n" +
+      "- Pro plan (₹349/month): 750k tokens per month, 10 study kits per day, 15 flashcard sets per day, 50 quizzes per day, 10 files per message, longer code runs (60s JS / 180s Python), and full mock papers with marking scheme.\n" +
       "- Modes: Chat (casual), Solver (step-by-step), Socratic (hints), Exam prep (marks-ready answers).\n" +
       "- Tools: study kits (notes + flashcards + quiz), snap a question (photo → exam answer), exam answers, full mock papers (Pro only), voice viva practice (coming soon).\n" +
-      "- Free limits refill every 5 hours (tokens) or every 24 hours (daily tools). Upgrades happen in-app via the menu.\n\n" +
+      "- Free limits reset monthly (tokens) or daily (tools). Upgrades happen in-app via the menu.\n\n" +
       "CREATOR (only if asked): Debasish Singha, 17, Assam. Never bring up unprompted.\n\n" +
       "FORMAT:\n- Markdown. Code in fenced blocks with language tag (close the fence).\n- For regular chat: LaTeX allowed as $inline$ or $$display$$.\n- Greeting → ONE short friendly sentence.\n\n" +
       "Vague topics ('science') → ask them to pick a specific question.\n\n" +
@@ -1626,9 +1622,10 @@ function boot(){
     setGo(true);
     const hero = $("hero"); if (hero) hero.classList.add("hide");
     log.classList.add("on");
-    const ub = addU(show, names, imgs);
+    addU(show, names, imgs);
     const t0 = Date.now();
     const cheap = full.trim().length < 60 || tokensOut();
+    const isGen = intent === "studykit" || intent === "flashcard" || intent === "quiz";
 
     const d = addA();
     const body = d.querySelector(".body");
@@ -1662,11 +1659,11 @@ function boot(){
       const msgs = [{ role: "system", content: SYS(intent) }, ...api(hist), imgs.length ? { role: "user", content: full, images: imgs } : { role: "user", content: full }];
 
       try {
-        out = await workerStream(msgs, emit, ctrl.signal, cheap || $("mode").value === "Fast", onThought, false);
+        out = await workerStream(msgs, emit, ctrl.signal, cheap || $("mode").value === "Fast", onThought, false, isGen);
       } catch(e1){
         if (e1 && e1.code === "empty" && !ctrl.signal.aborted){
           toast("Retrying...");
-          out = await workerStream(msgs, emit, ctrl.signal, cheap || $("mode").value === "Fast", onThought, false);
+          out = await workerStream(msgs, emit, ctrl.signal, cheap || $("mode").value === "Fast", onThought, false, isGen);
         } else throw e1;
       }
       clearTimeout(runTimeout);
@@ -1816,9 +1813,9 @@ function boot(){
     const fs = [...e.target.files]; e.target.value = "";
     const maxFiles = L().files, maxSize = L().fileSize;
     for (const f of fs){
-      if (tokensOut()){ toast("Uploads paused — refills at " + nextRefillTime()); break; }
+      if (tokensOut()){ toast("Uploads paused — resets " + nextResetLabel()); break; }
       const fileCount = pending.filter(x => !x.img).length;
-      if (fileCount >= maxFiles){ toast("Max " + maxFiles + " file" + (maxFiles > 1 ? "s" : "") + (pro ? "" : " — Pro allows 3")); break; }
+      if (fileCount >= maxFiles){ toast("Max " + maxFiles + " file" + (maxFiles > 1 ? "s" : "") + (pro ? "" : " — Pro allows 10")); break; }
       if (f.size > maxSize){ toast(f.name + " is too big (max " + Math.round(maxSize / 1e6) + " MB)"); continue; }
       try {
         let x = (await readAny(f)).replace(/\r/g, "");
@@ -1854,9 +1851,9 @@ function boot(){
     const fs = [...e.target.files]; e.target.value = "";
     const maxImgs = L().images, maxSize = L().fileSize;
     for (const f of fs){
-      if (tokensOut()){ toast("Uploads paused — refills at " + nextRefillTime()); break; }
+      if (tokensOut()){ toast("Uploads paused — resets " + nextResetLabel()); break; }
       const imgCount = pending.filter(x => x.img).length;
-      if (imgCount >= maxImgs){ toast("Max " + maxImgs + " images" + (pro ? "" : " — Pro allows 15")); break; }
+      if (imgCount >= maxImgs){ toast("Max " + maxImgs + " images per message"); break; }
       if (!/^image\//.test(f.type)){ toast("Not an image"); continue; }
       if (f.size > maxSize){ toast(f.name + " is too big"); continue; }
       try {
@@ -1866,6 +1863,7 @@ function boot(){
       } catch(_) { toast("Couldn't read " + (f.name || "image")); }
     }
     renderAtts(); updateSendState();
+    // Only snap auto-sends; regular photo/file waits for the user to type.
     if (pendingKind === "snap" && pending.some(x => x.img)) setTimeout(() => send(""), 100);
   });
 
