@@ -1031,6 +1031,13 @@ textarea::placeholder{color:var(--dim-2);font-weight:500}
 </style>
 </head>
 <body>
+  <div id="DEBUG" style="position:fixed;bottom:0;left:0;right:0;background:#000;color:#0f0;font:11px monospace;padding:8px;z-index:999999;display:none;white-space:pre-wrap;max-height:40vh;overflow:auto"></div>
+<script>
+window.addEventListener("error", function(e){
+  var d = document.getElementById("DEBUG");
+  if (d){ d.style.display = "block"; d.textContent = "ERR @ line " + (e.lineno||"?") + ": " + (e.message||"") + "\n" + (e.filename||""); }
+});
+</script>
 <div id="jsErr"></div>
 
 <div class="scrim" id="scrim"></div>
