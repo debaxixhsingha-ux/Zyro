@@ -1,5 +1,5 @@
 /* =========================================================
-   ZYRO app.js — v50 (monthly tokens, new menu, speed)
+   ZYRO app.js — v51 (bigger notes, 8-Q quiz w/ score, no modes)
    ========================================================= */
 
 /* ---------- TOP HELPERS ---------- */
@@ -32,10 +32,11 @@ const TOKEN_KEY="zyro_tokens_v2";
 const CI="zyro_ci";
 const CK="zyro_chats";
 const GEN_KEY="zyro_gen_count_v2";
-const TOKEN_RESET_MS = 30 * 24 * 60 * 60 * 1000; // one month
+const TOKEN_RESET_MS = 30 * 24 * 60 * 60 * 1000;
 const GEN_RESET_MS = 24 * 60 * 60 * 1000;
-const STREAM_TIMEOUT_MS = 90000;
+const STREAM_TIMEOUT_MS = 120000;
 const FIRST_TOKEN_MS = 45000;
+const FILE_CHAR_LIMIT = 50000;
 
 const DAILY_LIMITS = {
   free: { studykit: 2, flashcard: 3, quiz: 3 },
@@ -50,7 +51,6 @@ let pending=[],pendingKind=null;
 let sid=0,follow=true,uAcc=0,uT=null,syncT=null;
 let busyWatchdog=null;
 let lastKit=null;
-const LIM=12000;
 
 const RZP_WORKER_URL = WORKER_URL.replace(/\/$/, "");
 
@@ -263,7 +263,6 @@ function boot(){
     return "in " + mins + "m";
   }
 
-  /* Intent detection */
   function detectGenIntent(text){
     if (!text) return null;
     const s = String(text).toLowerCase();
@@ -292,7 +291,7 @@ function boot(){
         setGo(false);
         toast("Request timed out — try again");
       }
-    }, STREAM_TIMEOUT_MS + 15000);
+    }, STREAM_TIMEOUT_MS + 20000);
   }
   function clearBusyWatchdog(){ clearTimeout(busyWatchdog); }
 
@@ -346,12 +345,6 @@ function boot(){
   function applyLimits(){
     const out = tokensOut();
     ["imgBtn","fileBtn"].forEach(id => { const el = $(id); if (el) el.disabled = out; });
-    const mb = $("mode");
-    if (mb){
-      const th = mb.querySelector('option[value="Thinking"]');
-      if (th) th.disabled = out;
-      if (out && mb.value === "Thinking") setMode("Fast");
-    }
   }
 
   setInterval(updateTokenUI, 30000);
@@ -362,7 +355,6 @@ function boot(){
     setTimeout(() => e.classList.remove("on"), 1800);
   }
 
-  const MODES = { Fast:"Quick short answer, minimal thinking.", Auto:"Balanced speed and depth.", Thinking:"Deep analysis, long detailed answer." };
   const STAGES = ["Thinking","Analyzing","Planning steps"];
   const STUDY = {
     Chat: "",
@@ -394,35 +386,12 @@ function boot(){
   ];
 
   const hiddenMode = $("mode");
-  if (hiddenMode){
-    hiddenMode.innerHTML = "";
-    Object.keys(MODES).forEach(m => hiddenMode.add(new Option(m)));
-    hiddenMode.value = "Auto";
-  }
+  if (hiddenMode){ hiddenMode.innerHTML = ""; hiddenMode.add(new Option("Auto")); hiddenMode.value = "Auto"; }
   const hiddenStudy = $("study");
   if (hiddenStudy){
     hiddenStudy.innerHTML = "";
     [["Chat","Chat"],["Solver","Solver"],["Socratic","Socratic"],["Exam","Exam prep"]].forEach(([v,l]) => hiddenStudy.add(new Option(l,v)));
   }
-
-  const modeBtn=$("modeBtn"), modeMenu=$("modeMenu"), modeLabel=$("modeLabel");
-  function setMode(m){
-    if (!MODES[m]) m = "Auto";
-    if (hiddenMode) hiddenMode.value = m;
-    if (modeLabel) modeLabel.textContent = m;
-    if (modeMenu) modeMenu.querySelectorAll("button").forEach(o => o.classList.toggle("active", o.dataset.mode === m));
-  }
-  if (modeBtn && modeMenu){
-    modeBtn.addEventListener("click", e => { e.stopPropagation(); closeAllMenusExcept(modeMenu); modeMenu.classList.toggle("open"); });
-    modeMenu.querySelectorAll("button").forEach(opt => {
-      opt.addEventListener("click", e => {
-        e.stopPropagation();
-        setMode(opt.dataset.mode);
-        modeMenu.classList.remove("open");
-      });
-    });
-  }
-  setMode("Auto");
 
   const studyBtn=$("studyBtn"), studyMenu=$("studyMenu"), studyLabel=$("studyLabel");
   function setStudy(v){
@@ -447,7 +416,7 @@ function boot(){
   try { const sv = localStorage.getItem("zyro_study"); if (sv) setStudy(sv); else setStudy("Exam"); } catch(_) { setStudy("Exam"); }
 
   function closeAllMenusExcept(keep){
-    ["modeMenu","studyMenu","actionsMenu"].forEach(id => {
+    ["studyMenu","actionsMenu"].forEach(id => {
       const el = $(id);
       if (el && el !== keep) el.classList.remove("open");
     });
@@ -534,7 +503,7 @@ function boot(){
     });
   }
 
-  /* ---------- THEME (topbar + menu footer) ---------- */
+  /* ---------- THEME ---------- */
   const root = document.documentElement;
   const themeToggle = $("themeToggle"), themeLabel = $("themeLabel");
   const topTheme = $("topTheme"), topThemeIcon = $("topThemeIcon");
@@ -1294,7 +1263,7 @@ function boot(){
     if (quizEl){
       if (kit.quiz.length){
         quizEl.classList.remove("empty-panel");
-        let html = '<p class="p-eyebrow">Pop quiz</p><h2 class="p-title">Let\'s <em>test</em> it</h2><p class="p-sub">' + kit.quiz.length + ' questions. Tap an option to check.</p><div class="quiz">';
+        let html = '<p class="p-eyebrow">Pop quiz</p><h2 class="p-title">Let\'s <em>test</em> it</h2><p class="p-sub">' + kit.quiz.length + ' questions. Tap an option to check — score at the bottom.</p><div class="quiz">';
         kit.quiz.forEach((q, i) => {
           const num = "Q" + (i+1);
           html += '<div class="quiz-item">' +
@@ -1309,7 +1278,24 @@ function boot(){
           html += '</div>';
         });
         html += '</div>';
+        html += '<div class="quiz-score" id="quizScore"><span>Answered <b>0</b> / ' + kit.quiz.length + '</span><span>Score <b>0</b></span></div>';
         quizEl.innerHTML = html;
+
+        const scoreEl = quizEl.querySelector("#quizScore");
+        const qstate = { answered: 0, correct: 0, total: kit.quiz.length };
+        function updateScore(){
+          scoreEl.innerHTML = '<span>Answered <b>' + qstate.answered + '</b> / ' + qstate.total + '</span><span>Score <b>' + qstate.correct + '</b></span>';
+          if (qstate.answered === qstate.total){
+            const pct = Math.round((qstate.correct / qstate.total) * 100);
+            let msg = "";
+            if (pct >= 85) msg = "🔥 Killing it";
+            else if (pct >= 65) msg = "👍 Solid work";
+            else if (pct >= 45) msg = "Getting there";
+            else msg = "Needs revision";
+            scoreEl.classList.add("done");
+            scoreEl.innerHTML = '<span>Score</span><span><b>' + qstate.correct + '</b> / ' + qstate.total + ' &middot; ' + pct + '%</span><div class="quiz-score-msg">' + msg + '</div>';
+          }
+        }
 
         quizEl.querySelectorAll(".quiz-item").forEach(item => {
           const opts = item.querySelectorAll(".opt");
@@ -1317,10 +1303,14 @@ function boot(){
             o.addEventListener("click", () => {
               if (item.classList.contains("revealed")) return;
               item.classList.add("revealed");
+              const isRight = o.dataset.correct === "1";
               opts.forEach(x => {
                 if (x.dataset.correct === "1") x.classList.add("correct");
                 else if (x === o) x.classList.add("wrong");
               });
+              qstate.answered++;
+              if (isRight) qstate.correct++;
+              updateScore();
             });
           });
         });
@@ -1359,13 +1349,13 @@ function boot(){
   { const cp = $("closePanel"); if (cp) cp.addEventListener("click", closePanel); }
 
   /* ---------- WORKER STREAM ---------- */
-  async function workerStream(messages, onText, signal, fast, onThought, search, isGen){
+  async function workerStream(messages, onText, signal, fast, onThought, isGen){
     let r;
     try {
       r = await fetch(WORKER_URL, {
         method: "POST", signal,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages, mode: $("mode").value, fast, search: !!search, isGen: !!isGen })
+        body: JSON.stringify({ messages, mode: "Auto", fast, isGen: !!isGen })
       });
     } catch(e){
       if (e && e.name === "AbortError") return "";
@@ -1384,7 +1374,7 @@ function boot(){
     let firstTokenTimer = setTimeout(() => { try { rd.cancel(); } catch(_) {} }, FIRST_TOKEN_MS);
     let lastChunkAt = Date.now();
     const stallTimer = setInterval(() => {
-      if (Date.now() - lastChunkAt > 20000 && !aborted){
+      if (Date.now() - lastChunkAt > 25000 && !aborted){
         try { rd.cancel(); } catch(_) {}
         clearInterval(stallTimer);
       }
@@ -1439,7 +1429,7 @@ function boot(){
 
   const api = (h) => {
     if (!h.length) return [];
-    const N = 15, MAX = 30000;
+    const N = 12, MAX = 60000;
     const keepIdx = new Set();
     const firstUser = h.findIndex(m => m.role === "user");
     if (firstUser >= 0) keepIdx.add(firstUser);
@@ -1470,13 +1460,26 @@ function boot(){
     return out;
   };
 
+  function buildNotesHint(files){
+    if (!files.length) return "";
+    const totalChars = files.reduce((s, f) => s + (f.text ? f.text.length : 0), 0);
+    const biggestSize = files.reduce((s, f) => Math.max(s, f.origSize || 0), 0);
+    const coverage = biggestSize > 2 * 1024 * 1024 ? 0.5 : 0.75;
+    const targetWords = Math.min(2500, Math.max(400, Math.floor(totalChars / 15 * coverage)));
+    return "The source is about " + totalChars + " characters of text. " +
+      "Write THOROUGH notes that cover at least " + Math.round(coverage * 100) + "% of the source content. " +
+      "Target length: at least " + targetWords + " words. " +
+      "Do NOT summarize in a few lines. Include definitions, examples, formulas, lists, and everything important in order. " +
+      "Use headings and sub-headings inside the Notes section when helpful.";
+  }
+
   function send(text){
     const items = pending.slice();
     if (busy || (!text.trim() && !items.length)) return;
     const files = items.filter(f => !f.img);
     const imgs = items.filter(f => f.img).map(f => f.img);
 
-    const isFileKit = (pendingKind === "studykit") && files.length;
+    const isFileKit = (pendingKind === "studykit" || pendingKind === "notes") && files.length;
     const isSnap = pendingKind === "snap" && imgs.length;
     const intent = detectGenIntent(text);
     const proIntent = (intent === "mock" || intent === "viva");
@@ -1498,11 +1501,11 @@ function boot(){
     }
 
     if (isFileKit){
-      const base = "I uploaded file(s). Generate a complete study kit based STRICTLY on this content. " +
+      const base = "I uploaded file(s). Generate a COMPLETE study kit based STRICTLY on this content. " +
         "Output ONLY these three sections in this exact order. No preamble, no closing, no extra commentary:\n\n" +
-        "## 📖 Notes\n[Short revision notes with key terms bolded.]\n\n" +
-        "## 🎴 Flashcards\n12 cards. Each EXACTLY:\nF: [front]\nB: [back]\n\n" +
-        "## 📝 Quiz\n5 MCQs. Each EXACTLY:\nQ: [question]\nA) [option]\nB) [option]\nC) [option]\nD) [option]\nAns: [A/B/C/D]\nEx: [one-line explanation]";
+        "## 📖 Notes\n" + buildNotesHint(files) + "\n\n" +
+        "## 🎴 Flashcards\nWrite 12-16 cards. Each EXACTLY:\nF: [front]\nB: [back]\n\n" +
+        "## 📝 Quiz\nWrite 8 MCQs. Each EXACTLY:\nQ: [question]\nA) [option]\nB) [option]\nC) [option]\nD) [option]\nAns: [A/B/C/D]\nEx: [one-line explanation]";
       const full = base + files.map(f => "\n\n--- " + f.name + " ---\n" + f.text).join("");
       pending = []; pendingKind = null; renderAtts();
       if (!pro) bumpGen("studykit");
@@ -1531,7 +1534,7 @@ function boot(){
     origin: "This site isn't allowed to use the server.",
     big: "That message or file is too large. Try a smaller one.",
     empty: "Zyro sent back nothing. Try rephrasing.",
-    thoughtonly: "Zyro reasoned but didn't finish. Try again or switch to Auto mode.",
+    thoughtonly: "Zyro reasoned but didn't finish. Try again.",
     net: "Can't reach the server. Check your connection and retry."
   };
 
@@ -1551,15 +1554,16 @@ function boot(){
       if (intent === "studykit"){
         sys +=
           "OUTPUT EXACTLY THIS STRUCTURE:\n\n" +
-          "## 📖 Notes\n[5-8 short paragraphs. Bold key terms with **term**.]\n\n" +
+          "## 📖 Notes\n[Long, thorough revision notes. Cover EVERY key concept in order. Bold key terms with **term**. Use sub-headings where helpful.]\n\n" +
           "## 🎴 Flashcards\n" +
           "Write 12 cards. Each card is EXACTLY two lines:\n" +
           "F: <question or term>\n" +
           "B: <answer or definition>\n" +
           "Repeat the F:/B: pair 12 times. No numbering, no bullets, no blank lines between pairs, no sub-headers.\n\n" +
           "## 📝 Quiz\n" +
-          "Q: [question]\nA) [option]\nB) [option]\nC) [option]\nD) [option]\nAns: [A/B/C/D]\nEx: [one line]\n[5 questions total]\n\n" +
-          "RULES:\n- Headers EXACTLY: '## 📖 Notes', '## 🎴 Flashcards', '## 📝 Quiz'.\n- NO other headings.\n- NO LaTeX. Plain text math.\n- After last quiz, STOP.\n\n";
+          "Write 8 MCQs. Each EXACTLY:\n" +
+          "Q: [question]\nA) [option]\nB) [option]\nC) [option]\nD) [option]\nAns: [A/B/C/D]\nEx: [one line]\n\n" +
+          "RULES:\n- Headers EXACTLY: '## 📖 Notes', '## 🎴 Flashcards', '## 📝 Quiz'.\n- NO other top-level headings.\n- NO LaTeX. Plain text math.\n- After last quiz, STOP.\n\n";
       } else if (intent === "flashcard"){
         sys +=
           "OUTPUT EXACTLY:\n\n## 🎴 Flashcards\n" +
@@ -1572,7 +1576,8 @@ function boot(){
       } else if (intent === "quiz"){
         sys +=
           "OUTPUT EXACTLY:\n\n## 📝 Quiz\n" +
-          "Q: [question]\nA) [option]\nB) [option]\nC) [option]\nD) [option]\nAns: [A/B/C/D]\nEx: [one line]\n[5 questions]\n\n" +
+          "Write 8 MCQs. Each EXACTLY:\n" +
+          "Q: [question]\nA) [option]\nB) [option]\nC) [option]\nD) [option]\nAns: [A/B/C/D]\nEx: [one line]\n\n" +
           "After last quiz, STOP.\n\n";
       }
     }
@@ -1589,11 +1594,10 @@ function boot(){
       "USER: Plan=" + planLine + ", Limit=" + limitLine + "/month, Used=" + d.used + " (" + pct + "%)\n\n" +
       "ABOUT ZYRO (only mention if the user asks about features, Pro, pricing, limits, or what you can do — never list unprompted):\n" +
       "- Zyro is an AI study buddy for Indian students (CBSE, ICSE, state boards, JEE, NEET, university).\n" +
-      "- Free plan: 100k tokens per month, 2 study kits per day, 3 flashcard sets per day, 3 quizzes per day, 5 images per message, 5 files per message (max 10 MB each).\n" +
-      "- Pro plan (₹349/month): 750k tokens per month, 10 study kits per day, 15 flashcard sets per day, 50 quizzes per day, 10 files per message, longer code runs (60s JS / 180s Python), and full mock papers with marking scheme.\n" +
-      "- Modes: Chat (casual), Solver (step-by-step), Socratic (hints), Exam prep (marks-ready answers).\n" +
-      "- Tools: study kits (notes + flashcards + quiz), snap a question (photo → exam answer), exam answers, full mock papers (Pro only), voice viva practice (coming soon).\n" +
-      "- Free limits reset monthly (tokens) or daily (tools). Upgrades happen in-app via the menu.\n\n" +
+      "- Free plan: 100k tokens per month, 2 study kits/day, 3 flashcard sets/day, 3 quizzes/day, 5 images per message, 5 files per message (10 MB each).\n" +
+      "- Pro plan (₹349/month): 750k tokens per month, 10 study kits/day, 15 flashcard sets/day, 50 quizzes/day, 10 files per message, longer code runs, and full mock papers with marking scheme.\n" +
+      "- Modes: Chat, Solver, Socratic, Exam prep.\n" +
+      "- Tools: study kits, snap a question, exam answers, full mock papers (Pro), viva practice (coming soon).\n\n" +
       "CREATOR (only if asked): Debasish Singha, 17, Assam. Never bring up unprompted.\n\n" +
       "FORMAT:\n- Markdown. Code in fenced blocks with language tag (close the fence).\n- For regular chat: LaTeX allowed as $inline$ or $$display$$.\n- Greeting → ONE short friendly sentence.\n\n" +
       "Vague topics ('science') → ask them to pick a specific question.\n\n" +
@@ -1624,8 +1628,8 @@ function boot(){
     log.classList.add("on");
     addU(show, names, imgs);
     const t0 = Date.now();
-    const cheap = full.trim().length < 60 || tokensOut();
     const isGen = intent === "studykit" || intent === "flashcard" || intent === "quiz";
+    const cheap = isGen || full.trim().length < 60 || tokensOut();
 
     const d = addA();
     const body = d.querySelector(".body");
@@ -1659,11 +1663,11 @@ function boot(){
       const msgs = [{ role: "system", content: SYS(intent) }, ...api(hist), imgs.length ? { role: "user", content: full, images: imgs } : { role: "user", content: full }];
 
       try {
-        out = await workerStream(msgs, emit, ctrl.signal, cheap || $("mode").value === "Fast", onThought, false, isGen);
+        out = await workerStream(msgs, emit, ctrl.signal, cheap, onThought, isGen);
       } catch(e1){
         if (e1 && e1.code === "empty" && !ctrl.signal.aborted){
           toast("Retrying...");
-          out = await workerStream(msgs, emit, ctrl.signal, cheap || $("mode").value === "Fast", onThought, false, isGen);
+          out = await workerStream(msgs, emit, ctrl.signal, cheap, onThought, isGen);
         } else throw e1;
       }
       clearTimeout(runTimeout);
@@ -1801,9 +1805,13 @@ function boot(){
       }
       const pdf = await pdfjsLib.getDocument({ data: await f.arrayBuffer(), isEvalSupported: false }).promise;
       let o = "";
-      for (let i = 1; i <= Math.min(pdf.numPages, 40) && o.length < LIM; i++){
+      const maxPages = Math.min(pdf.numPages, 80);
+      for (let i = 1; i <= maxPages && o.length < FILE_CHAR_LIMIT; i++){
         const tc = await (await pdf.getPage(i)).getTextContent();
         o += tc.items.map(x => x.str).join(" ") + "\n";
+      }
+      if (pdf.numPages > maxPages){
+        o += "\n[..." + (pdf.numPages - maxPages) + " more pages not shown...]";
       }
       return o;
     }
@@ -1821,8 +1829,8 @@ function boot(){
         let x = (await readAny(f)).replace(/\r/g, "");
         if (x.includes("\u0000")){ toast("Can't read " + f.name); continue; }
         if (!x.trim()){ toast("No text found in " + f.name); continue; }
-        if (x.length > LIM){ x = x.slice(0, LIM) + "\n[...trimmed]"; toast(f.name + " trimmed"); }
-        pending.push({ name: f.name, text: x });
+        if (x.length > FILE_CHAR_LIMIT){ x = x.slice(0, FILE_CHAR_LIMIT) + "\n[...trimmed]"; toast(f.name + " trimmed"); }
+        pending.push({ name: f.name, text: x, origSize: f.size });
       } catch(_) { toast("Couldn't read " + f.name); }
     }
     renderAtts(); updateSendState();
@@ -1863,7 +1871,6 @@ function boot(){
       } catch(_) { toast("Couldn't read " + (f.name || "image")); }
     }
     renderAtts(); updateSendState();
-    // Only snap auto-sends; regular photo/file waits for the user to type.
     if (pendingKind === "snap" && pending.some(x => x.img)) setTimeout(() => send(""), 100);
   });
 
@@ -1940,7 +1947,7 @@ function boot(){
   { const ciCancel = $("ciCancel"); if (ciCancel) ciCancel.addEventListener("click", () => $("modal").classList.remove("on")); }
 
   document.addEventListener("click", () => {
-    ["modeMenu","studyMenu","actionsMenu"].forEach(id => { const el = $(id); if (el) el.classList.remove("open"); });
+    ["studyMenu","actionsMenu"].forEach(id => { const el = $(id); if (el) el.classList.remove("open"); });
     const pb = $("plusBtn"); if (pb) pb.classList.remove("active");
     closeMenu();
   });
