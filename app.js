@@ -1,5 +1,5 @@
 /* =========================================================
-   ZYRO app.js — v44 (profile panel, chats dropdown, limits)
+   ZYRO app.js — v47 (structured output, stall watchdog)
    ========================================================= */
 
 /* ---------- TOP HELPERS ---------- */
@@ -50,7 +50,6 @@ const LIM=12000;
 
 const RZP_WORKER_URL = WORKER_URL.replace(/\/$/, "");
 
-/* ---------- PRO SUCCESS MODAL ---------- */
 function showProModal(paymentId){
   const esc = s => String(s||"").replace(/[&<>]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
   const modal = document.createElement("div");
@@ -60,7 +59,7 @@ function showProModal(paymentId){
     '<div class="mb" style="max-width:380px;text-align:center">' +
       '<div style="font-size:56px;line-height:1;margin:8px 0 16px">🎉</div>' +
       '<h3 style="margin:0 0 8px;font-size:22px;font-weight:800">Welcome to Zyro Pro!</h3>' +
-      '<p style="margin:0 0 18px;color:var(--dim);font-size:14px;line-height:1.6">Your payment went through. You now get <b style="color:var(--ink)">1,000,000 tokens</b> per 5-hour window and unlimited study kits.</p>' +
+      '<p style="margin:0 0 18px;color:var(--dim);font-size:14px;line-height:1.6">Payment went through. 1M tokens, unlimited study kits, all features unlocked.</p>' +
       '<div style="background:var(--bg-3);border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin:0 0 18px;font-family:JetBrains Mono,monospace;font-size:12px;color:var(--dim);word-break:break-all;text-align:left">' +
         '<div style="color:var(--dim-2);text-transform:uppercase;letter-spacing:.1em;font-size:10px;margin-bottom:4px">Payment ID</div>' +
         '<div style="color:var(--ink)">' + esc(paymentId) + '</div>' +
@@ -73,13 +72,12 @@ function showProModal(paymentId){
   modal.onclick = e => { if (e.target === modal) start(); };
 }
 
-/* ---------- PRO PAYWALL MODAL ---------- */
 function openProPaywall(reason){
   const existing = document.getElementById("ppModal");
   if (existing) existing.remove();
   const title = reason === "limit" ? "You've used your 2 free study kits today" : "This one's a Pro feature";
   const sub = reason === "limit"
-    ? "Upgrade to Zyro Pro for unlimited study kits, flashcards, and quizzes."
+    ? "Upgrade for unlimited study kits, flashcards, and quizzes."
     : "Unlock it with Zyro Pro · ₹349/month";
   const modal = document.createElement("div");
   modal.className = "modal on";
@@ -111,7 +109,6 @@ function openProPaywall(reason){
   modal.onclick = e => { if (e.target === modal) modal.remove(); };
 }
 
-/* ---------- RAZORPAY CHECKOUT ---------- */
 async function openRazorpayCheckout(plan){
   const toast = (m) => (window.toast ? window.toast(m) : console.log("[toast]", m));
   const openAuth = (m) => (window.openAuth ? window.openAuth(m) : null);
@@ -210,14 +207,12 @@ function boot(){
   const sleep = ms => new Promise(r => setTimeout(r, ms));
   const getCI = () => { try { return localStorage.getItem(CI) || ""; } catch(_) { return ""; } };
 
-  /* ---------- PLAN LIMITS ---------- */
   const LIMITS = {
     free: { tokens: 100000,  images: 3,  files: 1, fileSize: 8e6,  jsTimeout: 10000, pyTimeout: 60000  },
     pro:  { tokens: 1000000, images: 15, files: 3, fileSize: 20e6, jsTimeout: 60000, pyTimeout: 180000 }
   };
   const L = () => LIMITS[pro ? "pro" : "free"];
 
-  /* ---------- FREE GEN COUNTER ---------- */
   function getGen(){
     try {
       const d = JSON.parse(localStorage.getItem(GEN_KEY) || "null");
@@ -232,11 +227,6 @@ function boot(){
   }
   function saveGen(d){ try { localStorage.setItem(GEN_KEY, JSON.stringify(d)); } catch(_) {} }
   function bumpGen(){ const d = getGen(); d.count += 1; saveGen(d); }
-  function genLeft(){
-    if (pro) return Infinity;
-    const d = getGen();
-    return Math.max(0, FREE_GEN_LIMIT - d.count);
-  }
   function genAllowed(){
     if (pro) return true;
     return getGen().count < FREE_GEN_LIMIT;
@@ -263,7 +253,6 @@ function boot(){
   }
   function clearBusyWatchdog(){ clearTimeout(busyWatchdog); }
 
-  /* ---------- TOKENS ---------- */
   function getTokens(){
     try {
       const d = JSON.parse(localStorage.getItem(TOKEN_KEY) || "null");
@@ -323,7 +312,6 @@ function boot(){
     setTimeout(() => e.classList.remove("on"), 1800);
   }
 
-  /* ---------- MODES + STUDY ---------- */
   const MODES = { Fast:"Quick short answer, minimal thinking.", Auto:"Balanced speed and depth.", Thinking:"Deep analysis, long detailed answer." };
   const STAGES = ["Thinking","Analyzing","Planning steps"];
   const STUDY = {
@@ -367,7 +355,6 @@ function boot(){
     [["Chat","Chat"],["Solver","Solver"],["Socratic","Socratic"],["Exam","Exam prep"]].forEach(([v,l]) => hiddenStudy.add(new Option(l,v)));
   }
 
-  /* ---------- MODE DROPDOWN ---------- */
   const modeBtn=$("modeBtn"), modeMenu=$("modeMenu"), modeLabel=$("modeLabel");
   function setMode(m){
     if (!MODES[m]) m = "Auto";
@@ -387,7 +374,6 @@ function boot(){
   }
   setMode("Auto");
 
-  /* ---------- STUDY DROPDOWN ---------- */
   const studyBtn=$("studyBtn"), studyMenu=$("studyMenu"), studyLabel=$("studyLabel");
   function setStudy(v){
     if (!STUDY.hasOwnProperty(v)) v = "Chat";
@@ -418,7 +404,6 @@ function boot(){
     const pb = $("plusBtn"); if (pb && keep !== $("actionsMenu")) pb.classList.remove("active");
   }
 
-  /* ---------- MENU (settings) ---------- */
   const menu = $("menu"), scrim = $("scrim"), menuBtn = $("menuBtn");
   function openMenu(){ menu.classList.add("on"); scrim.classList.add("on"); menuBtn.classList.add("active"); }
   function closeMenu(){ menu.classList.remove("on"); scrim.classList.remove("on"); menuBtn.classList.remove("active"); }
@@ -452,6 +437,7 @@ function boot(){
     if (tool === "snap"){ pendingKind = "snap"; $("img").click(); return; }
     if (tool === "studykit" || tool === "notes"){
       if (!checkGenAllowed()) return;
+      setStudy("Chat");
       t.value = "Make me a study kit for: ";
       t.dispatchEvent(new Event("input")); t.focus(); return;
     }
@@ -476,7 +462,6 @@ function boot(){
     return false;
   }
 
-  /* ---------- PLUS ACTIONS ---------- */
   const plusBtn = $("plusBtn"), actionsMenu = $("actionsMenu");
   if (plusBtn && actionsMenu){
     plusBtn.addEventListener("click", e => {
@@ -495,7 +480,6 @@ function boot(){
     });
   }
 
-  /* ---------- THEME ---------- */
   const themeToggle = $("themeToggle"), themeLabel = $("themeLabel");
   if (themeToggle){
     const root = document.documentElement;
@@ -519,7 +503,6 @@ function boot(){
     if (b) b.addEventListener("click", newChat);
   });
 
-  /* ---------- QUICK CHIPS ---------- */
   const chipsBox = $("chips");
   if (chipsBox){
     chipsBox.innerHTML = "";
@@ -535,7 +518,6 @@ function boot(){
     });
   }
 
-  /* ---------- VOICE ---------- */
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   const micBtn = $("micBtn");
   let recog = null, listening = false;
@@ -565,7 +547,6 @@ function boot(){
     });
   }
 
-  /* ---------- PASSWORD EYE ---------- */
   const EYE_OPEN = '<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/>';
   const EYE_OFF = '<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/>';
   { const eye = $("amEye"), icon = $("amEyeIcon"), pw = $("amPw");
@@ -579,7 +560,6 @@ function boot(){
     }
   }
 
-  /* ---------- SUPABASE ---------- */
   function sbClient(){
     if (!SUPABASE_URL) return Promise.resolve(null);
     if (sb) return Promise.resolve(sb);
@@ -588,7 +568,7 @@ function boot(){
       return sb;
     });
     return sbP;
-}
+               }
    
 /* ---------- RENDER ACCOUNT ---------- */
 function renderAcct(){
@@ -703,7 +683,7 @@ function closeAuth(){ const am = $("authModal"); if (am) am.classList.remove("on
     }
     closeAuth();
     toast(authMode === "signup" ? "Account created" : "Signed in");
-  });
+  };
 }
 
 async function loadProfile(){
@@ -888,7 +868,7 @@ function openChat(id){
       const tl = d.querySelector(".think-live"); if (tl) tl.remove();
       setH(d.querySelector(".body"), md(m.content));
       const kit = parseStudyKit(m.content);
-      if (kit.notes || kit.cards.length || kit.quiz.length){
+      if (kit.notes || kit.cards.length || kit.quiz.length || kit.exam){
         const ln = document.createElement("div");
         ln.innerHTML = launcherHTML(kit);
         const lc = ln.firstElementChild;
@@ -1151,19 +1131,20 @@ function copy(txt2, btn){
     const kit = { notes:"", cards:[], quiz:[], exam:"", examKeyTerms:"", mock:false, viva:false };
     if (!text) return kit;
 
-    const notesM = text.match(/##\s*📖\s*Notes\s*\n([\s\S]*?)(?=\n##\s*🎴|\n##\s*📝|$)/i);
+    // Accept multiple header variants
+    const notesM = text.match(/(?:^|\n)#{1,3}\s*(?:📖\s*)?Notes\s*\n([\s\S]*?)(?=\n#{1,3}\s*(?:🎴|📝|Flashcards|Quiz)|$)/i);
     if (notesM) kit.notes = notesM[1].trim();
 
-    const fcM = text.match(/##\s*🎴\s*Flashcards?\s*\n([\s\S]*?)(?=\n##\s*📝|\n##\s*📖|$)/i);
+    const fcM = text.match(/(?:^|\n)#{1,3}\s*(?:🎴\s*)?(?:Flash\s*cards?|Flashcards?)\s*\n([\s\S]*?)(?=\n#{1,3}\s*(?:📖|📝|Notes|Quiz)|$)/i);
     if (fcM){
-      const re = /^\s*F:\s*(.+?)\s*\n\s*B:\s*(.+?)(?=\n\s*F:|\n\s*##|\n\s*$)/gims;
+      const re = /^\s*F:\s*(.+?)\s*\n\s*B:\s*(.+?)(?=\n\s*F:|\n\s*#{1,3}|\n\s*$)/gims;
       let m;
       while ((m = re.exec(fcM[1]))){ kit.cards.push({ a: m[1].trim(), b: m[2].trim() }); }
     }
 
-    const qM = text.match(/##\s*📝\s*Quiz\s*\n([\s\S]*?)(?=\n##\s*📖|\n##\s*🎴|$)/i);
+    const qM = text.match(/(?:^|\n)#{1,3}\s*(?:📝\s*)?Quiz\s*\n([\s\S]*?)(?=\n#{1,3}\s*(?:📖|🎴|Notes|Flashcards)|$)/i);
     if (qM){
-      const re = /^\s*Q:\s*(.+?)\s*\n\s*A\)\s*(.+?)\s*\n\s*B\)\s*(.+?)\s*\n\s*C\)\s*(.+?)\s*\n\s*D\)\s*(.+?)\s*\n\s*Ans:\s*([A-D])\s*(?:\n\s*Ex:\s*(.+?))?(?=\n\s*Q:|\n\s*##|\n\s*$)/gims;
+      const re = /^\s*Q:\s*(.+?)\s*\n\s*A\)\s*(.+?)\s*\n\s*B\)\s*(.+?)\s*\n\s*C\)\s*(.+?)\s*\n\s*D\)\s*(.+?)\s*\n\s*Ans:\s*([A-D])\s*(?:\n\s*Ex:\s*(.+?))?(?=\n\s*Q:|\n\s*#{1,3}|\n\s*$)/gims;
       let m;
       while ((m = re.exec(qM[1]))){
         kit.quiz.push({ q: m[1].trim(), opts: [m[2].trim(), m[3].trim(), m[4].trim(), m[5].trim()], ans: m[6].toUpperCase(), ex: (m[7]||"").trim() });
@@ -1175,7 +1156,7 @@ function copy(txt2, btn){
     const keyM = text.match(/\*\*Key terms:?\*\*\s*([\s\S]*?)(?=\n\n|$)/i);
     if (keyM) kit.examKeyTerms = keyM[1].trim();
 
-    if (/mock paper|Section A|Section B/i.test(text)) kit.mock = true;
+    if (/mock paper|Section A|Section B|marking scheme/i.test(text)) kit.mock = true;
     if (/viva|oral exam/i.test(text)) kit.viva = true;
 
     return kit;
@@ -1352,6 +1333,7 @@ function copy(txt2, btn){
 
     panel.classList.add("on");
     const body = panel.querySelector(".panel-body"); if (body) body.scrollTop = 0;
+    try { typeset(panel); } catch(_) {}
   }
 
   function closePanel(){
@@ -1371,7 +1353,7 @@ function copy(txt2, btn){
   }
   { const cp = $("closePanel"); if (cp) cp.addEventListener("click", closePanel); }
 
-  /* ---------- WORKER STREAM ---------- */
+  /* ---------- WORKER STREAM (with stall watchdog) ---------- */
   async function workerStream(messages, onText, signal, fast, onThought, search){
     let r;
     try {
@@ -1395,11 +1377,19 @@ function copy(txt2, btn){
     const rd = r.body.getReader(), dec = new TextDecoder();
     let buf = "";
     let firstTokenTimer = setTimeout(() => { try { rd.cancel(); } catch(_) {} }, FIRST_TOKEN_MS);
+    let lastChunkAt = Date.now();
+    const stallTimer = setInterval(() => {
+      if (Date.now() - lastChunkAt > 20000 && !aborted){
+        try { rd.cancel(); } catch(_) {}
+        clearInterval(stallTimer);
+      }
+    }, 5000);
 
     try {
       for (;;){
         const { done, value } = await rd.read();
         if (done) break;
+        lastChunkAt = Date.now();
         buf += dec.decode(value, { stream: true });
         const lines = buf.split("\n");
         buf = lines.pop();
@@ -1430,6 +1420,7 @@ function copy(txt2, btn){
       else throw e;
     } finally {
       clearTimeout(firstTokenTimer);
+      clearInterval(stallTimer);
     }
 
     if (used > 0) addTokens(used);
@@ -1546,54 +1537,88 @@ function copy(txt2, btn){
     const proIntent = isProOnlyIntent(t.value);
     const isGenRequest = studyIntent || proIntent;
 
-    const base = (
-      "You are Zyro — the AI study companion for Indian students, built by a 17-year-old in Assam. " +
-      "You're like a smart older sibling: warm, casual, direct. Never preachy. Never robotic.\n\n" +
+    let sys = "";
 
-      "USER: Plan=" + planLine + ", Limit=" + limitLine + " per 5h, Used=" + d.used + " (" + pct + "%)\n\n" +
+    if (isGenRequest){
+      sys += "⚡ STRUCTURED OUTPUT MODE ⚡\n";
+      sys += "Output ONLY the sections below. NO preamble, NO 'here you go', NO closing, NO extra commentary, NO alternative headings.\n\n";
 
-      "CRITICAL — BE EFFICIENT:\n" +
-      "- NO preambles. Never start with 'Sure!', 'Great question!', 'Here you go!', 'Here's your...', 'I'd be happy to...'\n" +
-      "- NO closings. Never end with 'Let me know if you need anything!', 'Hope this helps!', 'Good luck!'\n" +
-      "- NO restating the question. Get straight to the answer.\n" +
-      "- NO extra commentary, no side notes, no 'would you like me to also...'\n" +
-      "- If you're not sure about a fact or formula, say so briefly. Never invent.\n" +
-      "- Short answers by default. Under 300 words unless asked for more.\n\n" +
+      if (studyIntent && !proIntent){
+        sys +=
+          "OUTPUT EXACTLY THIS STRUCTURE:\n\n" +
+          "## 📖 Notes\n" +
+          "[5-8 short paragraphs. Bold key terms with **term**.]\n\n" +
+          "## 🎴 Flashcards\n" +
+          "F: [front]\n" +
+          "B: [back]\n" +
+          "F: [next front]\n" +
+          "B: [next back]\n" +
+          "[12 cards total. Keep F:/B: pairs tight. NO numbering.]\n\n" +
+          "## 📝 Quiz\n" +
+          "Q: [question]\n" +
+          "A) [option]\n" +
+          "B) [option]\n" +
+          "C) [option]\n" +
+          "D) [option]\n" +
+          "Ans: [A/B/C/D]\n" +
+          "Ex: [one line]\n" +
+          "[5 questions total]\n\n" +
+          "CRITICAL RULES:\n" +
+          "- Section headers must be EXACTLY: '## 📖 Notes', '## 🎴 Flashcards', '## 📝 Quiz'.\n" +
+          "- Never write 'Study Kit', 'Comprehensive', 'Introduction', or any heading other than those three.\n" +
+          "- NO LaTeX. Plain text math only (e.g. 'x = u cos θ t', '1/2 gt²').\n" +
+          "- If a file is attached, use ONLY that file's content. Skip topics not in the file.\n" +
+          "- After the last quiz, STOP. Nothing more.\n\n";
+      }
 
-      "TONE: Contractions, casual, direct. Like texting a smart older sibling.\n\n" +
-      "CREATOR (only if asked): Debasish Singha, 17, Assam, India. Never bring up unprompted.\n\n" +
+      if (proIntent){
+        sys +=
+          "OUTPUT FORMAT:\n" +
+          "**Mock Paper — [topic]**\n" +
+          "**Time:** [X min] · **Total Marks:** [N]\n\n" +
+          "**Section A — [X × marks]**\n1. [q]\n2. [q]\n\n" +
+          "**Section B — [X × marks]**\n...\n\n" +
+          "**Section C — [X × marks]**\n...\n\n" +
+          "---\n**Marking Scheme**\n1. [brief answer]\n2. ...\n\n" +
+          "NO preamble, NO closing. Plain text math (no LaTeX).\n\n";
+      }
+    }
+
+    sys +=
+      "You are Zyro — a 17-year-old Indian student's AI study buddy. " +
+      "Talk like a smart older brother: casual, warm, direct. Never a teacher. Never formal.\n\n" +
+
+      "TONE RULES:\n" +
+      "- Use contractions. Say 'yeah', 'gonna', 'honestly', 'lowkey', 'tbh' — natural, not forced.\n" +
+      "- Short sentences. Get to the point.\n" +
+      "- NEVER say: 'Sure!', 'Great question!', 'Here you go', 'I'd be happy to', 'Let me know if', 'Hope this helps', 'As an AI', 'Sure thing'.\n" +
+      "- NEVER lecture, moralise, or over-explain.\n" +
+      "- Match their energy. Stressed → calm. Casual → casual.\n" +
+      "- Banned words: 'delve', 'utilize', 'furthermore', 'moreover', 'comprehensive', 'in conclusion'.\n\n" +
+
+      "EFFICIENCY:\n" +
+      "- NO preambles. NO closings. NO restating the question.\n" +
+      "- If unsure about a fact, say so in one line. Never invent formulas or citations.\n" +
+      "- Under 300 words unless asked for more.\n\n" +
+
+      "USER: Plan=" + planLine + ", Limit=" + limitLine + "/5h, Used=" + d.used + " (" + pct + "%)\n\n" +
+
+      "CREATOR (only if asked): Debasish Singha, 17, Assam. Never bring up unprompted.\n\n" +
+
       "FORMAT:\n" +
-      "- Markdown. Code in fenced blocks with language tags (close the fence).\n" +
-      "- Math in LaTeX: $inline$ or $$display$$.\n" +
-      "- Greeting → ONE short friendly sentence, no feature list.\n\n" +
+      "- Markdown. Code in fenced blocks with language tag (close the fence).\n" +
+      "- For regular chat (not study kits): LaTeX allowed as $inline$ or $$display$$.\n" +
+      "- Greeting → ONE short friendly sentence. No feature list.\n\n" +
 
-      "If the topic is vague (like 'science'), ask them to pick a specific question. Don't dump everything.\n\n" +
+      "Vague topics (like 'science') → ask them to pick a specific question. Don't dump.\n\n" +
 
-      "BUILD WEBSITES: ONE complete self-contained HTML file in a single ```html code block. " +
-      "Real CSS inside <style>, JS inside <script>. Realistic content only. " +
-      "Photos: https://picsum.photos/seed/UNIQUEWORD/600/800. Responsive, 150+ lines. Close the fence.\n\n" +
+      "BUILD WEBSITES: ONE complete self-contained HTML file in a ```html block. Real CSS in <style>, JS in <script>. Real content only. Photos: https://picsum.photos/seed/UNIQUEWORD/600/800. Responsive, 150+ lines. Close the fence.\n\n" +
 
-      (isGenRequest
-        ? "STUDY KIT / QUIZ / MOCK / FLASHCARDS REQUEST — OUTPUT ONLY THE STRUCTURED CONTENT. " +
-          "Rules:\n" +
-          "- Output ONLY the sections the user asked for (notes → 📖, flashcards → 🎴, quiz → 📝, mock → exam sections).\n" +
-          "- Use the user's exact requested structure. If they say 'study kit', output all three: Notes, Flashcards, Quiz.\n" +
-          "- NO preamble. NO 'Here you go!'. NO closing. NO extra commentary.\n" +
-          "- NO side notes, no 'would you like...', no follow-up suggestions.\n" +
-          "- If the user attached a file, base everything ONLY on that file's content. " +
-            "Never pull facts from outside. If the file doesn't cover a topic, skip it.\n" +
-          "- If Notes: short revision notes with key terms bolded, 5-8 paragraphs max.\n" +
-          "- If Flashcards: 12 cards. Each EXACTLY:\nF: [front]\nB: [back]\n\n" +
-          "- If Quiz: 5 MCQs. Each EXACTLY:\nQ: [question]\nA) [option]\nB) [option]\nC) [option]\nD) [option]\nAns: [A/B/C/D]\nEx: [one-line explanation]\n\n" +
-          "- If Mock paper: header with marks and duration, then numbered questions grouped by section. Include a marking scheme section.\n" +
-          "- After the structured content, STOP. Do not add anything else."
-        : ""
-      ) +
       (STUDY[$("study").value] || "") +
       (getCI() ? "\n\nUser's custom instructions: " + getCI().slice(0, 800) : "") +
-      "\n\nToday is " + new Date().toLocaleDateString("en", { weekday: "long", year: "numeric", month: "long", day: "numeric" }) + "."
-    );
-    return base;
+      "\n\nToday: " + new Date().toLocaleDateString("en", { weekday: "long", year: "numeric", month: "long", day: "numeric" }) + ".";
+
+    return sys;
   };
 
   const ARROW = go.innerHTML;
@@ -1625,7 +1650,6 @@ function copy(txt2, btn){
     let hadThought = false;
     const onThought = th => { hadThought = true; thinkUpdate(d, th); };
 
-    // Smoother streaming — 140ms base, 300ms past 6k chars, skip unchanged
     let lastRender = 0;
     let lastText = "";
     const emit = x => {
