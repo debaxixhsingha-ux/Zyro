@@ -1,5 +1,5 @@
 /* =========================================================
-   ZYRO app.js — v47 (structured output, stall watchdog)
+   ZYRO app.js — v48 (limits, animations, pro popup)
    ========================================================= */
 
 /* ---------- TOP HELPERS ---------- */
@@ -36,7 +36,12 @@ const TOKEN_RESET_MS = 5 * 60 * 60 * 1000;
 const GEN_RESET_MS = 24 * 60 * 60 * 1000;
 const STREAM_TIMEOUT_MS = 90000;
 const FIRST_TOKEN_MS = 45000;
-const FREE_GEN_LIMIT = 2;
+
+/* Daily limits per feature */
+const DAILY_LIMITS = {
+  free: { studykit: 2, flashcard: 3, quiz: 3 },
+  pro:  { studykit: 10, flashcard: 15, quiz: 50 }
+};
 
 let TOTAL=100000;
 let sb=null,sbP=null,user=null,pro=false;
@@ -50,34 +55,47 @@ const LIM=12000;
 
 const RZP_WORKER_URL = WORKER_URL.replace(/\/$/, "");
 
-function showProModal(paymentId){
+/* ---------- PRO SUCCESS POPUP ---------- */
+function showProPopup(paymentId){
   const esc = s => String(s||"").replace(/[&<>]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
-  const modal = document.createElement("div");
-  modal.className = "modal on";
-  modal.style.zIndex = "9999";
-  modal.innerHTML =
-    '<div class="mb" style="max-width:380px;text-align:center">' +
-      '<div style="font-size:56px;line-height:1;margin:8px 0 16px">🎉</div>' +
-      '<h3 style="margin:0 0 8px;font-size:22px;font-weight:800">Welcome to Zyro Pro!</h3>' +
-      '<p style="margin:0 0 18px;color:var(--dim);font-size:14px;line-height:1.6">Payment went through. 1M tokens, unlimited study kits, all features unlocked.</p>' +
-      '<div style="background:var(--bg-3);border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin:0 0 18px;font-family:JetBrains Mono,monospace;font-size:12px;color:var(--dim);word-break:break-all;text-align:left">' +
-        '<div style="color:var(--dim-2);text-transform:uppercase;letter-spacing:.1em;font-size:10px;margin-bottom:4px">Payment ID</div>' +
-        '<div style="color:var(--ink)">' + esc(paymentId) + '</div>' +
-      '</div>' +
-      '<button class="primary" id="proStart" style="width:100%;padding:12px;border-radius:12px;font-weight:800;font-size:14.5px;cursor:pointer;border:0;background:var(--ink);color:var(--bg)">Start using Pro</button>' +
-    '</div>';
-  document.body.appendChild(modal);
-  const start = () => { modal.remove(); location.reload(); };
-  modal.querySelector("#proStart").onclick = start;
-  modal.onclick = e => { if (e.target === modal) start(); };
+  const rows = [
+    { em:"🚀", b:"Way more power",      s:"100k → 750k tokens / 5h" },
+    { em:"📚", b:"Way more study kits", s:"2/day → 10/day" },
+    { em:"🃏", b:"Way more flashcards", s:"3/day → 15/day" },
+    { em:"🎯", b:"Way more quizzes",    s:"3/day → 50/day" },
+    { em:"🖼️", b:"Way more images",     s:"3 → 15 per message" },
+    { em:"📎", b:"3× the files",        s:"1 file 8MB → 3 files 20MB" },
+    { em:"⏱️", b:"Longer code runs",    s:"10s → 60s JS · 60s → 180s Py" },
+    { em:"🧪", b:"Full mock tests",     s:"Real exam + marking scheme" }
+  ];
+  const list = document.getElementById("proPopupList");
+  const idEl = document.getElementById("proPopupId");
+  const pop = document.getElementById("proPopup");
+  if (!list || !pop) return;
+  list.innerHTML = rows.map(r =>
+    '<div class="pro-popup-row">' +
+      '<span class="em">' + r.em + '</span>' +
+      '<div class="tx"><b>' + r.b + '</b><span>' + r.s + '</span></div>' +
+    '</div>'
+  ).join("");
+  if (idEl) idEl.textContent = "Payment ID: " + esc(paymentId || "—");
+  pop.classList.add("on");
+  const startBtn = document.getElementById("proPopupStart");
+  if (startBtn) startBtn.onclick = () => { pop.classList.remove("on"); location.reload(); };
+  pop.onclick = e => { if (e.target === pop){ pop.classList.remove("on"); location.reload(); } };
 }
 
-function openProPaywall(reason){
+/* ---------- PRO PAYWALL ---------- */
+function openProPaywall(reason, feature){
   const existing = document.getElementById("ppModal");
   if (existing) existing.remove();
-  const title = reason === "limit" ? "You've used your 2 free study kits today" : "This one's a Pro feature";
+  const limits = DAILY_LIMITS[pro ? "pro" : "free"];
+  const featNames = { studykit:"study kits", flashcard:"flashcards", quiz:"quizzes" };
+  const title = reason === "limit"
+    ? "You've hit today's limit"
+    : "This one's a Pro feature";
   const sub = reason === "limit"
-    ? "Upgrade for unlimited study kits, flashcards, and quizzes."
+    ? "You've used all " + (limits[feature]||limits.studykit) + " free " + (featNames[feature]||"study kits") + " today. Upgrade for way more."
     : "Unlock it with Zyro Pro · ₹349/month";
   const modal = document.createElement("div");
   modal.className = "modal on";
@@ -89,11 +107,12 @@ function openProPaywall(reason){
       '<h3 style="margin:0 0 6px;text-align:center">' + title + '</h3>' +
       '<p style="margin:0 0 18px;text-align:center">' + sub + '</p>' +
       '<ul style="margin:0 0 20px;padding:0 0 0 22px;font-size:14px;color:var(--ink-2);line-height:1.9">' +
-        '<li><b style="color:var(--ink)">1,000,000 tokens</b> per 5 hours (10× free)</li>' +
-        '<li><b style="color:var(--ink)">Unlimited study kits</b> + flashcards + quizzes</li>' +
+        '<li><b style="color:var(--ink)">Way more power</b> — 750k tokens / 5h</li>' +
+        '<li><b style="color:var(--ink)">10 study kits</b> per day (free: 2)</li>' +
+        '<li><b style="color:var(--ink)">15 flashcards</b> + <b style="color:var(--ink)">50 quizzes</b> per day</li>' +
         '<li><b style="color:var(--ink)">15 images</b> per message (free: 3)</li>' +
         '<li><b style="color:var(--ink)">3 files up to 20 MB</b> (free: 1 file, 8 MB)</li>' +
-        '<li><b style="color:var(--ink)">Full mock papers</b> + viva practice</li>' +
+        '<li><b style="color:var(--ink)">Full mock tests</b> with marking scheme</li>' +
       '</ul>' +
       '<div style="display:flex;flex-direction:column;gap:8px">' +
         '<button id="ppUpgrade" style="padding:12px;border-radius:12px;font-weight:800;font-size:14.5px;cursor:pointer;border:0;background:var(--violet);color:#fff">Go Pro · ₹349/mo</button>' +
@@ -109,6 +128,7 @@ function openProPaywall(reason){
   modal.onclick = e => { if (e.target === modal) modal.remove(); };
 }
 
+/* ---------- RAZORPAY CHECKOUT ---------- */
 async function openRazorpayCheckout(plan){
   const toast = (m) => (window.toast ? window.toast(m) : console.log("[toast]", m));
   const openAuth = (m) => (window.openAuth ? window.openAuth(m) : null);
@@ -149,12 +169,8 @@ async function openRazorpayCheckout(plan){
     }
     const o = res.body;
     const rz = new Razorpay({
-      key: o.key_id,
-      amount: o.amount,
-      currency: o.currency,
-      order_id: o.order_id,
-      name: "Zyro",
-      description: label,
+      key: o.key_id, amount: o.amount, currency: o.currency, order_id: o.order_id,
+      name: "Zyro", description: label,
       prefill: { email: user.email || "" },
       theme: { color: "#7c5cff" },
       modal: { ondismiss: function(){ toast("Payment cancelled"); } },
@@ -176,8 +192,8 @@ async function openRazorpayCheckout(plan){
         .then(v => {
           if (v.ok && v.body && v.body.ok){
             pro = true;
-            TOTAL = 1000000;
-            showProModal(response.razorpay_payment_id);
+            TOTAL = 750000;
+            showProPopup(response.razorpay_payment_id);
           } else {
             toast("Verification failed — contact support");
           }
@@ -208,38 +224,79 @@ function boot(){
   const getCI = () => { try { return localStorage.getItem(CI) || ""; } catch(_) { return ""; } };
 
   const LIMITS = {
-    free: { tokens: 100000,  images: 3,  files: 1, fileSize: 8e6,  jsTimeout: 10000, pyTimeout: 60000  },
-    pro:  { tokens: 1000000, images: 15, files: 3, fileSize: 20e6, jsTimeout: 60000, pyTimeout: 180000 }
+    free: { tokens: 100000, images: 3,  files: 1, fileSize: 8e6,  jsTimeout: 10000, pyTimeout: 60000  },
+    pro:  { tokens: 750000, images: 15, files: 3, fileSize: 20e6, jsTimeout: 60000, pyTimeout: 180000 }
   };
   const L = () => LIMITS[pro ? "pro" : "free"];
 
+  /* ---------- DAILY COUNTERS ---------- */
   function getGen(){
     try {
       const d = JSON.parse(localStorage.getItem(GEN_KEY) || "null");
       const now = Date.now();
       if (!d || !d.reset || now - d.reset > GEN_RESET_MS){
-        const fresh = { count:0, reset:now };
+        const fresh = { studykit:0, flashcard:0, quiz:0, reset:now };
         try { localStorage.setItem(GEN_KEY, JSON.stringify(fresh)); } catch(_) {}
         return fresh;
       }
+      // migrate old shape
+      if (typeof d.count === "number" && d.studykit === undefined){
+        return { studykit: d.count, flashcard: 0, quiz: 0, reset: d.reset };
+      }
+      d.studykit = d.studykit || 0;
+      d.flashcard = d.flashcard || 0;
+      d.quiz = d.quiz || 0;
       return d;
-    } catch(_) { return { count:0, reset:Date.now() }; }
+    } catch(_) { return { studykit:0, flashcard:0, quiz:0, reset:Date.now() }; }
   }
   function saveGen(d){ try { localStorage.setItem(GEN_KEY, JSON.stringify(d)); } catch(_) {} }
-  function bumpGen(){ const d = getGen(); d.count += 1; saveGen(d); }
-  function genAllowed(){
-    if (pro) return true;
-    return getGen().count < FREE_GEN_LIMIT;
+  function bumpGen(kind){
+    const d = getGen();
+    d[kind] = (d[kind] || 0) + 1;
+    saveGen(d);
   }
-  function isStudyKitIntent(text){
-    if (!text) return false;
-    return /\b(study\s*kit|flash\s*cards?|flashcards?|quiz\s*me|make\s+(a\s+)?quiz|mock\s+paper|viva\s+practice|notes?\s*(to|→|->)\s*(flashcards?|quiz|cards))\b/i.test(text);
+  function genLeft(kind){
+    const cap = DAILY_LIMITS[pro ? "pro" : "free"][kind] || 0;
+    const d = getGen();
+    return Math.max(0, cap - (d[kind] || 0));
   }
-  function isProOnlyIntent(text){
-    if (!text) return false;
-    return /\b(mock\s+paper|full\s+mock|viva\s+practice)\b/i.test(text);
+  function genAllowed(kind){
+    const cap = DAILY_LIMITS[pro ? "pro" : "free"][kind] || 0;
+    const d = getGen();
+    return (d[kind] || 0) < cap;
+  }
+  function nextGenReset(){
+    const d = getGen();
+    const dt = new Date(d.reset + GEN_RESET_MS);
+    return String(dt.getHours()).padStart(2,"0") + ":" + String(dt.getMinutes()).padStart(2,"0");
   }
 
+  /* Intent detection */
+  function detectGenIntent(text){
+    if (!text) return null;
+    const s = String(text).toLowerCase();
+    if (/\b(mock\s*paper|full\s*mock|mock\s*test)\b/.test(s)) return "mock";
+    if (/\b(viva\s*practice|oral\s*exam)\b/.test(s)) return "viva";
+    if (/\b(study\s*kit|make\s+(me\s+)?(a\s+)?study)\b/.test(s)) return "studykit";
+    if (/\b(flash\s*cards?|flashcards?|cards?\s+for)\b/.test(s)) return "flashcard";
+    if (/\b(quiz\s*me|make\s+(a\s+)?quiz|test\s+me\s+on|mcqs?)\b/.test(s)) return "quiz";
+    if (/\bnotes?\s*(to|→|->)\s*(flashcards?|quiz|cards)\b/.test(s)) return "studykit";
+    return null;
+  }
+  function isStudyKitIntent(txt){ return !!detectGenIntent(txt); }
+  function isProOnlyIntent(txt){
+    const k = detectGenIntent(txt);
+    return k === "mock" || k === "viva";
+  }
+
+  function checkGenAllowed(kind){
+    if (pro) return true;
+    if (genAllowed(kind)) return true;
+    openProPaywall("limit", kind);
+    return false;
+  }
+
+  /* ---------- BUSY WATCHDOG ---------- */
   function armBusyWatchdog(){
     clearTimeout(busyWatchdog);
     busyWatchdog = setTimeout(function(){
@@ -253,6 +310,7 @@ function boot(){
   }
   function clearBusyWatchdog(){ clearTimeout(busyWatchdog); }
 
+  /* ---------- TOKENS ---------- */
   function getTokens(){
     try {
       const d = JSON.parse(localStorage.getItem(TOKEN_KEY) || "null");
@@ -285,7 +343,7 @@ function boot(){
     const tl = $("tLast");
     if (tl){ tl.textContent = "refills " + nextRefillTime(); }
     const tp2 = $("tPlan");
-    if (tp2) tp2.textContent = pro ? "PRO · 1M / 5h" : "Free · 100k / 5h";
+    if (tp2) tp2.textContent = pro ? "PRO · 750k / 5h" : "Free · 100k / 5h";
     const pp = $("profileTokenPct"); if (pp) pp.textContent = p + "%";
     const pr = $("profileTokenRefill"); if (pr) pr.textContent = "refills " + nextRefillTime();
     const pf = $("profileTokenFill"); if (pf) pf.style.width = pct + "%";
@@ -340,7 +398,7 @@ function boot(){
     { label:"Study kit", emoji:"📚", kind:"studykit" },
     { label:"Exam answer", emoji:"✍️", kind:"exam" },
     { label:"Mock paper", emoji:"🎯", kind:"mock", pro:true },
-    { label:"Viva", emoji:"🎤", kind:"viva", pro:true }
+    { label:"Viva", emoji:"🎤", kind:"viva", soon:true }
   ];
 
   const hiddenMode = $("mode");
@@ -402,175 +460,186 @@ function boot(){
       if (el && el !== keep) el.classList.remove("open");
     });
     const pb = $("plusBtn"); if (pb && keep !== $("actionsMenu")) pb.classList.remove("active");
-  }
-
-  const menu = $("menu"), scrim = $("scrim"), menuBtn = $("menuBtn");
-  function openMenu(){ menu.classList.add("on"); scrim.classList.add("on"); menuBtn.classList.add("active"); }
-  function closeMenu(){ menu.classList.remove("on"); scrim.classList.remove("on"); menuBtn.classList.remove("active"); }
-  if (menuBtn){
-    menuBtn.addEventListener("click", e => {
-      e.stopPropagation();
-      menu.classList.contains("on") ? closeMenu() : openMenu();
-    });
-  }
-  if (scrim) scrim.addEventListener("click", closeMenu);
-  if (menu) menu.addEventListener("click", e => { if (e.target === menu) e.stopPropagation(); });
-
-  if (menu) menu.querySelectorAll(".mi[data-mode]").forEach(b => {
-    b.addEventListener("click", e => {
-      e.stopPropagation();
-      setStudy(b.dataset.mode);
-      closeMenu();
-    });
-  });
-
-  if (menu) menu.querySelectorAll(".mi[data-tool]").forEach(b => {
-    b.addEventListener("click", e => {
-      e.stopPropagation();
-      const tool = b.dataset.tool;
-      closeMenu();
-      handleToolAction(tool);
-    });
-  });
-
-  function handleToolAction(tool){
-    if (tool === "snap"){ pendingKind = "snap"; $("img").click(); return; }
-    if (tool === "studykit" || tool === "notes"){
-      if (!checkGenAllowed()) return;
-      setStudy("Chat");
-      t.value = "Make me a study kit for: ";
-      t.dispatchEvent(new Event("input")); t.focus(); return;
-    }
-    if (tool === "exam"){ setStudy("Exam"); t.value = "Give me a proper exam answer (5 marks) for: "; t.dispatchEvent(new Event("input")); t.focus(); return; }
-    if (tool === "mock"){
-      if (!pro){ openProPaywall(); return; }
-      t.value = "Generate a full mock paper with marking scheme for: ";
-      t.dispatchEvent(new Event("input")); t.focus(); return;
-    }
-    if (tool === "viva"){
-      if (!pro){ openProPaywall(); return; }
-      setStudy("Socratic");
-      t.value = "Start viva practice on this topic. Ask one question at a time, grade each answer out of 5: ";
-      t.dispatchEvent(new Event("input")); t.focus(); return;
-    }
-  }
-
-  function checkGenAllowed(){
-    if (pro) return true;
-    if (genAllowed()) return true;
-    openProPaywall("limit");
-    return false;
-  }
-
-  const plusBtn = $("plusBtn"), actionsMenu = $("actionsMenu");
-  if (plusBtn && actionsMenu){
-    plusBtn.addEventListener("click", e => {
-      e.stopPropagation();
-      closeAllMenusExcept(actionsMenu);
-      actionsMenu.classList.toggle("open");
-      plusBtn.classList.toggle("active");
-    });
-    actionsMenu.querySelectorAll("button").forEach(b => {
-      b.addEventListener("click", e => {
-        e.stopPropagation();
-        actionsMenu.classList.remove("open");
-        plusBtn.classList.remove("active");
-        handleToolAction(b.dataset.action);
-      });
-    });
-  }
-
-  const themeToggle = $("themeToggle"), themeLabel = $("themeLabel");
-  if (themeToggle){
-    const root = document.documentElement;
-    themeToggle.addEventListener("click", e => {
-      e.stopPropagation();
-      const cur = root.getAttribute("data-theme") || "light";
-      const next = cur === "dark" ? "light" : "dark";
-      if (next === "dark") root.setAttribute("data-theme", "dark");
-      else root.removeAttribute("data-theme");
-      if (themeLabel) themeLabel.textContent = next === "dark" ? "Light mode" : "Dark mode";
-      try { localStorage.setItem("zyro_theme", next); } catch(_) {}
-    });
-    try {
-      const savedT = localStorage.getItem("zyro_theme");
-      if (savedT === "dark"){ root.setAttribute("data-theme", "dark"); if (themeLabel) themeLabel.textContent = "Light mode"; }
-    } catch(_) {}
-  }
-
-  ["newcBtn","newChatBtn"].forEach(id => {
-    const b = $(id);
-    if (b) b.addEventListener("click", newChat);
-  });
-
-  const chipsBox = $("chips");
-  if (chipsBox){
-    chipsBox.innerHTML = "";
-    QUICK.forEach(item => {
-      const b = document.createElement("button");
-      b.type = "button";
-      let html = '<span class="em">' + item.emoji + '</span>' + item.label;
-      if (item.pro) html += ' <span class="mini-pro">PRO</span>';
-      b.innerHTML = html;
-      if (item.pro) b.dataset.pro = "1";
-      b.addEventListener("click", () => handleToolAction(item.kind));
-      chipsBox.appendChild(b);
-    });
-  }
-
-  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  const micBtn = $("micBtn");
-  let recog = null, listening = false;
-  if (SR && micBtn){
-    micBtn.style.display = "grid";
-    micBtn.addEventListener("click", () => {
-      if (listening){ try { recog.stop(); } catch(_) {} return; }
-      try {
-        recog = new SR();
-        recog.lang = "en-IN";
-        recog.interimResults = true;
-        recog.continuous = false;
-        let base = t.value ? t.value + " " : "";
-        recog.onstart = () => { listening = true; micBtn.classList.add("rec"); };
-        recog.onend = () => { listening = false; micBtn.classList.remove("rec"); };
-        recog.onerror = () => { listening = false; micBtn.classList.remove("rec"); };
-        recog.onresult = e => {
-          let text = "";
-          for (let i = e.resultIndex; i < e.results.length; i++){
-            text += e.results[i][0].transcript;
-          }
-          t.value = base + text;
-          t.dispatchEvent(new Event("input"));
-        };
-        recog.start();
-      } catch(_) { toast("Voice not supported here"); }
-    });
-  }
-
-  const EYE_OPEN = '<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/>';
-  const EYE_OFF = '<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/>';
-  { const eye = $("amEye"), icon = $("amEyeIcon"), pw = $("amPw");
-    if (eye && icon && pw){
-      eye.addEventListener("click", function(e){
-        e.preventDefault();
-        const showing = pw.type === "text";
-        pw.type = showing ? "password" : "text";
-        icon.innerHTML = showing ? EYE_OPEN : EYE_OFF;
-      });
-    }
-  }
-
-  function sbClient(){
-    if (!SUPABASE_URL) return Promise.resolve(null);
-    if (sb) return Promise.resolve(sb);
-    if (!sbP) sbP = loadJS("https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2").then(() => {
-      sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-      return sb;
-    });
-    return sbP;
-     }
+}
    
-/* ---------- RENDER ACCOUNT ---------- */
+/* ---------- MENU ---------- */
+const menu = $("menu"), scrim = $("scrim"), menuBtn = $("menuBtn");
+function openMenu(){ menu.classList.add("on"); scrim.classList.add("on"); menuBtn.classList.add("active"); }
+function closeMenu(){ menu.classList.remove("on"); scrim.classList.remove("on"); menuBtn.classList.remove("active"); }
+if (menuBtn){
+  menuBtn.addEventListener("click", e => {
+    e.stopPropagation();
+    menu.classList.contains("on") ? closeMenu() : openMenu();
+  });
+}
+if (scrim) scrim.addEventListener("click", closeMenu);
+if (menu) menu.addEventListener("click", e => { if (e.target === menu) e.stopPropagation(); });
+
+if (menu) menu.querySelectorAll(".mi[data-mode]").forEach(b => {
+  b.addEventListener("click", e => {
+    e.stopPropagation();
+    setStudy(b.dataset.mode);
+    closeMenu();
+  });
+});
+
+if (menu) menu.querySelectorAll(".mi[data-tool]").forEach(b => {
+  b.addEventListener("click", e => {
+    e.stopPropagation();
+    const tool = b.dataset.tool;
+    closeMenu();
+    handleToolAction(tool);
+  });
+});
+
+function handleToolAction(tool){
+  if (tool === "snap"){ pendingKind = "snap"; $("img").click(); return; }
+  if (tool === "studykit"){
+    if (!checkGenAllowed("studykit")) return;
+    setStudy("Chat");
+    t.value = "Make me a study kit for: ";
+    t.dispatchEvent(new Event("input")); t.focus(); return;
+  }
+  if (tool === "flashcard"){
+    if (!checkGenAllowed("flashcard")) return;
+    setStudy("Chat");
+    t.value = "Make flashcards for: ";
+    t.dispatchEvent(new Event("input")); t.focus(); return;
+  }
+  if (tool === "quiz"){
+    if (!checkGenAllowed("quiz")) return;
+    setStudy("Chat");
+    t.value = "Quiz me on: ";
+    t.dispatchEvent(new Event("input")); t.focus(); return;
+  }
+  if (tool === "exam"){ setStudy("Exam"); t.value = "Give me a proper exam answer (5 marks) for: "; t.dispatchEvent(new Event("input")); t.focus(); return; }
+  if (tool === "mock"){
+    if (!pro){ openProPaywall("feature"); return; }
+    t.value = "Generate a full mock paper with marking scheme for: ";
+    t.dispatchEvent(new Event("input")); t.focus(); return;
+  }
+  if (tool === "viva"){
+    toast("Viva practice is coming soon");
+    return;
+  }
+}
+
+const plusBtn = $("plusBtn"), actionsMenu = $("actionsMenu");
+if (plusBtn && actionsMenu){
+  plusBtn.addEventListener("click", e => {
+    e.stopPropagation();
+    closeAllMenusExcept(actionsMenu);
+    actionsMenu.classList.toggle("open");
+    plusBtn.classList.toggle("active");
+  });
+  actionsMenu.querySelectorAll("button").forEach(b => {
+    b.addEventListener("click", e => {
+      e.stopPropagation();
+      actionsMenu.classList.remove("open");
+      plusBtn.classList.remove("active");
+      if (b.dataset.soon){ toast("Viva practice is coming soon"); return; }
+      handleToolAction(b.dataset.action);
+    });
+  });
+}
+
+const themeToggle = $("themeToggle"), themeLabel = $("themeLabel");
+if (themeToggle){
+  const root = document.documentElement;
+  themeToggle.addEventListener("click", e => {
+    e.stopPropagation();
+    const cur = root.getAttribute("data-theme") || "light";
+    const next = cur === "dark" ? "light" : "dark";
+    if (next === "dark") root.setAttribute("data-theme", "dark");
+    else root.removeAttribute("data-theme");
+    if (themeLabel) themeLabel.textContent = next === "dark" ? "Light mode" : "Dark mode";
+    try { localStorage.setItem("zyro_theme", next); } catch(_) {}
+  });
+  try {
+    const savedT = localStorage.getItem("zyro_theme");
+    if (savedT === "dark"){ root.setAttribute("data-theme", "dark"); if (themeLabel) themeLabel.textContent = "Light mode"; }
+  } catch(_) {}
+}
+
+["newcBtn","newChatBtn"].forEach(id => {
+  const b = $(id);
+  if (b) b.addEventListener("click", newChat);
+});
+
+/* ---------- CHIPS ---------- */
+const chipsBox = $("chips");
+if (chipsBox){
+  chipsBox.innerHTML = "";
+  QUICK.forEach(item => {
+    const b = document.createElement("button");
+    b.type = "button";
+    let html = '<span class="em">' + item.emoji + '</span>' + item.label;
+    if (item.pro) html += ' <span class="mini-pro">PRO</span>';
+    if (item.soon) html += ' <span class="mini-soon">SOON</span>';
+    b.innerHTML = html;
+    if (item.pro) b.dataset.pro = "1";
+    if (item.soon) b.dataset.soon = "1";
+    b.addEventListener("click", () => {
+      if (item.soon){ toast("Viva practice is coming soon"); return; }
+      handleToolAction(item.kind);
+    });
+    chipsBox.appendChild(b);
+  });
+}
+
+/* ---------- VOICE ---------- */
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+const micBtn = $("micBtn");
+let recog = null, listening = false;
+if (SR && micBtn){
+  micBtn.style.display = "grid";
+  micBtn.addEventListener("click", () => {
+    if (listening){ try { recog.stop(); } catch(_) {} return; }
+    try {
+      recog = new SR();
+      recog.lang = "en-IN";
+      recog.interimResults = true;
+      recog.continuous = false;
+      let base = t.value ? t.value + " " : "";
+      recog.onstart = () => { listening = true; micBtn.classList.add("rec"); };
+      recog.onend = () => { listening = false; micBtn.classList.remove("rec"); };
+      recog.onerror = () => { listening = false; micBtn.classList.remove("rec"); };
+      recog.onresult = e => {
+        let text = "";
+        for (let i = e.resultIndex; i < e.results.length; i++){
+          text += e.results[i][0].transcript;
+        }
+        t.value = base + text;
+        t.dispatchEvent(new Event("input"));
+      };
+      recog.start();
+    } catch(_) { toast("Voice not supported here"); }
+  });
+}
+
+const EYE_OPEN = '<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/>';
+const EYE_OFF = '<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/>';
+{ const eye = $("amEye"), icon = $("amEyeIcon"), pw = $("amPw");
+  if (eye && icon && pw){
+    eye.addEventListener("click", function(e){
+      e.preventDefault();
+      const showing = pw.type === "text";
+      pw.type = showing ? "password" : "text";
+      icon.innerHTML = showing ? EYE_OPEN : EYE_OFF;
+    });
+  }
+}
+
+function sbClient(){
+  if (!SUPABASE_URL) return Promise.resolve(null);
+  if (sb) return Promise.resolve(sb);
+  if (!sbP) sbP = loadJS("https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2").then(() => {
+    sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    return sb;
+  });
+  return sbP;
+}
+
 function renderAcct(){
   const ava = $("acctAva"), em = $("acctEmail");
   if (ava) ava.textContent = user ? (user.email || "Z").toUpperCase()[0] : "?";
@@ -599,7 +668,7 @@ function renderProfile(){
   if (em) em.textContent = user ? (user.email || "") : "Not signed in";
   if (meta) meta.textContent = user ? ("Signed in" + (pro ? " · Pro" : " · Free")) : "Sign in to sync across devices";
   const pn = $("profilePlanName"); if (pn) pn.textContent = pro ? "Pro" : "Free";
-  const pl = $("profilePlanLimit"); if (pl) pl.textContent = pro ? "1M tokens / 5h" : "100k tokens / 5h";
+  const pl = $("profilePlanLimit"); if (pl) pl.textContent = pro ? "750k tokens / 5h" : "100k tokens / 5h";
   paintBar();
 }
 
@@ -621,15 +690,9 @@ if (acctUpgrade){
   });
 }
 
-/* ---------- PROFILE PANEL ---------- */
 const profilePanel = $("profilePanel");
-function openProfile(){
-  renderProfile();
-  if (profilePanel) profilePanel.classList.add("on");
-}
-function closeProfile(){
-  if (profilePanel) profilePanel.classList.remove("on");
-}
+function openProfile(){ renderProfile(); if (profilePanel) profilePanel.classList.add("on"); }
+function closeProfile(){ if (profilePanel) profilePanel.classList.remove("on"); }
 { const cp = $("closeProfile"); if (cp) cp.addEventListener("click", closeProfile); }
 { const pu = $("profileUpgradeBtn"); if (pu) pu.addEventListener("click", () => { closeProfile(); openRazorpayCheckout("monthly"); }); }
 { const so = $("profileSignOut"); if (so) so.addEventListener("click", async () => {
@@ -641,7 +704,7 @@ function closeProfile(){
     toast("Signed out");
 }); }
 
-/* ---------- AUTH MODAL ---------- */
+/* ---------- AUTH ---------- */
 let authMode = "signin";
 function setAuthMode(m){
   authMode = m;
@@ -774,7 +837,7 @@ async function afterSignIn(){
   else { renderAcct(); renderProfile(); }
 })();
 
-/* ---------- CHAT LIST + DROPDOWN ---------- */
+/* ---------- CHAT LIST ---------- */
 try { chats = JSON.parse(localStorage.getItem(CK) || "[]"); } catch(_) { chats = []; }
 
 function save(){
@@ -809,9 +872,7 @@ function renderList(){
     const d = document.createElement("button");
     d.type = "button";
     d.className = "chat-item";
-    d.innerHTML =
-      '<b>' + esc(c.title || "Untitled") + '</b>' +
-      '<small>' + fmtDate(c.ts) + '</small>';
+    d.innerHTML = '<b>' + esc(c.title || "Untitled") + '</b><small>' + fmtDate(c.ts) + '</small>';
     d.addEventListener("click", e => { e.stopPropagation(); openChat(c.id); closeMenu(); });
     l.appendChild(d);
   });
@@ -832,11 +893,7 @@ function renderList(){
   if (user){
     try {
       const s = await sbClient();
-      if (s){
-        for (const c of toDelete){
-          await s.from("chats").delete().eq("id", c.id);
-        }
-      }
+      if (s){ for (const c of toDelete){ await s.from("chats").delete().eq("id", c.id); } }
     } catch(_) {}
   }
   if (toDelete.find(c => c === cur)){ cur = null; hist = []; log.innerHTML = ""; log.classList.remove("on"); const hero = $("hero"); if (hero) hero.classList.remove("hide"); }
@@ -868,7 +925,7 @@ function openChat(id){
       const tl = d.querySelector(".think-live"); if (tl) tl.remove();
       setH(d.querySelector(".body"), md(m.content));
       const kit = parseStudyKit(m.content);
-      if (kit.notes || kit.cards.length || kit.quiz.length || kit.exam){
+      if (kit.notes || kit.cards.length || kit.quiz.length){
         const ln = document.createElement("div");
         ln.innerHTML = launcherHTML(kit);
         const lc = ln.firstElementChild;
@@ -1015,7 +1072,6 @@ function liteMd(src){
   return h;
 }
 
-/* ---------- MESSAGES ---------- */
 function fillBubble(b, txt2, names, imgs, nimg){
   b.textContent = txt2;
   if (imgs && imgs.length){
@@ -1128,10 +1184,9 @@ function copy(txt2, btn){
    
   /* ---------- STUDY KIT PARSER ---------- */
   function parseStudyKit(text){
-    const kit = { notes:"", cards:[], quiz:[], exam:"", examKeyTerms:"", mock:false, viva:false };
+    const kit = { notes:"", cards:[], quiz:[] };
     if (!text) return kit;
 
-    // Accept multiple header variants
     const notesM = text.match(/(?:^|\n)#{1,3}\s*(?:📖\s*)?Notes\s*\n([\s\S]*?)(?=\n#{1,3}\s*(?:🎴|📝|Flashcards|Quiz)|$)/i);
     if (notesM) kit.notes = notesM[1].trim();
 
@@ -1151,14 +1206,6 @@ function copy(txt2, btn){
       }
     }
 
-    const ansM = text.match(/\*\*Answer:\*\*\s*([\s\S]*?)(?=\n\*\*Key terms:|\n\n---|\n\n##|$)/i);
-    if (ansM) kit.exam = ansM[1].trim();
-    const keyM = text.match(/\*\*Key terms:?\*\*\s*([\s\S]*?)(?=\n\n|$)/i);
-    if (keyM) kit.examKeyTerms = keyM[1].trim();
-
-    if (/mock paper|Section A|Section B|marking scheme/i.test(text)) kit.mock = true;
-    if (/viva|oral exam/i.test(text)) kit.viva = true;
-
     return kit;
   }
 
@@ -1167,8 +1214,6 @@ function copy(txt2, btn){
     if (kit.notes) parts += '<span class="kpart">Notes</span>';
     if (kit.cards.length) parts += '<span class="kpart">' + kit.cards.length + ' cards</span>';
     if (kit.quiz.length) parts += '<span class="kpart">' + kit.quiz.length + ' quiz</span>';
-    if (kit.exam) parts += '<span class="kpart">Exam</span>';
-    parts += '<span class="kpart" data-pro>Mock</span><span class="kpart" data-pro>Viva</span>';
 
     let title = "Study Kit";
     if (kit.notes && !kit.cards.length && !kit.quiz.length) title = "Notes Ready";
@@ -1192,18 +1237,10 @@ function copy(txt2, btn){
     if (btn) btn.addEventListener("click", () => openStudyPanel(kit));
   }
 
-  function emptyPanel(emoji, title, sub, btnLabel, onClick){
-    let h = '<div class="empty-panel">' +
-      '<div class="ep-ic" style="font-size:24px">' + emoji + '</div>' +
+  function emptyPanelHTML(emoji, title, sub){
+    return '<div class="ep-ic">' + emoji + '</div>' +
       '<h3>' + esc(title) + '</h3>' +
       '<p>' + esc(sub) + '</p>';
-    if (btnLabel) h += '<button type="button" data-empty-action>' + esc(btnLabel) + '</button>';
-    h += '</div>';
-    setTimeout(() => {
-      const b = document.querySelector('.empty-panel [data-empty-action]');
-      if (b && onClick) b.addEventListener("click", onClick);
-    }, 0);
-    return h;
   }
 
   /* ---------- STUDY PANEL ---------- */
@@ -1221,19 +1258,22 @@ function copy(txt2, btn){
     const notesEl = panel.querySelector('[data-pcontent="notes"]');
     if (notesEl){
       if (kit.notes){
+        notesEl.classList.remove("empty-panel");
         notesEl.innerHTML =
           '<p class="p-eyebrow">Revision notes</p>' +
           '<h2 class="p-title">Quick <em>revision</em></h2>' +
           '<p class="p-sub">Everything you actually need. No fluff.</p>' +
           '<div class="notes">' + txt(kit.notes) + '</div>';
       } else {
-        notesEl.innerHTML = emptyPanel("📝", "No notes in this kit", "Ask Zyro to 'make me a study kit' for notes + cards + quiz.");
+        notesEl.classList.add("empty-panel");
+        notesEl.innerHTML = emptyPanelHTML("📝", "No notes in this kit", "Ask Zyro to 'make me a study kit' for notes + cards + quiz.");
       }
     }
 
     const cardsEl = panel.querySelector('[data-pcontent="cards"]');
     if (cardsEl){
       if (kit.cards.length){
+        cardsEl.classList.remove("empty-panel");
         let html = '<p class="p-eyebrow">Flashcards</p><h2 class="p-title">Tap to <em>reveal</em></h2><p class="p-sub">' + kit.cards.length + ' cards. Try answering before you flip.</p><div class="cards">';
         kit.cards.forEach((c, i) => {
           const num = String(i+1).padStart(2, "0");
@@ -1250,13 +1290,15 @@ function copy(txt2, btn){
         cardsEl.innerHTML = html;
         cardsEl.querySelectorAll(".card").forEach(c => c.addEventListener("click", () => c.classList.toggle("open")));
       } else {
-        cardsEl.innerHTML = emptyPanel("🃏", "No flashcards", "Ask Zyro for a study kit to generate flashcards from any topic.");
+        cardsEl.classList.add("empty-panel");
+        cardsEl.innerHTML = emptyPanelHTML("🃏", "No flashcards", "Ask Zyro for a study kit to generate flashcards from any topic.");
       }
     }
 
     const quizEl = panel.querySelector('[data-pcontent="quiz"]');
     if (quizEl){
       if (kit.quiz.length){
+        quizEl.classList.remove("empty-panel");
         let html = '<p class="p-eyebrow">Pop quiz</p><h2 class="p-title">Let\'s <em>test</em> it</h2><p class="p-sub">' + kit.quiz.length + ' questions. Tap an option to check.</p><div class="quiz">';
         kit.quiz.forEach((q, i) => {
           const num = "Q" + (i+1);
@@ -1265,7 +1307,7 @@ function copy(txt2, btn){
             '<div class="opts">';
           ["A","B","C","D"].forEach((Ltr, j) => {
             const isCorrect = Ltr === q.ans;
-            html += '<button class="opt' + (isCorrect ? ' correct' : '') + '" type="button" data-correct="' + (isCorrect ? '1' : '0') + '"><span class="lt">' + Ltr + '</span>' + esc(q.opts[j]) + '</button>';
+            html += '<button class="opt" type="button" data-correct="' + (isCorrect ? '1' : '0') + '"><span class="lt">' + Ltr + '</span>' + esc(q.opts[j]) + '</button>';
           });
           html += '</div>';
           if (q.ex) html += '<div class="quiz-exp">' + esc(q.ex) + '</div>';
@@ -1273,61 +1315,31 @@ function copy(txt2, btn){
         });
         html += '</div>';
         quizEl.innerHTML = html;
-        quizEl.querySelectorAll(".opt").forEach(o => {
-          o.addEventListener("click", () => {
-            const wrap = o.parentElement;
-            wrap.querySelectorAll(".opt").forEach(x => x.classList.remove("wrong"));
-            o.parentElement.parentElement.classList.add("revealed");
-            if (o.dataset.correct !== "1") o.classList.add("wrong");
+
+        // Quiz interaction — always highlight correct answer
+        quizEl.querySelectorAll(".quiz-item").forEach(item => {
+          const opts = item.querySelectorAll(".opt");
+          opts.forEach(o => {
+            o.addEventListener("click", () => {
+              if (item.classList.contains("revealed")) return;
+              item.classList.add("revealed");
+              opts.forEach(x => {
+                if (x.dataset.correct === "1") x.classList.add("correct");
+                else if (x === o) x.classList.add("wrong");
+              });
+            });
           });
         });
       } else {
-        quizEl.innerHTML = emptyPanel("🎯", "No quiz", "Ask Zyro for a study kit and it'll generate MCQs with answers.");
+        quizEl.classList.add("empty-panel");
+        quizEl.innerHTML = emptyPanelHTML("🎯", "No quiz", "Ask Zyro for a study kit and it'll generate MCQs with answers.");
       }
     }
 
-    const examEl = panel.querySelector('[data-pcontent="exam"]');
-    if (examEl){
-      if (kit.exam){
-        examEl.innerHTML =
-          '<p class="p-eyebrow">Exam answer</p>' +
-          '<h2 class="p-title">Marks-ready <em>answer</em></h2>' +
-          '<p class="p-sub">Write it down like this. You\'re sorted.</p>' +
-          '<span class="exam-marks"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l2 7h7l-5.5 4 2 7L12 16l-5.5 4 2-7L3 9h7z"/></svg>Marks-ready</span>' +
-          '<div class="notes">' + txt(kit.exam) + '</div>' +
-          (kit.examKeyTerms ? '<div class="key-terms" style="margin-top:16px"><div class="ktl">Key terms</div><div class="key-terms-row">' + kit.examKeyTerms.split(/[,;]/).map(s => '<span class="term">' + esc(s.trim()) + '</span>').join("") + '</div></div>' : "");
-      } else {
-        examEl.innerHTML = emptyPanel("✍️", "No exam answer", "Ask Zyro for a study kit or click the Exam answer chip.");
-      }
-    }
-
-    const mockEl = panel.querySelector('[data-pcontent="mock"]');
-    if (mockEl){
-      mockEl.innerHTML = pro
-        ? emptyPanel("📄", "Generate a mock paper", "Full exam with marking scheme. Tap below to generate one.", "Generate mock paper", () => {
-            closePanel();
-            t.value = "Generate a full mock paper with marking scheme for: ";
-            t.dispatchEvent(new Event("input")); t.focus();
-          })
-        : emptyPanel("⭐", "Mock paper is a Pro feature", "Upgrade to generate full mock papers with marking schemes.", "Go Pro · ₹349/mo", () => { closePanel(); openRazorpayCheckout("monthly"); });
-    }
-
-    const vivaEl = panel.querySelector('[data-pcontent="viva"]');
-    if (vivaEl){
-      vivaEl.innerHTML = pro
-        ? emptyPanel("🎤", "Start viva practice", "One question at a time, graded out of 5. Great for oral exams.", "Start viva practice", () => {
-            closePanel();
-            setStudy("Socratic");
-            t.value = "Start viva practice on this topic. Ask one question at a time, grade each answer out of 5, and give short feedback: ";
-            t.dispatchEvent(new Event("input")); t.focus();
-          })
-        : emptyPanel("⭐", "Viva practice is a Pro feature", "Upgrade to practice viva with voice Q&A and get scored.", "Go Pro · ₹349/mo", () => { closePanel(); openRazorpayCheckout("monthly"); });
-    }
-
+    // Choose target tab
     let targetTab = "notes";
     if (!kit.notes && kit.cards.length) targetTab = "cards";
     if (!kit.notes && !kit.cards.length && kit.quiz.length) targetTab = "quiz";
-    if (!kit.notes && !kit.cards.length && !kit.quiz.length && kit.exam) targetTab = "exam";
     panel.querySelectorAll(".ptab").forEach(x => x.classList.toggle("active", x.dataset.ptab === targetTab));
     panel.querySelectorAll(".pcontent").forEach(x => x.classList.toggle("on", x.dataset.pcontent === targetTab));
 
@@ -1353,7 +1365,7 @@ function copy(txt2, btn){
   }
   { const cp = $("closePanel"); if (cp) cp.addEventListener("click", closePanel); }
 
-  /* ---------- WORKER STREAM (with stall watchdog) ---------- */
+  /* ---------- WORKER STREAM ---------- */
   async function workerStream(messages, onText, signal, fast, onThought, search){
     let r;
     try {
@@ -1473,19 +1485,21 @@ function copy(txt2, btn){
 
     const isFileKit = (pendingKind === "notes" || pendingKind === "studykit") && files.length;
     const isSnap = pendingKind === "snap" && imgs.length;
-    const studyIntent = isStudyKitIntent(text);
-    const proIntent = isProOnlyIntent(text);
+    const intent = detectGenIntent(text);
+    const proIntent = (intent === "mock" || intent === "viva");
 
     if (proIntent && !pro){
       pending = []; pendingKind = null; renderAtts();
-      openProPaywall();
+      if (intent === "viva"){ toast("Viva is coming soon"); return; }
+      openProPaywall("feature");
       return;
     }
 
-    if ((studyIntent || isFileKit) && !pro){
-      if (!genAllowed()){
+    if ((intent === "studykit" || intent === "flashcard" || intent === "quiz" || isFileKit) && !pro){
+      const kind = isFileKit ? "studykit" : intent;
+      if (!genAllowed(kind)){
         pending = []; pendingKind = null; renderAtts();
-        openProPaywall("limit");
+        openProPaywall("limit", kind);
         return;
       }
     }
@@ -1498,7 +1512,7 @@ function copy(txt2, btn){
         "## 📝 Quiz\n5 MCQs. Each EXACTLY:\nQ: [question]\nA) [option]\nB) [option]\nC) [option]\nD) [option]\nAns: [A/B/C/D]\nEx: [one-line explanation]";
       const full = base + files.map(f => "\n\n--- " + f.name + " ---\n" + f.text).join("");
       pending = []; pendingKind = null; renderAtts();
-      if (!pro) bumpGen();
+      if (!pro) bumpGen("studykit");
       return run("Study kit from " + files[0].name, full, files.map(f => f.name), imgs);
     }
 
@@ -1514,7 +1528,7 @@ function copy(txt2, btn){
     const show = text.trim() || (imgs.length && !files.length ? "Describe this image." : imgs.length ? "Review the attached files." : "Review the attached file.");
     const full = show + files.map(f => "\n\n--- " + f.name + " ---\n" + f.text).join("");
     pending = []; pendingKind = null; renderAtts();
-    if (studyIntent && !pro) bumpGen();
+    if (!pro && intent && intent !== "mock" && intent !== "viva") bumpGen(intent);
     return run(show, full, files.map(f => f.name), imgs);
   }
 
@@ -1532,10 +1546,9 @@ function copy(txt2, btn){
     const d = getTokens();
     const pct = Math.min(100, Math.round((d.used / TOTAL) * 100));
     const planLine = pro ? "Pro" : "Free";
-    const limitLine = pro ? "1,000,000 (1M)" : "100,000 (100k)";
-    const studyIntent = isStudyKitIntent(t.value);
-    const proIntent = isProOnlyIntent(t.value);
-    const isGenRequest = studyIntent || proIntent;
+    const limitLine = pro ? "750,000 (750k)" : "100,000 (100k)";
+    const intent = detectGenIntent(t.value);
+    const isGenRequest = !!intent;
 
     let sys = "";
 
@@ -1543,77 +1556,42 @@ function copy(txt2, btn){
       sys += "⚡ STRUCTURED OUTPUT MODE ⚡\n";
       sys += "Output ONLY the sections below. NO preamble, NO 'here you go', NO closing, NO extra commentary, NO alternative headings.\n\n";
 
-      if (studyIntent && !proIntent){
+      if (intent === "studykit"){
         sys +=
           "OUTPUT EXACTLY THIS STRUCTURE:\n\n" +
-          "## 📖 Notes\n" +
-          "[5-8 short paragraphs. Bold key terms with **term**.]\n\n" +
+          "## 📖 Notes\n[5-8 short paragraphs. Bold key terms with **term**.]\n\n" +
           "## 🎴 Flashcards\n" +
-          "F: [front]\n" +
-          "B: [back]\n" +
-          "F: [next front]\n" +
-          "B: [next back]\n" +
-          "[12 cards total. Keep F:/B: pairs tight. NO numbering.]\n\n" +
+          "F: [front]\nB: [back]\nF: [next front]\nB: [next back]\n[12 cards total. NO numbering.]\n\n" +
           "## 📝 Quiz\n" +
-          "Q: [question]\n" +
-          "A) [option]\n" +
-          "B) [option]\n" +
-          "C) [option]\n" +
-          "D) [option]\n" +
-          "Ans: [A/B/C/D]\n" +
-          "Ex: [one line]\n" +
-          "[5 questions total]\n\n" +
-          "CRITICAL RULES:\n" +
-          "- Section headers must be EXACTLY: '## 📖 Notes', '## 🎴 Flashcards', '## 📝 Quiz'.\n" +
-          "- Never write 'Study Kit', 'Comprehensive', 'Introduction', or any heading other than those three.\n" +
-          "- NO LaTeX. Plain text math only (e.g. 'x = u cos θ t', '1/2 gt²').\n" +
-          "- If a file is attached, use ONLY that file's content. Skip topics not in the file.\n" +
-          "- After the last quiz, STOP. Nothing more.\n\n";
-      }
-
-      if (proIntent){
+          "Q: [question]\nA) [option]\nB) [option]\nC) [option]\nD) [option]\nAns: [A/B/C/D]\nEx: [one line]\n[5 questions total]\n\n" +
+          "RULES:\n- Headers EXACTLY: '## 📖 Notes', '## 🎴 Flashcards', '## 📝 Quiz'.\n- NO other headings.\n- NO LaTeX. Plain text math.\n- After last quiz, STOP.\n\n";
+      } else if (intent === "flashcard"){
         sys +=
-          "OUTPUT FORMAT:\n" +
-          "**Mock Paper — [topic]**\n" +
-          "**Time:** [X min] · **Total Marks:** [N]\n\n" +
-          "**Section A — [X × marks]**\n1. [q]\n2. [q]\n\n" +
-          "**Section B — [X × marks]**\n...\n\n" +
-          "**Section C — [X × marks]**\n...\n\n" +
-          "---\n**Marking Scheme**\n1. [brief answer]\n2. ...\n\n" +
-          "NO preamble, NO closing. Plain text math (no LaTeX).\n\n";
+          "OUTPUT EXACTLY:\n\n## 🎴 Flashcards\n" +
+          "F: [front]\nB: [back]\n[12 cards total. NO numbering. NO notes, no quiz. Just cards.]\n\n" +
+          "After last card, STOP.\n\n";
+      } else if (intent === "quiz"){
+        sys +=
+          "OUTPUT EXACTLY:\n\n## 📝 Quiz\n" +
+          "Q: [question]\nA) [option]\nB) [option]\nC) [option]\nD) [option]\nAns: [A/B/C/D]\nEx: [one line]\n[5 questions]\n\n" +
+          "After last quiz, STOP.\n\n";
       }
     }
 
     sys +=
       "You are Zyro — a 17-year-old Indian student's AI study buddy. " +
       "Talk like a smart older brother: casual, warm, direct. Never a teacher. Never formal.\n\n" +
-
       "TONE RULES:\n" +
       "- Use contractions. Say 'yeah', 'gonna', 'honestly', 'lowkey', 'tbh' — natural, not forced.\n" +
       "- Short sentences. Get to the point.\n" +
-      "- NEVER say: 'Sure!', 'Great question!', 'Here you go', 'I'd be happy to', 'Let me know if', 'Hope this helps', 'As an AI', 'Sure thing'.\n" +
-      "- NEVER lecture, moralise, or over-explain.\n" +
-      "- Match their energy. Stressed → calm. Casual → casual.\n" +
+      "- NEVER say: 'Sure!', 'Great question!', 'Here you go', 'I'd be happy to', 'Let me know if', 'Hope this helps', 'As an AI'.\n" +
       "- Banned words: 'delve', 'utilize', 'furthermore', 'moreover', 'comprehensive', 'in conclusion'.\n\n" +
-
-      "EFFICIENCY:\n" +
-      "- NO preambles. NO closings. NO restating the question.\n" +
-      "- If unsure about a fact, say so in one line. Never invent formulas or citations.\n" +
-      "- Under 300 words unless asked for more.\n\n" +
-
+      "EFFICIENCY:\n- NO preambles. NO closings. NO restating.\n- If unsure, say so in one line. Never invent.\n- Under 300 words unless asked for more.\n\n" +
       "USER: Plan=" + planLine + ", Limit=" + limitLine + "/5h, Used=" + d.used + " (" + pct + "%)\n\n" +
-
       "CREATOR (only if asked): Debasish Singha, 17, Assam. Never bring up unprompted.\n\n" +
-
-      "FORMAT:\n" +
-      "- Markdown. Code in fenced blocks with language tag (close the fence).\n" +
-      "- For regular chat (not study kits): LaTeX allowed as $inline$ or $$display$$.\n" +
-      "- Greeting → ONE short friendly sentence. No feature list.\n\n" +
-
-      "Vague topics (like 'science') → ask them to pick a specific question. Don't dump.\n\n" +
-
-      "BUILD WEBSITES: ONE complete self-contained HTML file in a ```html block. Real CSS in <style>, JS in <script>. Real content only. Photos: https://picsum.photos/seed/UNIQUEWORD/600/800. Responsive, 150+ lines. Close the fence.\n\n" +
-
+      "FORMAT:\n- Markdown. Code in fenced blocks with language tag (close the fence).\n- For regular chat: LaTeX allowed as $inline$ or $$display$$.\n- Greeting → ONE short friendly sentence.\n\n" +
+      "Vague topics ('science') → ask them to pick a specific question.\n\n" +
+      "BUILD WEBSITES: ONE complete self-contained HTML file in a ```html block. Photos: https://picsum.photos/seed/UNIQUEWORD/600/800. 150+ lines. Close the fence.\n\n" +
       (STUDY[$("study").value] || "") +
       (getCI() ? "\n\nUser's custom instructions: " + getCI().slice(0, 800) : "") +
       "\n\nToday: " + new Date().toLocaleDateString("en", { weekday: "long", year: "numeric", month: "long", day: "numeric" }) + ".";
@@ -1650,16 +1628,14 @@ function copy(txt2, btn){
     let hadThought = false;
     const onThought = th => { hadThought = true; thinkUpdate(d, th); };
 
-    let lastRender = 0;
-    let lastText = "";
+    let lastRender = 0, lastText = "";
     const emit = x => {
       c.write();
       if (x === lastText) return;
       const now = performance.now();
       const throttle = x.length > 6000 ? 300 : 140;
       if (now - lastRender > throttle){
-        lastRender = now;
-        lastText = x;
+        lastRender = now; lastText = x;
         setH(body, withCaret(liteMd(x)));
         down();
       }
@@ -1690,7 +1666,7 @@ function copy(txt2, btn){
       thinkFinish(d, secs, hadThought);
 
       const kit = parseStudyKit(out);
-      if (kit.notes || kit.cards.length || kit.quiz.length || kit.exam){
+      if (kit.notes || kit.cards.length || kit.quiz.length){
         const ln = document.createElement("div");
         ln.innerHTML = launcherHTML(kit);
         const lc = ln.firstElementChild;
@@ -1731,7 +1707,7 @@ function copy(txt2, btn){
     busy = false; ctrl = null; clearBusyWatchdog(); setGo(false); syncPill(); down();
   }
 
-  /* ---------- LOG CLICK ACTIONS ---------- */
+  /* ---------- LOG CLICK ---------- */
   log.addEventListener("click", e => {
     const vw = e.target.closest("[data-v]");
     if (vw){
@@ -1741,8 +1717,7 @@ function copy(txt2, btn){
       return;
     }
     const rb = e.target.closest("[data-run]"); if (rb){ runCode(rb.closest(".cb"), rb.dataset.run, rb); return; }
-    const cb = e.target.closest("[data-c]");
-    if (cb){ copy(cb.closest(".cb").querySelector("pre").textContent, cb); return; }
+    const cb = e.target.closest("[data-c]"); if (cb){ copy(cb.closest(".cb").querySelector("pre").textContent, cb); return; }
     const pv = e.target.closest("[data-p]");
     if (pv){
       let html = pv.closest(".cb").querySelector("pre").textContent || "";
@@ -1877,17 +1852,13 @@ function copy(txt2, btn){
         const im = await readImg(f);
         if (im.data.length > 1100000){ toast("Image too large"); continue; }
         pending.push({ name: f.name || "image", img: im });
-      } catch(_) {
-        toast("Couldn't read " + (f.name || "image"));
-      }
+      } catch(_) { toast("Couldn't read " + (f.name || "image")); }
     }
     renderAtts(); updateSendState();
-    if (pendingKind === "snap" && pending.some(x => x.img)){
-      setTimeout(() => send(""), 100);
-    }
+    if (pendingKind === "snap" && pending.some(x => x.img)) setTimeout(() => send(""), 100);
   });
 
-  /* ---------- CODE TOOLS ---------- */
+  /* ---------- CODE RUN ---------- */
   const RUN_JS = "const AF=Object.getPrototypeOf(async function(){}).constructor;\nconst fmt=a=>a.map(x=>typeof x===\"string\"?x:(()=>{try{return JSON.stringify(x,null,1)}catch(_){return String(x)}})()).join(\" \");\nonmessage=async e=>{console.log=(...a)=>postMessage({t:\"o\",s:fmt(a)});console.info=console.log;console.warn=(...a)=>postMessage({t:\"e\",s:fmt(a)});console.error=console.warn;\n for(const k of [\"fetch\",\"XMLHttpRequest\",\"WebSocket\",\"EventSource\",\"importScripts\",\"indexedDB\"]){try{self[k]=undefined}catch(_){}}\n try{const r=await new AF(e.data.code)();if(r!==undefined)postMessage({t:\"o\",s:\"\\u2192 \"+fmt([r])})}catch(err){postMessage({t:\"e\",s:String(err&&err.stack||err)})}\n postMessage({t:\"d\"})}";
   const RUN_PY = "let py=null;\nonmessage=async e=>{try{\n if(!py){postMessage({t:\"s\",s:\"Loading Python (one-time, ~10 MB)...\"});\n  importScripts(\"https://cdn.jsdelivr.net/pyodide/v0.29.4/full/pyodide.js\");\n  py=await loadPyodide({indexURL:\"https://cdn.jsdelivr.net/pyodide/v0.29.4/full/\"})}\n py.setStdout({batched:s=>postMessage({t:\"o\",s})});py.setStderr({batched:s=>postMessage({t:\"e\",s})});\n postMessage({t:\"r\"});\n try{await py.loadPackagesFromImports(e.data.code)}catch(_){}\n const r=await py.runPythonAsync(e.data.code);if(r!==undefined&&r!==null)postMessage({t:\"o\",s:\"\\u2192 \"+String(r)})\n }catch(err){postMessage({t:\"e\",s:String(err&&err.message||err)})}\n postMessage({t:\"d\"})}";
   let pyW = null;
@@ -1967,8 +1938,7 @@ function copy(txt2, btn){
   document.addEventListener("keydown", e => {
     if (e.key === "Escape"){
       closeAllMenusExcept(null);
-      closeMenu();
-      closePV();
+      closeMenu(); closePV();
       const cv = $("cv"); if (cv) cv.classList.remove("on");
       const mo = $("modal"); if (mo) mo.classList.remove("on");
       closeAuth(); closeProfile(); closePanel();
@@ -1993,6 +1963,7 @@ function copy(txt2, btn){
   window.openProPaywall = openProPaywall;
   window.openRazorpayCheckout = openRazorpayCheckout;
   window.zyroOpenStudyPanel = openStudyPanel;
+  window.zyroShowProPopup = showProPopup;
 }
 
 if (document.readyState === "loading"){ document.addEventListener("DOMContentLoaded", boot); }
