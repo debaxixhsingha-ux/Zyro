@@ -396,6 +396,11 @@ textarea::placeholder{color:var(--dim-2);font-weight:500}
 .opt.wrong .lt{background:var(--bad);color:#fff;border-color:var(--bad);transform:scale(.9)}
 .quiz-exp{margin-top:8px;font-size:12.5px;color:var(--dim);padding:10px 14px;border-left:2px solid var(--violet);background:var(--bg-3);border-radius:0 8px 8px 0;display:none}
 .quiz-item.revealed .quiz-exp{display:block}
+.quiz-score{position:sticky;bottom:-26px;display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:14px;padding:14px 18px;background:var(--bg-2);border:1px solid var(--line-2);border-radius:14px;box-shadow:var(--shadow-card);font-size:13.5px;font-weight:700;color:var(--ink-2);font-family:'JetBrains Mono',monospace;animation:fadeUp .5s cubic-bezier(.22,.68,.32,1) both}
+.quiz-score b{color:var(--lime-deep);font-weight:800;font-size:15px}
+.quiz-score.done{background:linear-gradient(120deg,var(--lime-soft),var(--coral-soft));border-color:var(--lime-line);color:var(--ink)}
+.quiz-score.done b{color:var(--ink)}
+.quiz-score-msg{flex-basis:100%;text-align:center;font-family:'Plus Jakarta Sans',sans-serif;font-size:14px;font-weight:800;margin-top:6px;color:var(--ink)}
 
 /* ===== PRO SUCCESS POPUP ===== */
 .pro-popup{position:fixed;inset:0;background:rgba(24,23,22,.6);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);z-index:9000;display:none;align-items:center;justify-content:center;padding:20px;overflow-y:auto}
@@ -615,7 +620,7 @@ textarea::placeholder{color:var(--dim-2);font-weight:500}
   </div>
 
   <div class="menu-foot">
-    <span>v50 · india</span>
+    <span>v51 · india</span>
     <button class="theme-tog" id="themeToggle">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
       <span id="themeLabel">Dark mode</span>
@@ -684,20 +689,6 @@ textarea::placeholder{color:var(--dim-2);font-weight:500}
       </div>
 
       <div class="dd">
-        <button type="button" class="pill-btn" id="modeBtn">
-          <span class="mode-dot"></span>
-          <span id="modeLabel">Auto</span>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="width:10px;height:10px"><path d="M6 9l6 6 6-6"/></svg>
-        </button>
-        <div class="dd-menu" id="modeMenu">
-          <button type="button" data-mode="Fast"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L4 14h7l-1 8 9-12h-7z"/></svg></span><span class="txt"><b>Fast</b><span>Quick answers, no fluff</span></span></button>
-          <button type="button" data-mode="Auto" class="active"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v4l3 2"/></svg></span><span class="txt"><b>Auto</b><span>Balanced, everyday use</span></span></button>
-          <button type="button" data-mode="Thinking"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21h6M10 17h4M12 3a6 6 0 0 0-3 11v3h6v-3a6 6 0 0 0-3-11z"/></svg></span><span class="txt"><b>Thinking</b><span>Goes deep, for hard stuff</span></span></button>
-        </div>
-        <select id="mode" style="display:none"><option>Fast</option><option>Auto</option><option>Thinking</option></select>
-      </div>
-
-      <div class="dd">
         <button type="button" class="pill-btn" id="studyBtn">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
           <span id="studyLabel">Exam</span>
@@ -727,6 +718,7 @@ textarea::placeholder{color:var(--dim-2);font-weight:500}
 
 <input type="file" id="img" hidden multiple accept="image/*">
 <input type="file" id="file" hidden multiple accept=".pdf,.txt,.md,.py,.js,.ts,.jsx,.tsx,.html,.css,.json,.java,.c,.cpp,.h,.cs,.go,.rs,.php,.rb,.kt,.swift,.sql,.sh,.yml,.yaml,.xml,.csv,.ipynb,.ino,.tex,.r,.m">
+<select id="mode" style="display:none"><option>Auto</option></select>
 
 <div class="panel" id="studyPanel">
   <div class="panel-head">
@@ -868,6 +860,6 @@ textarea::placeholder{color:var(--dim-2);font-weight:500}
   </div>
 </div>
 
-<script defer src="app.js?v=50"></script>
+<script defer src="app.js?v=51"></script>
 </body>
-</html>
+  </html>
