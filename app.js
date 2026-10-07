@@ -1,6 +1,5 @@
-alert("v42 file loaded");
 /* =========================================================
-   ZYRO app.js — v41
+   ZYRO app.js — v44 (profile panel, chats dropdown, limits)
    ========================================================= */
 
 /* ---------- TOP HELPERS ---------- */
@@ -32,9 +31,12 @@ const SUPABASE_ANON_KEY="sb_publishable_LC3DrFcQAsG3HSILCekaFw_SOVVDxjA";
 const TOKEN_KEY="zyro_tokens";
 const CI="zyro_ci";
 const CK="zyro_chats";
+const GEN_KEY="zyro_gen_count";
 const TOKEN_RESET_MS = 5 * 60 * 60 * 1000;
+const GEN_RESET_MS = 24 * 60 * 60 * 1000;
 const STREAM_TIMEOUT_MS = 90000;
 const FIRST_TOKEN_MS = 45000;
+const FREE_GEN_LIMIT = 2;
 
 let TOTAL=100000;
 let sb=null,sbP=null,user=null,pro=false;
@@ -58,7 +60,7 @@ function showProModal(paymentId){
     '<div class="mb" style="max-width:380px;text-align:center">' +
       '<div style="font-size:56px;line-height:1;margin:8px 0 16px">🎉</div>' +
       '<h3 style="margin:0 0 8px;font-size:22px;font-weight:800">Welcome to Zyro Pro!</h3>' +
-      '<p style="margin:0 0 18px;color:var(--dim);font-size:14px;line-height:1.6">Your payment went through. You now get <b style="color:var(--ink)">1,000,000 tokens</b> per 5-hour window — 10× the free limit.</p>' +
+      '<p style="margin:0 0 18px;color:var(--dim);font-size:14px;line-height:1.6">Your payment went through. You now get <b style="color:var(--ink)">1,000,000 tokens</b> per 5-hour window and unlimited study kits.</p>' +
       '<div style="background:var(--bg-3);border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin:0 0 18px;font-family:JetBrains Mono,monospace;font-size:12px;color:var(--dim);word-break:break-all;text-align:left">' +
         '<div style="color:var(--dim-2);text-transform:uppercase;letter-spacing:.1em;font-size:10px;margin-bottom:4px">Payment ID</div>' +
         '<div style="color:var(--ink)">' + esc(paymentId) + '</div>' +
@@ -72,9 +74,13 @@ function showProModal(paymentId){
 }
 
 /* ---------- PRO PAYWALL MODAL ---------- */
-function openProPaywall(){
+function openProPaywall(reason){
   const existing = document.getElementById("ppModal");
   if (existing) existing.remove();
+  const title = reason === "limit" ? "You've used your 2 free study kits today" : "This one's a Pro feature";
+  const sub = reason === "limit"
+    ? "Upgrade to Zyro Pro for unlimited study kits, flashcards, and quizzes."
+    : "Unlock it with Zyro Pro · ₹349/month";
   const modal = document.createElement("div");
   modal.className = "modal on";
   modal.id = "ppModal";
@@ -82,15 +88,14 @@ function openProPaywall(){
   modal.innerHTML =
     '<div class="mb" style="max-width:400px">' +
       '<div style="font-size:40px;text-align:center;margin:4px 0 10px">✨</div>' +
-      '<h3 style="margin:0 0 6px;text-align:center">This one\'s a Pro feature</h3>' +
-      '<p style="margin:0 0 18px;text-align:center">Unlock it with Zyro Pro · ₹349/month</p>' +
+      '<h3 style="margin:0 0 6px;text-align:center">' + title + '</h3>' +
+      '<p style="margin:0 0 18px;text-align:center">' + sub + '</p>' +
       '<ul style="margin:0 0 20px;padding:0 0 0 22px;font-size:14px;color:var(--ink-2);line-height:1.9">' +
         '<li><b style="color:var(--ink)">1,000,000 tokens</b> per 5 hours (10× free)</li>' +
+        '<li><b style="color:var(--ink)">Unlimited study kits</b> + flashcards + quizzes</li>' +
         '<li><b style="color:var(--ink)">15 images</b> per message (free: 3)</li>' +
         '<li><b style="color:var(--ink)">3 files up to 20 MB</b> (free: 1 file, 8 MB)</li>' +
-        '<li><b style="color:var(--ink)">Longer code-run timeout</b></li>' +
-        '<li><b style="color:var(--ink)">Full mock papers</b> with marking scheme</li>' +
-        '<li><b style="color:var(--ink)">Viva practice</b></li>' +
+        '<li><b style="color:var(--ink)">Full mock papers</b> + viva practice</li>' +
       '</ul>' +
       '<div style="display:flex;flex-direction:column;gap:8px">' +
         '<button id="ppUpgrade" style="padding:12px;border-radius:12px;font-weight:800;font-size:14.5px;cursor:pointer;border:0;background:var(--violet);color:#fff">Go Pro · ₹349/mo</button>' +
@@ -212,6 +217,39 @@ function boot(){
   };
   const L = () => LIMITS[pro ? "pro" : "free"];
 
+  /* ---------- FREE GEN COUNTER ---------- */
+  function getGen(){
+    try {
+      const d = JSON.parse(localStorage.getItem(GEN_KEY) || "null");
+      const now = Date.now();
+      if (!d || !d.reset || now - d.reset > GEN_RESET_MS){
+        const fresh = { count:0, reset:now };
+        try { localStorage.setItem(GEN_KEY, JSON.stringify(fresh)); } catch(_) {}
+        return fresh;
+      }
+      return d;
+    } catch(_) { return { count:0, reset:Date.now() }; }
+  }
+  function saveGen(d){ try { localStorage.setItem(GEN_KEY, JSON.stringify(d)); } catch(_) {} }
+  function bumpGen(){ const d = getGen(); d.count += 1; saveGen(d); }
+  function genLeft(){
+    if (pro) return Infinity;
+    const d = getGen();
+    return Math.max(0, FREE_GEN_LIMIT - d.count);
+  }
+  function genAllowed(){
+    if (pro) return true;
+    return getGen().count < FREE_GEN_LIMIT;
+  }
+  function isStudyKitIntent(text){
+    if (!text) return false;
+    return /\b(study\s*kit|flash\s*cards?|flashcards?|quiz\s*me|make\s+(a\s+)?quiz|mock\s+paper|viva\s+practice|notes?\s*(to|→|->)\s*(flashcards?|quiz|cards))\b/i.test(text);
+  }
+  function isProOnlyIntent(text){
+    if (!text) return false;
+    return /\b(mock\s+paper|full\s+mock|viva\s+practice)\b/i.test(text);
+  }
+
   function armBusyWatchdog(){
     clearTimeout(busyWatchdog);
     busyWatchdog = setTimeout(function(){
@@ -259,6 +297,9 @@ function boot(){
     if (tl){ tl.textContent = "refills " + nextRefillTime(); }
     const tp2 = $("tPlan");
     if (tp2) tp2.textContent = pro ? "PRO · 1M / 5h" : "Free · 100k / 5h";
+    const pp = $("profileTokenPct"); if (pp) pp.textContent = p + "%";
+    const pr = $("profileTokenRefill"); if (pr) pr.textContent = "refills " + nextRefillTime();
+    const pf = $("profileTokenFill"); if (pf) pf.style.width = pct + "%";
   }
 
   function updateTokenUI(){ paintBar(); applyLimits(); }
@@ -286,31 +327,24 @@ function boot(){
   const MODES = { Fast:"Quick short answer, minimal thinking.", Auto:"Balanced speed and depth.", Thinking:"Deep analysis, long detailed answer." };
   const STAGES = ["Thinking","Analyzing","Planning steps"];
   const STUDY = {
-    Chat:
-      "CHAT. Talk like a helpful older sibling — casual, warm, direct. " +
-      "Keep replies short unless asked. No lectures. If they seem stuck or stressed, keep it even simpler. " +
-      "You can still do math, code, writing — just keep the tone friendly.",
+    Chat: "",
     Solver:
-      "SOLVER. Solve step-by-step. " +
-      "Rules: under 350 words unless the problem truly needs more. " +
-      "Number each step. Show formulas inline. Final answer in **bold** on its own line. " +
-      "End with one line: **Key concept:** [name]. " +
-      "No extra examples or side notes unless asked.",
+      "MODE: Solver. Step-by-step solution. " +
+      "Under 350 words unless the problem needs more. Number each step. " +
+      "Final answer in **bold** on its own line. End with: **Key concept:** [name]. " +
+      "No extra examples or side notes.",
     Socratic:
-      "SOCRATIC TUTOR. Guide, don't lecture. " +
-      "Under 80 words. Ask ONE question or give ONE hint per turn. " +
-      "Never dump the full answer. If they're stuck twice, give the smallest next step. Warm and encouraging.",
+      "MODE: Socratic tutor. Guide, don't lecture. " +
+      "Under 80 words per reply. Ask ONE question or give ONE hint. " +
+      "If stuck twice, give the smallest possible next step. Warm, encouraging.",
     Exam:
-      "EXAM MODE. Help an Indian student write exam-ready answers. " +
-      "RULES:\n" +
-      "1. If the topic is BROAD (e.g. 'science', 'physics', 'chapter 5'), DO NOT write an answer. " +
-      "Reply with 3-4 likely exam questions on that topic and ask them to pick one. Under 80 words.\n" +
-      "2. If a SPECIFIC question, answer in under 400 words total. Format:\n" +
-      "   **Marks:** [2 / 5 / 10 — your best guess]\n" +
-      "   **Answer:** numbered points (3-6 points), tight.\n" +
-      "   **Key terms:** 4-6 terms, comma-separated.\n" +
-      "3. Never more than 400 words. If they need more, they'll ask 'expand'.\n" +
-      "4. No introductions, no conclusions, no filler. Just the answer."
+      "MODE: Exam prep. Help an Indian student write exam-ready answers.\n" +
+      "If the topic is BROAD (e.g. 'science'), reply with 3-4 likely exam questions and ask them to pick one. Under 80 words.\n" +
+      "If SPECIFIC, answer in under 400 words. Format exactly:\n" +
+      "**Marks:** [2/5/10 — best guess]\n" +
+      "**Answer:** numbered points (3-6)\n" +
+      "**Key terms:** 4-6 terms comma-separated\n" +
+      "No intro. No conclusion. No filler."
   };
 
   const QUICK = [
@@ -332,271 +366,268 @@ function boot(){
     hiddenStudy.innerHTML = "";
     [["Chat","Chat"],["Solver","Solver"],["Socratic","Socratic"],["Exam","Exam prep"]].forEach(([v,l]) => hiddenStudy.add(new Option(l,v)));
   }
-   
-/* ---------- MODE (speed) DROPDOWN ---------- */
-const modeBtn=$("modeBtn"), modeMenu=$("modeMenu"), modeLabel=$("modeLabel");
-function setMode(m){
-  if (!MODES[m]) m = "Auto";
-  if (hiddenMode) hiddenMode.value = m;
-  if (modeLabel) modeLabel.textContent = m;
-  if (modeMenu) modeMenu.querySelectorAll("button").forEach(o => o.classList.toggle("active", o.dataset.mode === m));
-}
-if (modeBtn && modeMenu){
-  modeBtn.addEventListener("click", e => { e.stopPropagation(); closeAllMenusExcept(modeMenu); modeMenu.classList.toggle("open"); });
-  modeMenu.querySelectorAll("button").forEach(opt => {
-    opt.addEventListener("click", e => {
-      e.stopPropagation();
-      setMode(opt.dataset.mode);
-      modeMenu.classList.remove("open");
+
+  /* ---------- MODE DROPDOWN ---------- */
+  const modeBtn=$("modeBtn"), modeMenu=$("modeMenu"), modeLabel=$("modeLabel");
+  function setMode(m){
+    if (!MODES[m]) m = "Auto";
+    if (hiddenMode) hiddenMode.value = m;
+    if (modeLabel) modeLabel.textContent = m;
+    if (modeMenu) modeMenu.querySelectorAll("button").forEach(o => o.classList.toggle("active", o.dataset.mode === m));
+  }
+  if (modeBtn && modeMenu){
+    modeBtn.addEventListener("click", e => { e.stopPropagation(); closeAllMenusExcept(modeMenu); modeMenu.classList.toggle("open"); });
+    modeMenu.querySelectorAll("button").forEach(opt => {
+      opt.addEventListener("click", e => {
+        e.stopPropagation();
+        setMode(opt.dataset.mode);
+        modeMenu.classList.remove("open");
+      });
     });
-  });
-}
-setMode("Auto");
+  }
+  setMode("Auto");
 
-/* ---------- STUDY MODE DROPDOWN ---------- */
-const studyBtn=$("studyBtn"), studyMenu=$("studyMenu"), studyLabel=$("studyLabel");
-function setStudy(v){
-  if (!STUDY.hasOwnProperty(v)) v = "Chat";
-  if (hiddenStudy) hiddenStudy.value = v;
-  if (studyLabel) studyLabel.textContent = (v === "Exam") ? "Exam prep" : v;
-  if (studyMenu) studyMenu.querySelectorAll("button").forEach(o => o.classList.toggle("active", o.dataset.study === v));
-  const menu = $("menu");
-  if (menu) menu.querySelectorAll(".mi[data-mode]").forEach(x => x.classList.toggle("active", x.dataset.mode === v));
-  try { localStorage.setItem("zyro_study", v); } catch(_) {}
-}
-if (studyBtn && studyMenu){
-  studyBtn.addEventListener("click", e => { e.stopPropagation(); closeAllMenusExcept(studyMenu); studyMenu.classList.toggle("open"); });
-  studyMenu.querySelectorAll("button").forEach(opt => {
-    opt.addEventListener("click", e => {
-      e.stopPropagation();
-      setStudy(opt.dataset.study);
-      studyMenu.classList.remove("open");
+  /* ---------- STUDY DROPDOWN ---------- */
+  const studyBtn=$("studyBtn"), studyMenu=$("studyMenu"), studyLabel=$("studyLabel");
+  function setStudy(v){
+    if (!STUDY.hasOwnProperty(v)) v = "Chat";
+    if (hiddenStudy) hiddenStudy.value = v;
+    if (studyLabel) studyLabel.textContent = (v === "Exam") ? "Exam" : v;
+    if (studyMenu) studyMenu.querySelectorAll("button").forEach(o => o.classList.toggle("active", o.dataset.study === v));
+    const menu = $("menu");
+    if (menu) menu.querySelectorAll(".mi[data-mode]").forEach(x => x.classList.toggle("active", x.dataset.mode === v));
+    try { localStorage.setItem("zyro_study", v); } catch(_) {}
+  }
+  if (studyBtn && studyMenu){
+    studyBtn.addEventListener("click", e => { e.stopPropagation(); closeAllMenusExcept(studyMenu); studyMenu.classList.toggle("open"); });
+    studyMenu.querySelectorAll("button").forEach(opt => {
+      opt.addEventListener("click", e => {
+        e.stopPropagation();
+        setStudy(opt.dataset.study);
+        studyMenu.classList.remove("open");
+      });
     });
-  });
-}
-try { const sv = localStorage.getItem("zyro_study"); if (sv) setStudy(sv); else setStudy("Exam"); } catch(_) { setStudy("Exam"); }
-
-function closeAllMenusExcept(keep){
-  ["modeMenu","studyMenu","actionsMenu"].forEach(id => {
-    const el = $(id);
-    if (el && el !== keep) el.classList.remove("open");
-  });
-  const pb = $("plusBtn"); if (pb && keep !== $("actionsMenu")) pb.classList.remove("active");
-}
-
-document.addEventListener("click", () => {
-  ["modeMenu","studyMenu","actionsMenu"].forEach(id => { const el = $(id); if (el) el.classList.remove("open"); });
-  const pb = $("plusBtn"); if (pb) pb.classList.remove("active");
-  closeMenu();
-});
-document.addEventListener("keydown", e => {
-  if (e.key === "Escape"){
-    closeAllMenusExcept(null);
-    closeMenu();
-    closePV();
-    const cv = $("cv"); if (cv) cv.classList.remove("on");
-    const mo = $("modal"); if (mo) mo.classList.remove("on");
-    closeAuth();
-    const pn = $("studyPanel"); if (pn) pn.classList.remove("on");
-    const pp = document.getElementById("ppModal"); if (pp) pp.remove();
   }
-});
+  try { const sv = localStorage.getItem("zyro_study"); if (sv) setStudy(sv); else setStudy("Exam"); } catch(_) { setStudy("Exam"); }
 
-/* ---------- MENU (settings) ---------- */
-const menu = $("menu"), scrim = $("scrim"), menuBtn = $("menuBtn");
-function openMenu(){ menu.classList.add("on"); scrim.classList.add("on"); menuBtn.classList.add("active"); }
-function closeMenu(){ menu.classList.remove("on"); scrim.classList.remove("on"); menuBtn.classList.remove("active"); }
-if (menuBtn){
-  menuBtn.addEventListener("click", e => {
-    e.stopPropagation();
-    menu.classList.contains("on") ? closeMenu() : openMenu();
-  });
-}
-if (scrim) scrim.addEventListener("click", closeMenu);
-if (menu) menu.addEventListener("click", e => { if (e.target === menu) e.stopPropagation(); });
-
-if (menu) menu.querySelectorAll(".mi[data-mode]").forEach(b => {
-  b.addEventListener("click", e => {
-    e.stopPropagation();
-    setStudy(b.dataset.mode);
-    closeMenu();
-  });
-});
-
-if (menu) menu.querySelectorAll(".mi[data-tool]").forEach(b => {
-  b.addEventListener("click", e => {
-    e.stopPropagation();
-    const tool = b.dataset.tool;
-    closeMenu();
-    handleToolAction(tool);
-  });
-});
-
-function handleToolAction(tool){
-  if (tool === "snap"){ pendingKind = "snap"; $("img").click(); return; }
-  if (tool === "studykit"){ t.value = "Make me a study kit for: "; t.dispatchEvent(new Event("input")); t.focus(); return; }
-  if (tool === "exam"){ t.value = "Give me a proper exam answer (5 marks) for: "; t.dispatchEvent(new Event("input")); t.focus(); return; }
-  if (tool === "mock"){
-    if (!pro){ openProPaywall(); return; }
-    t.value = "Generate a full mock paper with marking scheme for: ";
-    t.dispatchEvent(new Event("input")); t.focus(); return;
+  function closeAllMenusExcept(keep){
+    ["modeMenu","studyMenu","actionsMenu"].forEach(id => {
+      const el = $(id);
+      if (el && el !== keep) el.classList.remove("open");
+    });
+    const pb = $("plusBtn"); if (pb && keep !== $("actionsMenu")) pb.classList.remove("active");
   }
-  if (tool === "viva"){
-    if (!pro){ openProPaywall(); return; }
-    t.value = "Start viva practice on this topic. Ask one question at a time, grade each answer out of 5, and give short feedback: ";
-    t.dispatchEvent(new Event("input")); t.focus(); return;
-  }
-}
 
-const plusBtn = $("plusBtn"), actionsMenu = $("actionsMenu");
-if (plusBtn && actionsMenu){
-  plusBtn.addEventListener("click", e => {
-    e.stopPropagation();
-    closeAllMenusExcept(actionsMenu);
-    actionsMenu.classList.toggle("open");
-    plusBtn.classList.toggle("active");
-  });
-  actionsMenu.querySelectorAll("button").forEach(b => {
+  /* ---------- MENU (settings) ---------- */
+  const menu = $("menu"), scrim = $("scrim"), menuBtn = $("menuBtn");
+  function openMenu(){ menu.classList.add("on"); scrim.classList.add("on"); menuBtn.classList.add("active"); }
+  function closeMenu(){ menu.classList.remove("on"); scrim.classList.remove("on"); menuBtn.classList.remove("active"); }
+  if (menuBtn){
+    menuBtn.addEventListener("click", e => {
+      e.stopPropagation();
+      menu.classList.contains("on") ? closeMenu() : openMenu();
+    });
+  }
+  if (scrim) scrim.addEventListener("click", closeMenu);
+  if (menu) menu.addEventListener("click", e => { if (e.target === menu) e.stopPropagation(); });
+
+  if (menu) menu.querySelectorAll(".mi[data-mode]").forEach(b => {
     b.addEventListener("click", e => {
       e.stopPropagation();
-      actionsMenu.classList.remove("open");
-      plusBtn.classList.remove("active");
-      handleToolAction(b.dataset.action);
+      setStudy(b.dataset.mode);
+      closeMenu();
     });
   });
-}
 
-const themeToggle = $("themeToggle"), themeLabel = $("themeLabel");
-if (themeToggle){
-  const root = document.documentElement;
-  themeToggle.addEventListener("click", e => {
-    e.stopPropagation();
-    const cur = root.getAttribute("data-theme") || "light";
-    const next = cur === "dark" ? "light" : "dark";
-    if (next === "dark") root.setAttribute("data-theme", "dark");
-    else root.removeAttribute("data-theme");
-    if (themeLabel) themeLabel.textContent = next === "dark" ? "Light mode" : "Dark mode";
-    try { localStorage.setItem("zyro_theme", next); } catch(_) {}
+  if (menu) menu.querySelectorAll(".mi[data-tool]").forEach(b => {
+    b.addEventListener("click", e => {
+      e.stopPropagation();
+      const tool = b.dataset.tool;
+      closeMenu();
+      handleToolAction(tool);
+    });
   });
-  try {
-    const savedT = localStorage.getItem("zyro_theme");
-    if (savedT === "dark"){ root.setAttribute("data-theme", "dark"); if (themeLabel) themeLabel.textContent = "Light mode"; }
-  } catch(_) {}
-}
 
-["newcBtn","newChatBtn"].forEach(id => {
-  const b = $(id);
-  if (b) b.addEventListener("click", newChat);
-});
+  function handleToolAction(tool){
+    if (tool === "snap"){ pendingKind = "snap"; $("img").click(); return; }
+    if (tool === "studykit" || tool === "notes"){
+      if (!checkGenAllowed()) return;
+      t.value = "Make me a study kit for: ";
+      t.dispatchEvent(new Event("input")); t.focus(); return;
+    }
+    if (tool === "exam"){ setStudy("Exam"); t.value = "Give me a proper exam answer (5 marks) for: "; t.dispatchEvent(new Event("input")); t.focus(); return; }
+    if (tool === "mock"){
+      if (!pro){ openProPaywall(); return; }
+      t.value = "Generate a full mock paper with marking scheme for: ";
+      t.dispatchEvent(new Event("input")); t.focus(); return;
+    }
+    if (tool === "viva"){
+      if (!pro){ openProPaywall(); return; }
+      setStudy("Socratic");
+      t.value = "Start viva practice on this topic. Ask one question at a time, grade each answer out of 5: ";
+      t.dispatchEvent(new Event("input")); t.focus(); return;
+    }
+  }
 
-/* ---------- QUICK CHIPS ---------- */
-const chipsBox = $("chips");
-if (chipsBox){
-  chipsBox.innerHTML = "";
-  QUICK.forEach(item => {
-    const b = document.createElement("button");
-    b.type = "button";
-    let html = '<span class="em">' + item.emoji + '</span>' + item.label;
-    if (item.pro) html += ' <span class="mini-pro">PRO</span>';
-    b.innerHTML = html;
-    if (item.pro) b.dataset.pro = "1";
-    b.addEventListener("click", () => handleToolAction(item.kind));
-    chipsBox.appendChild(b);
-  });
-}
+  function checkGenAllowed(){
+    if (pro) return true;
+    if (genAllowed()) return true;
+    openProPaywall("limit");
+    return false;
+  }
 
-/* ---------- VOICE INPUT ---------- */
-const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-const micBtn = $("micBtn");
-let recog = null, listening = false;
-if (SR && micBtn){
-  micBtn.style.display = "grid";
-  micBtn.addEventListener("click", () => {
-    if (listening){ try { recog.stop(); } catch(_) {} return; }
-    try {
-      recog = new SR();
-      recog.lang = "en-IN";
-      recog.interimResults = true;
-      recog.continuous = false;
-      let base = t.value ? t.value + " " : "";
-      recog.onstart = () => { listening = true; micBtn.classList.add("rec"); };
-      recog.onend = () => { listening = false; micBtn.classList.remove("rec"); };
-      recog.onerror = () => { listening = false; micBtn.classList.remove("rec"); };
-      recog.onresult = e => {
-        let text = "";
-        for (let i = e.resultIndex; i < e.results.length; i++){
-          text += e.results[i][0].transcript;
-        }
-        t.value = base + text;
-        t.dispatchEvent(new Event("input"));
-      };
-      recog.start();
-    } catch(_) { toast("Voice not supported here"); }
-  });
-}
-
-/* ---------- PASSWORD EYE ---------- */
-const EYE_OPEN = '<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/>';
-const EYE_OFF = '<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/>';
-{ const eye = $("amEye"), icon = $("amEyeIcon"), pw = $("amPw");
-  if (eye && icon && pw){
-    eye.addEventListener("click", function(e){
-      e.preventDefault();
-      const showing = pw.type === "text";
-      pw.type = showing ? "password" : "text";
-      icon.innerHTML = showing ? EYE_OPEN : EYE_OFF;
+  /* ---------- PLUS ACTIONS ---------- */
+  const plusBtn = $("plusBtn"), actionsMenu = $("actionsMenu");
+  if (plusBtn && actionsMenu){
+    plusBtn.addEventListener("click", e => {
+      e.stopPropagation();
+      closeAllMenusExcept(actionsMenu);
+      actionsMenu.classList.toggle("open");
+      plusBtn.classList.toggle("active");
+    });
+    actionsMenu.querySelectorAll("button").forEach(b => {
+      b.addEventListener("click", e => {
+        e.stopPropagation();
+        actionsMenu.classList.remove("open");
+        plusBtn.classList.remove("active");
+        handleToolAction(b.dataset.action);
+      });
     });
   }
-}
 
-/* ---------- SUPABASE ---------- */
-function sbClient(){
-  if (!SUPABASE_URL) return Promise.resolve(null);
-  if (sb) return Promise.resolve(sb);
-  if (!sbP) sbP = loadJS("https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2").then(() => {
-    sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-    return sb;
+  /* ---------- THEME ---------- */
+  const themeToggle = $("themeToggle"), themeLabel = $("themeLabel");
+  if (themeToggle){
+    const root = document.documentElement;
+    themeToggle.addEventListener("click", e => {
+      e.stopPropagation();
+      const cur = root.getAttribute("data-theme") || "light";
+      const next = cur === "dark" ? "light" : "dark";
+      if (next === "dark") root.setAttribute("data-theme", "dark");
+      else root.removeAttribute("data-theme");
+      if (themeLabel) themeLabel.textContent = next === "dark" ? "Light mode" : "Dark mode";
+      try { localStorage.setItem("zyro_theme", next); } catch(_) {}
+    });
+    try {
+      const savedT = localStorage.getItem("zyro_theme");
+      if (savedT === "dark"){ root.setAttribute("data-theme", "dark"); if (themeLabel) themeLabel.textContent = "Light mode"; }
+    } catch(_) {}
+  }
+
+  ["newcBtn","newChatBtn"].forEach(id => {
+    const b = $(id);
+    if (b) b.addEventListener("click", newChat);
   });
-  return sbP;
-}
 
-/* ---------- ACCOUNT RENDER ---------- */
+  /* ---------- QUICK CHIPS ---------- */
+  const chipsBox = $("chips");
+  if (chipsBox){
+    chipsBox.innerHTML = "";
+    QUICK.forEach(item => {
+      const b = document.createElement("button");
+      b.type = "button";
+      let html = '<span class="em">' + item.emoji + '</span>' + item.label;
+      if (item.pro) html += ' <span class="mini-pro">PRO</span>';
+      b.innerHTML = html;
+      if (item.pro) b.dataset.pro = "1";
+      b.addEventListener("click", () => handleToolAction(item.kind));
+      chipsBox.appendChild(b);
+    });
+  }
+
+  /* ---------- VOICE ---------- */
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const micBtn = $("micBtn");
+  let recog = null, listening = false;
+  if (SR && micBtn){
+    micBtn.style.display = "grid";
+    micBtn.addEventListener("click", () => {
+      if (listening){ try { recog.stop(); } catch(_) {} return; }
+      try {
+        recog = new SR();
+        recog.lang = "en-IN";
+        recog.interimResults = true;
+        recog.continuous = false;
+        let base = t.value ? t.value + " " : "";
+        recog.onstart = () => { listening = true; micBtn.classList.add("rec"); };
+        recog.onend = () => { listening = false; micBtn.classList.remove("rec"); };
+        recog.onerror = () => { listening = false; micBtn.classList.remove("rec"); };
+        recog.onresult = e => {
+          let text = "";
+          for (let i = e.resultIndex; i < e.results.length; i++){
+            text += e.results[i][0].transcript;
+          }
+          t.value = base + text;
+          t.dispatchEvent(new Event("input"));
+        };
+        recog.start();
+      } catch(_) { toast("Voice not supported here"); }
+    });
+  }
+
+  /* ---------- PASSWORD EYE ---------- */
+  const EYE_OPEN = '<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/>';
+  const EYE_OFF = '<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/>';
+  { const eye = $("amEye"), icon = $("amEyeIcon"), pw = $("amPw");
+    if (eye && icon && pw){
+      eye.addEventListener("click", function(e){
+        e.preventDefault();
+        const showing = pw.type === "text";
+        pw.type = showing ? "password" : "text";
+        icon.innerHTML = showing ? EYE_OPEN : EYE_OFF;
+      });
+    }
+  }
+
+  /* ---------- SUPABASE ---------- */
+  function sbClient(){
+    if (!SUPABASE_URL) return Promise.resolve(null);
+    if (sb) return Promise.resolve(sb);
+    if (!sbP) sbP = loadJS("https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2").then(() => {
+      sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+      return sb;
+    });
+    return sbP;
+}
+   
+/* ---------- RENDER ACCOUNT ---------- */
 function renderAcct(){
   const ava = $("acctAva"), em = $("acctEmail");
-  if (!ava || !em) return;
-  if (user){
-    const initial = (user.email || "Z").toUpperCase()[0];
-    ava.textContent = initial;
-    em.textContent = (user.email || "").split("@")[0].slice(0, 12);
-    const acctBtn = $("authBtn");
-    if (acctBtn){
-      let pill = acctBtn.querySelector(".pro-pill");
-      if (pro && !pill){
-        pill = document.createElement("span");
-        pill.className = "pro-pill";
-        pill.textContent = "PRO";
-        acctBtn.appendChild(pill);
-      } else if (!pro && pill){
-        pill.remove();
-      }
+  if (ava) ava.textContent = user ? (user.email || "Z").toUpperCase()[0] : "?";
+  if (em) em.textContent = user ? (user.email || "").split("@")[0].slice(0, 12) : "Sign in";
+  const acctBtn = $("authBtn");
+  if (acctBtn){
+    let pill = acctBtn.querySelector(".pro-pill");
+    if (user && pro && !pill){
+      pill = document.createElement("span");
+      pill.className = "pro-pill";
+      pill.textContent = "PRO";
+      acctBtn.appendChild(pill);
+    } else if ((!user || !pro) && pill){
+      pill.remove();
     }
-    const up = $("upgradeCard");
-    if (up) up.style.display = pro ? "none" : "";
-  } else {
-    ava.textContent = "?";
-    em.textContent = "Sign in";
-    const acctBtn = $("authBtn");
-    if (acctBtn){ const p = acctBtn.querySelector(".pro-pill"); if (p) p.remove(); }
-    const up = $("upgradeCard");
-    if (up) up.style.display = "";
   }
+  const up = $("upgradeCard");
+  if (up) up.style.display = (user && pro) ? "none" : "";
+  const pUp = $("profileUpgradeCard");
+  if (pUp) pUp.style.display = (user && pro) ? "none" : "";
+}
+
+function renderProfile(){
+  const ava = $("profileAva"), em = $("profileEmail"), meta = $("profileMeta");
+  if (ava) ava.textContent = user ? (user.email || "Z").toUpperCase()[0] : "?";
+  if (em) em.textContent = user ? (user.email || "") : "Not signed in";
+  if (meta) meta.textContent = user ? ("Signed in" + (pro ? " · Pro" : " · Free")) : "Sign in to sync across devices";
+  const pn = $("profilePlanName"); if (pn) pn.textContent = pro ? "Pro" : "Free";
+  const pl = $("profilePlanLimit"); if (pl) pl.textContent = pro ? "1M tokens / 5h" : "100k tokens / 5h";
+  paintBar();
 }
 
 const authBtn = $("authBtn");
 if (authBtn){
   authBtn.addEventListener("click", e => {
     e.stopPropagation();
-    if (user) openMenu();
+    if (user) openProfile();
     else openAuth("signin");
   });
 }
@@ -609,6 +640,26 @@ if (acctUpgrade){
     openRazorpayCheckout("monthly");
   });
 }
+
+/* ---------- PROFILE PANEL ---------- */
+const profilePanel = $("profilePanel");
+function openProfile(){
+  renderProfile();
+  if (profilePanel) profilePanel.classList.add("on");
+}
+function closeProfile(){
+  if (profilePanel) profilePanel.classList.remove("on");
+}
+{ const cp = $("closeProfile"); if (cp) cp.addEventListener("click", closeProfile); }
+{ const pu = $("profileUpgradeBtn"); if (pu) pu.addEventListener("click", () => { closeProfile(); openRazorpayCheckout("monthly"); }); }
+{ const so = $("profileSignOut"); if (so) so.addEventListener("click", async () => {
+    const s = await sbClient();
+    if (s){ try { await s.auth.signOut(); } catch(_) {} }
+    user = null; pro = false; TOTAL = 100000;
+    renderAcct(); renderProfile(); updateTokenUI(); renderList();
+    closeProfile(); closeMenu();
+    toast("Signed out");
+}); }
 
 /* ---------- AUTH MODAL ---------- */
 let authMode = "signin";
@@ -652,7 +703,7 @@ function closeAuth(){ const am = $("authModal"); if (am) am.classList.remove("on
     }
     closeAuth();
     toast(authMode === "signup" ? "Account created" : "Signed in");
-  });
+  };
 }
 
 async function loadProfile(){
@@ -661,7 +712,7 @@ async function loadProfile(){
     const { data } = await s.from("profiles").select("pro").eq("id", user.id).maybeSingle();
     pro = !!(data && data.pro);
     TOTAL = L().tokens;
-    updateTokenUI(); renderAcct();
+    updateTokenUI(); renderAcct(); renderProfile();
   } catch(_) {}
 }
 async function syncUsageFromCloud(){
@@ -720,352 +771,384 @@ function cloudUsage(n){
   }, 15000);
 }
 async function afterSignIn(){
-  renderAcct();
+  renderAcct(); renderProfile();
   await loadProfile();
   await pullCloud();
   await syncUsageFromCloud();
-  renderAcct();
+  renderAcct(); renderProfile();
 }
 (async () => {
   let s;
   try { s = await sbClient(); } catch(_) {}
-  if (!s){ renderAcct(); return; }
+  if (!s){ renderAcct(); renderProfile(); return; }
   try {
     const { data } = await s.auth.getSession();
     user = (data && data.session && data.session.user) || null;
   } catch(_) {}
   s.auth.onAuthStateChange((_e, ses) => {
     user = (ses && ses.user) || null;
-    if (!user){ pro = false; TOTAL = 100000; renderAcct(); updateTokenUI(); }
+    if (!user){ pro = false; TOTAL = 100000; renderAcct(); renderProfile(); updateTokenUI(); renderList(); }
     else afterSignIn();
   });
   if (user) await afterSignIn();
-  else renderAcct();
+  else { renderAcct(); renderProfile(); }
 })();
-   
-  /* ---------- CHAT LIST ---------- */
-  try { chats = JSON.parse(localStorage.getItem(CK) || "[]"); } catch(_) { chats = []; }
 
-  function save(){
-    chats = [...chats.filter(c => c.pin), ...chats.filter(c => !c.pin)].slice(0, 40);
-    for (;;){
-      try { localStorage.setItem(CK, JSON.stringify(chats)); break; }
-      catch(_) { if (chats.length <= 1) break; chats.pop(); }
-    }
-    cloudSave();
-  }
-  function fmtDate(ts){
-    if (!ts) return "";
-    const d = new Date(ts), now = new Date();
-    const hms = String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0");
-    if (d.toDateString() === now.toDateString()) return "Today " + hms;
-    if (d.toDateString() === new Date(now - 86400000).toDateString()) return "Yesterday " + hms;
-    return d.getDate() + " " + d.toLocaleString("en", { month: "short" });
-  }
-  function renderList(){
-    const l = $("list"); if (!l) return;
-    l.innerHTML = "";
-    const arr = [...chats.filter(c => c.pin), ...chats.filter(c => !c.pin)].slice(0, 5);
-    if (!arr.length){
-      l.innerHTML = '<div style="color:var(--dim);font-size:12.5px;padding:6px 12px;font-weight:500">No chats yet</div>';
-      return;
-    }
-    arr.forEach(c => {
-      const d = document.createElement("button");
-      d.type = "button";
-      d.className = "mi" + (c === cur ? " active" : "");
-      d.innerHTML =
-        '<span class="mi-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>' +
-        '<span class="mi-tx"><b>' + esc(c.title || "Untitled") + '</b><span>' + fmtDate(c.ts) + '</span></span>';
-      d.addEventListener("click", e => { e.stopPropagation(); openChat(c.id); closeMenu(); });
-      l.appendChild(d);
-    });
-  }
+/* ---------- CHAT LIST + DROPDOWN ---------- */
+try { chats = JSON.parse(localStorage.getItem(CK) || "[]"); } catch(_) { chats = []; }
 
-  function newChat(){
-    try { if (ctrl) ctrl.abort(); } catch(_) {}
-    busy = false; streaming = false; setGo(false); clearBusyWatchdog();
-    cur = null; hist = []; log.innerHTML = ""; log.classList.remove("on");
-    const hero = $("hero"); if (hero) hero.classList.remove("hide");
-    closeMenu();
-    try { t.focus(); } catch(_) {}
+function save(){
+  chats = [...chats.filter(c => c.pin), ...chats.filter(c => !c.pin)].slice(0, 40);
+  for (;;){
+    try { localStorage.setItem(CK, JSON.stringify(chats)); break; }
+    catch(_) { if (chats.length <= 1) break; chats.pop(); }
   }
-  function openChat(id){
-    try { if (ctrl) ctrl.abort(); } catch(_) {}
-    busy = false; streaming = false; setGo(false); clearBusyWatchdog();
-    const c = chats.find(x => x.id === id); if (!c) return;
-    cur = c; hist = c.msgs; log.innerHTML = "";
-    const hero = $("hero"); if (hero) hero.classList.add("hide");
-    log.classList.add("on");
-    c.msgs.forEach((m, i) => {
-      if (m.role === "user"){ addU(m.show ?? m.content, m.att, m.imgs, m.nimg); }
-      else {
-        const d = addA();
-        const sc = d.querySelector(".status-chip"); if (sc) sc.remove();
-        const tl = d.querySelector(".think-live"); if (tl) tl.remove();
-        setH(d.querySelector(".body"), md(m.content));
-        const kit = parseStudyKit(m.content);
-        if (kit.notes || kit.cards.length || kit.quiz.length){
-          const ln = document.createElement("div");
-          ln.innerHTML = launcherHTML(kit);
-          const lc = ln.firstElementChild;
-          d.appendChild(lc);
-          wireLauncher(lc, kit);
+  cloudSave();
+  renderList();
+}
+function fmtDate(ts){
+  if (!ts) return "";
+  const d = new Date(ts), now = new Date();
+  const hms = String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0");
+  if (d.toDateString() === now.toDateString()) return "Today " + hms;
+  if (d.toDateString() === new Date(now - 86400000).toDateString()) return "Yesterday " + hms;
+  return d.getDate() + " " + d.toLocaleString("en", { month: "short" });
+}
+function renderList(){
+  const l = $("chatsList"); if (!l) return;
+  l.innerHTML = "";
+  const arr = [...chats.filter(c => c.pin), ...chats.filter(c => !c.pin)].slice(0, 10);
+  const countEl = $("chatsCount");
+  if (!arr.length){
+    l.innerHTML = '<div style="color:var(--dim);font-size:12px;padding:8px 11px;font-weight:500">No chats yet</div>';
+    if (countEl) countEl.textContent = "0 chats";
+    return;
+  }
+  if (countEl) countEl.textContent = arr.length + (arr.length === 1 ? " chat" : " chats");
+  arr.forEach(c => {
+    const d = document.createElement("button");
+    d.type = "button";
+    d.className = "chat-item";
+    d.innerHTML =
+      '<b>' + esc(c.title || "Untitled") + '</b>' +
+      '<small>' + fmtDate(c.ts) + '</small>';
+    d.addEventListener("click", e => { e.stopPropagation(); openChat(c.id); closeMenu(); });
+    l.appendChild(d);
+  });
+}
+{ const ct = $("chatsToggle"); if (ct) ct.addEventListener("click", e => {
+  e.stopPropagation();
+  ct.classList.toggle("open");
+  const drop = $("chatsDrop"); if (drop) drop.classList.toggle("open");
+}); }
+{ const del = $("deleteOldChats"); if (del) del.addEventListener("click", async e => {
+  e.stopPropagation();
+  if (!confirm("Delete chats older than 30 days?")) return;
+  const cutoff = Date.now() - 30 * 86400000;
+  const toDelete = chats.filter(c => (c.ts || 0) < cutoff);
+  if (!toDelete.length){ toast("No old chats to delete"); return; }
+  chats = chats.filter(c => (c.ts || 0) >= cutoff);
+  try { localStorage.setItem(CK, JSON.stringify(chats)); } catch(_) {}
+  if (user){
+    try {
+      const s = await sbClient();
+      if (s){
+        for (const c of toDelete){
+          await s.from("chats").delete().eq("id", c.id);
         }
       }
-    });
-    closeMenu(); down(1);
+    } catch(_) {}
   }
+  if (toDelete.find(c => c === cur)){ cur = null; hist = []; log.innerHTML = ""; log.classList.remove("on"); const hero = $("hero"); if (hero) hero.classList.remove("hide"); }
+  renderList();
+  closeMenu();
+  toast("Deleted " + toDelete.length + " old chat" + (toDelete.length > 1 ? "s" : ""));
+}); }
 
-  /* ---------- MARKDOWN ---------- */
-  const MR = /\$\$([\s\S]+?)\$\$|\\\[([\s\S]+?)\\\]|\\\(([\s\S]+?)\\\)|\$([^\s$](?:[^$\n]*?[^\s$])?)\$(?!\d)/g;
-  const inl = x => {
-    const st = [], tk = h => "\u0001" + (st.push(h) - 1) + "\u0002";
-    x = x.replace(/`([^`]+)`/g, (_, c) => tk('<code class="i">' + esc(c) + '</code>'));
-    x = x.replace(MR, (m, a, b, c, d) => {
-      if (d !== undefined && !/[\\^_=+\-*\/<>{}()]|^[A-Za-z]$|\d/.test(d)) return m;
-      return tk('<span class="mx" data-d="' + (a !== undefined || b !== undefined ? 1 : 0) + '" data-tex="' + escA(a ?? b ?? c ?? d) + '">' + esc(m) + '</span>');
+function newChat(){
+  try { if (ctrl) ctrl.abort(); } catch(_) {}
+  busy = false; streaming = false; setGo(false); clearBusyWatchdog();
+  cur = null; hist = []; log.innerHTML = ""; log.classList.remove("on");
+  const hero = $("hero"); if (hero) hero.classList.remove("hide");
+  closeMenu();
+  try { t.focus(); } catch(_) {}
+}
+function openChat(id){
+  try { if (ctrl) ctrl.abort(); } catch(_) {}
+  busy = false; streaming = false; setGo(false); clearBusyWatchdog();
+  const c = chats.find(x => x.id === id); if (!c) return;
+  cur = c; hist = c.msgs; log.innerHTML = "";
+  const hero = $("hero"); if (hero) hero.classList.add("hide");
+  log.classList.add("on");
+  c.msgs.forEach((m) => {
+    if (m.role === "user"){ addU(m.show ?? m.content, m.att, m.imgs, m.nimg); }
+    else {
+      const d = addA();
+      const sc = d.querySelector(".status-chip"); if (sc) sc.remove();
+      const tl = d.querySelector(".think-live"); if (tl) tl.remove();
+      setH(d.querySelector(".body"), md(m.content));
+      const kit = parseStudyKit(m.content);
+      if (kit.notes || kit.cards.length || kit.quiz.length){
+        const ln = document.createElement("div");
+        ln.innerHTML = launcherHTML(kit);
+        const lc = ln.firstElementChild;
+        d.appendChild(lc);
+        wireLauncher(lc, kit);
+      }
+    }
+  });
+  closeMenu(); down(1);
+}
+
+/* ---------- MARKDOWN ---------- */
+const MR = /\$\$([\s\S]+?)\$\$|\\\[([\s\S]+?)\\\]|\\\(([\s\S]+?)\\\)|\$([^\s$](?:[^$\n]*?[^\s$])?)\$(?!\d)/g;
+const inl = x => {
+  const st = [], tk = h => "\u0001" + (st.push(h) - 1) + "\u0002";
+  x = x.replace(/`([^`]+)`/g, (_, c) => tk('<code class="i">' + esc(c) + '</code>'));
+  x = x.replace(MR, (m, a, b, c, d) => {
+    if (d !== undefined && !/[\\^_=+\-*\/<>{}()]|^[A-Za-z]$|\d/.test(d)) return m;
+    return tk('<span class="mx" data-d="' + (a !== undefined || b !== undefined ? 1 : 0) + '" data-tex="' + escA(a ?? b ?? c ?? d) + '">' + esc(m) + '</span>');
+  });
+  return esc(x).replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>").replace(/\u0001(\d+)\u0002/g, (_, i) => st[i]);
+};
+function renderTable(rows){
+  if (!rows.length) return "";
+  const splitRow = r => r.replace(/^\s*\|/, "").replace(/\|\s*$/, "").split("|").map(c => c.trim());
+  const head = splitRow(rows[0]);
+  let h = '<div style="overflow-x:auto;margin:12px 0;border:1px solid var(--line);border-radius:12px;background:var(--bg-3)"><table style="border-collapse:collapse;width:100%;font-size:14px"><thead><tr>';
+  head.forEach(c => h += '<th style="padding:10px 14px;text-align:left;border-bottom:1px solid var(--line);background:var(--bg-4);color:var(--ink);font-weight:700;font-size:13px">' + inl(c) + "</th>");
+  h += "</tr></thead><tbody>";
+  for (let r = 1; r < rows.length; r++){
+    h += "<tr>";
+    splitRow(rows[r]).forEach(c => h += '<td style="padding:10px 14px;text-align:left;border-bottom:1px solid var(--line);color:var(--ink-2)">' + inl(c) + "</td>");
+    h += "</tr>";
+  }
+  h += "</tbody></table></div>";
+  return h;
+}
+function txt(p){
+  const lines = p.split("\n");
+  let h = "", l = null, pa = [];
+  const fp = () => { if (pa.length){ h += "<p>" + inl(pa.join("\n")) + "</p>"; pa = []; } };
+  const fl = () => { if (l){ h += "</" + l + ">"; l = null; } };
+  const isTableRow = s => /^\s*\|.+\|\s*$/.test(s);
+  const isTableSep = s => /^\s*\|[\s\-:|]+\|\s*$/.test(s) && /-/.test(s);
+  let i = 0;
+  while (i < lines.length){
+    const ln = lines[i];
+    let m;
+    if (isTableRow(ln) && i + 1 < lines.length && isTableSep(lines[i + 1])){
+      fp(); fl();
+      const rows = [ln]; i += 2;
+      while (i < lines.length && isTableRow(lines[i])){ rows.push(lines[i]); i++; }
+      h += renderTable(rows);
+      continue;
+    }
+    if (m = ln.match(/^\s{0,3}(#{1,6})\s+(.*)/)){
+      fp(); fl();
+      const n = Math.min(m[1].length + 1, 4);
+      h += "<h" + n + ">" + inl(m[2]) + "</h" + n + ">";
+    }
+    else if (/^\s*([-*_])\1{2,}\s*$/.test(ln)){ fp(); fl(); h += "<hr>"; }
+    else if (m = ln.match(/^\s*[-*]\s+(.*)/)){
+      fp();
+      if (l !== "ul"){ fl(); h += "<ul>"; l = "ul"; }
+      h += "<li>" + inl(m[1]) + "</li>";
+    }
+    else if (m = ln.match(/^\s*\d+[.)]\s+(.*)/)){
+      fp();
+      if (l !== "ol"){ fl(); h += "<ol>"; l = "ol"; }
+      h += "<li>" + inl(m[1]) + "</li>";
+    }
+    else if (!ln.trim()){ fp(); fl(); }
+    else { fl(); pa.push(ln); }
+    i++;
+  }
+  fp(); fl();
+  return h;
+}
+
+const KW = new Set("abstract and as assert async await break case catch class const continue def default del do elif else enum except export extends final finally for from fn func function if implements import in interface is lambda let loop match mod mut namespace new not null None nil of or package pass private protected pub public raise return self static struct super switch this throw throws trait true True false False try type typeof union unsafe use using var void while with yield select insert update delete create table where join group order by limit values".split(" "));
+const HASH = /^(py|python|bash|sh|shell|zsh|ruby|rb|yaml|yml|toml|r|perl|dockerfile|makefile|ini|conf|powershell|ps1)$/i;
+const CM = { h: /#[^\n]*/, q: /--[^\n]*|\/\*[\s\S]*?\*\//, s: /\/\/[^\n]*|\/\*[\s\S]*?\*\/|<!--[\s\S]*?-->/ };
+const REST = /("(?:\\.|[^"\\\n])*"|'(?:\\.|[^'\\\n])*'|`(?:\\.|[^`\\])*`)|(\b0x[0-9a-f]+\b|\b\d[\d_]*(?:\.\d+)?(?:e[+-]?\d+)?\b)|(\b[A-Za-z_]\w*\b)/;
+const RX = {};
+function hl(c, l){
+  if (c.length > 20000) return esc(c);
+  const k = HASH.test(l) ? "h" : /^sql$/i.test(l) ? "q" : "s";
+  const re = RX[k] || (RX[k] = new RegExp("(" + CM[k].source + ")|" + REST.source, "gi"));
+  re.lastIndex = 0;
+  let o = "", last = 0, m;
+  while ((m = re.exec(c))){
+    if (m[0] === "") break;
+    o += esc(c.slice(last, m.index));
+    last = re.lastIndex;
+    const tx = m[0];
+    const q = m[1] ? "c" : m[2] ? "s" : m[3] ? "n" : KW.has(tx) ? "k" : /^[A-Z][a-z]/.test(tx) ? "t" : "";
+    o += q ? '<span style="color:' + (q==="k"?"var(--coral)":q==="s"?"var(--violet)":q==="c"?"var(--dim-2)":"var(--ink-2)") + '">' + esc(tx) + "</span>" : esc(tx);
+  }
+  return o + esc(c.slice(last));
+}
+function typeset(root){
+  if (!window.katex || streaming) return;
+  root.querySelectorAll(".mx:not([data-k])").forEach(el => {
+    try {
+      el.innerHTML = katex.renderToString(el.dataset.tex, { displayMode: el.dataset.d === "1", throwOnError: false });
+      el.dataset.k = 1;
+    } catch(_) {}
+  });
+}
+function setH(el, h){ el.innerHTML = h; typeset(el); }
+window.typesetAll = function(){ typeset(document); };
+function md(src){
+  let h = "";
+  src.split(/```/).forEach((p, i) => {
+    if (i % 2){
+      const nl = p.indexOf("\n");
+      const l = nl > -1 ? p.slice(0, nl).trim() : "";
+      const c = nl > -1 ? p.slice(nl + 1) : p;
+      const code = c.replace(/\n$/, "");
+      const isH = /^html?$/i.test(l) || (!l && /<!doctype|<html/i.test(c));
+      const rn = /^(js|javascript|node|mjs)$/i.test(l) ? "js" : /^(py|python|python3)$/i.test(l) ? "py" : "";
+      h += '<div class="cb col" data-lang="' + escA(l) + '"><div class="ch"><span>' + esc(l || "code") + '</span><span>' + (rn ? '<button type="button" data-run="' + rn + '">Run</button>' : "") + (isH ? '<button type="button" data-p>Preview</button>' : "") + '<button type="button" data-c>Copy</button><button type="button" class="more" data-v>⤢ Expand</button></span></div><pre>' + hl(code, l) + '</pre></div>';
+    }
+    else h += txt(p);
+  });
+  return h;
+}
+function liteMd(src){
+  let h = "";
+  const parts = src.split(/```/);
+  for (let i = 0; i < parts.length; i++){
+    const p = parts[i];
+    if (i % 2){
+      const nl = p.indexOf("\n");
+      const c = nl > -1 ? p.slice(nl + 1) : p;
+      h += '<div class="cb live col"><pre>' + esc(c) + '</pre></div>';
+    } else {
+      p.split(/\n{2,}/).forEach(bl => {
+        const s = bl.trim();
+        if (s) h += '<p>' + esc(s).replace(/\n/g, "<br>") + '</p>';
+      });
+    }
+  }
+  return h;
+}
+
+/* ---------- MESSAGES ---------- */
+function fillBubble(b, txt2, names, imgs, nimg){
+  b.textContent = txt2;
+  if (imgs && imgs.length){
+    const w = document.createElement("div"); w.className = "th";
+    imgs.forEach(im => {
+      const i = document.createElement("img");
+      i.alt = "";
+      i.src = "data:" + im.mime + ";base64," + im.data;
+      w.appendChild(i);
     });
-    return esc(x).replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>").replace(/\u0001(\d+)\u0002/g, (_, i) => st[i]);
+    b.appendChild(w);
+  } else if (nimg){
+    const f = document.createElement("div"); f.className = "fl"; f.textContent = "🖼 " + nimg + " image" + (nimg > 1 ? "s" : ""); b.appendChild(f);
+  }
+  if (names && names.length){
+    const f = document.createElement("div"); f.className = "fl"; f.textContent = "📎 " + names.join(", "); b.appendChild(f);
+  }
+}
+function addU(txt2, names, imgs, nimg){
+  const d = document.createElement("div"); d.className = "u";
+  const b = document.createElement("div"); fillBubble(b, txt2, names, imgs, nimg);
+  d.appendChild(b); log.appendChild(d); return d;
+}
+function addA(){
+  const d = document.createElement("div");
+  d.className = "a";
+  d.innerHTML =
+    '<div class="status-chip" role="status"></div>' +
+    '<div class="think-live" hidden>' +
+      '<button type="button" class="think-live-head" aria-expanded="true">' +
+        '<span class="chev">›</span>' +
+        '<span class="think-live-dot"></span>' +
+        '<span class="think-live-label">Thinking…</span>' +
+      '</button>' +
+      '<div class="think-live-body open"><div class="think-live-inner"></div></div>' +
+    '</div>' +
+    '<div class="body"></div>';
+  log.appendChild(d);
+  return d;
+}
+function thinkShow(d, show){ const el = d.querySelector(".think-live"); if (!el) return null; if (show) el.hidden = false; return el; }
+function thinkUpdate(d, text){
+  const el = thinkShow(d, true); if (!el) return;
+  const inner = el.querySelector(".think-live-inner");
+  if (inner){ inner.textContent = text; inner.scrollTop = inner.scrollHeight; }
+  down();
+}
+function thinkFinish(d, seconds, hadText){
+  const el = d.querySelector(".think-live"); if (!el) return;
+  if (!hadText){ el.remove(); return; }
+  el.classList.add("done");
+  const dot = el.querySelector(".think-live-dot"); if (dot) dot.remove();
+  const label = el.querySelector(".think-live-label"); if (label) label.textContent = "Thought for " + seconds + "s";
+  const head = el.querySelector(".think-live-head");
+  const panelBody = el.querySelector(".think-live-body");
+  if (head) head.setAttribute("aria-expanded", "false");
+  if (panelBody) panelBody.classList.remove("open");
+  if (head && panelBody && !head.dataset.wired){
+    head.dataset.wired = "1";
+    head.addEventListener("click", () => {
+      const open = head.getAttribute("aria-expanded") === "true";
+      head.setAttribute("aria-expanded", String(!open));
+      panelBody.classList.toggle("open", !open);
+    });
+  }
+}
+
+const distB = () => main.scrollHeight - main.scrollTop - main.clientHeight;
+const syncPill = () => { const j = $("jump"); if (j) j.classList.toggle("on", distB() > 140); };
+main.addEventListener("scroll", () => { if (distB() < 140) follow = true; syncPill(); });
+{ const j = $("jump"); if (j) j.onclick = () => { follow = true; main.scrollTo({ top: main.scrollHeight, behavior: "smooth" }); }; }
+function down(f){ if (f || follow) requestAnimationFrame(() => { main.scrollTop = main.scrollHeight; }); }
+function withCaret(h){
+  if (/<\/p>$/.test(h)) return h.replace(/<\/p>$/, '<span class="caret"></span></p>');
+  if (/<\/pre><\/div>$/.test(h)) return h.replace(/<\/pre><\/div>$/, '<span class="caret"></span></pre></div>');
+  return h + '<span class="caret"></span>';
+}
+
+function startChip(chip){
+  let i = 0, tm;
+  const n = ++sid;
+  chip.innerHTML = '<span class="spark"><svg viewBox="0 0 24 24" aria-hidden="true"><defs><linearGradient id="sg' + n + '" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#c3f53c"/><stop offset=".55" stop-color="#ff6b4a"/><stop offset="1" stop-color="#7c5cff"/></linearGradient></defs><path fill="url(#sg' + n + ')" d="M12 2l2.6 7.4L22 12l-7.4 2.6L12 22l-2.6-7.4L2 12l7.4-2.6z"/></svg></span><span class="shimmer status-text">Thinking</span>';
+  const label = chip.querySelector(".status-text");
+  const setL = x => { label.style.opacity = 0; clearTimeout(tm); tm = setTimeout(() => { label.textContent = x; label.style.opacity = 1; }, 170); };
+  const iv = setInterval(() => { i = (i + 1) % STAGES.length; setL(STAGES[i]); }, 1400);
+  return {
+    write(){ if (chip.dataset.w) return; chip.dataset.w = 1; clearInterval(iv); setL("Writing"); },
+    done(){
+      clearInterval(iv); clearTimeout(tm);
+      label.classList.remove("shimmer"); label.style.opacity = 1; label.textContent = "Done";
+      chip.classList.add("done");
+      setTimeout(() => chip.classList.add("fade-out"), 900);
+      setTimeout(() => chip.remove(), 1500);
+    },
+    stop(){ clearInterval(iv); clearTimeout(tm); chip.remove(); }
   };
-  function renderTable(rows){
-    if (!rows.length) return "";
-    const splitRow = r => r.replace(/^\s*\|/, "").replace(/\|\s*$/, "").split("|").map(c => c.trim());
-    const head = splitRow(rows[0]);
-    let h = '<div style="overflow-x:auto;margin:12px 0;border:1px solid var(--line);border-radius:12px;background:var(--bg-3)"><table style="border-collapse:collapse;width:100%;font-size:14px"><thead><tr>';
-    head.forEach(c => h += '<th style="padding:10px 14px;text-align:left;border-bottom:1px solid var(--line);background:var(--bg-4);color:var(--ink);font-weight:700;font-size:13px">' + inl(c) + "</th>");
-    h += "</tr></thead><tbody>";
-    for (let r = 1; r < rows.length; r++){
-      h += "<tr>";
-      splitRow(rows[r]).forEach(c => h += '<td style="padding:10px 14px;text-align:left;border-bottom:1px solid var(--line);color:var(--ink-2)">' + inl(c) + "</td>");
-      h += "</tr>";
-    }
-    h += "</tbody></table></div>";
-    return h;
-  }
-  function txt(p){
-    const lines = p.split("\n");
-    let h = "", l = null, pa = [];
-    const fp = () => { if (pa.length){ h += "<p>" + inl(pa.join("\n")) + "</p>"; pa = []; } };
-    const fl = () => { if (l){ h += "</" + l + ">"; l = null; } };
-    const isTableRow = s => /^\s*\|.+\|\s*$/.test(s);
-    const isTableSep = s => /^\s*\|[\s\-:|]+\|\s*$/.test(s) && /-/.test(s);
-    let i = 0;
-    while (i < lines.length){
-      const ln = lines[i];
-      let m;
-      if (isTableRow(ln) && i + 1 < lines.length && isTableSep(lines[i + 1])){
-        fp(); fl();
-        const rows = [ln]; i += 2;
-        while (i < lines.length && isTableRow(lines[i])){ rows.push(lines[i]); i++; }
-        h += renderTable(rows);
-        continue;
-      }
-      if (m = ln.match(/^\s{0,3}(#{1,6})\s+(.*)/)){
-        fp(); fl();
-        const n = Math.min(m[1].length + 1, 4);
-        h += "<h" + n + ">" + inl(m[2]) + "</h" + n + ">";
-      }
-      else if (/^\s*([-*_])\1{2,}\s*$/.test(ln)){ fp(); fl(); h += "<hr>"; }
-      else if (m = ln.match(/^\s*[-*]\s+(.*)/)){
-        fp();
-        if (l !== "ul"){ fl(); h += "<ul>"; l = "ul"; }
-        h += "<li>" + inl(m[1]) + "</li>";
-      }
-      else if (m = ln.match(/^\s*\d+[.)]\s+(.*)/)){
-        fp();
-        if (l !== "ol"){ fl(); h += "<ol>"; l = "ol"; }
-        h += "<li>" + inl(m[1]) + "</li>";
-      }
-      else if (!ln.trim()){ fp(); fl(); }
-      else { fl(); pa.push(ln); }
-      i++;
-    }
-    fp(); fl();
-    return h;
-  }
+}
 
-  const KW = new Set("abstract and as assert async await break case catch class const continue def default del do elif else enum except export extends final finally for from fn func function if implements import in interface is lambda let loop match mod mut namespace new not null None nil of or package pass private protected pub public raise return self static struct super switch this throw throws trait true True false False try type typeof union unsafe use using var void while with yield select insert update delete create table where join group order by limit values".split(" "));
-  const HASH = /^(py|python|bash|sh|shell|zsh|ruby|rb|yaml|yml|toml|r|perl|dockerfile|makefile|ini|conf|powershell|ps1)$/i;
-  const CM = { h: /#[^\n]*/, q: /--[^\n]*|\/\*[\s\S]*?\*\//, s: /\/\/[^\n]*|\/\*[\s\S]*?\*\/|<!--[\s\S]*?-->/ };
-  const REST = /("(?:\\.|[^"\\\n])*"|'(?:\\.|[^'\\\n])*'|`(?:\\.|[^`\\])*`)|(\b0x[0-9a-f]+\b|\b\d[\d_]*(?:\.\d+)?(?:e[+-]?\d+)?\b)|(\b[A-Za-z_]\w*\b)/;
-  const RX = {};
-  function hl(c, l){
-    if (c.length > 20000) return esc(c);
-    const k = HASH.test(l) ? "h" : /^sql$/i.test(l) ? "q" : "s";
-    const re = RX[k] || (RX[k] = new RegExp("(" + CM[k].source + ")|" + REST.source, "gi"));
-    re.lastIndex = 0;
-    let o = "", last = 0, m;
-    while ((m = re.exec(c))){
-      if (m[0] === "") break;
-      o += esc(c.slice(last, m.index));
-      last = re.lastIndex;
-      const tx = m[0];
-      const q = m[1] ? "c" : m[2] ? "s" : m[3] ? "n" : KW.has(tx) ? "k" : /^[A-Z][a-z]/.test(tx) ? "t" : "";
-      o += q ? '<span style="color:' + (q==="k"?"var(--coral)":q==="s"?"var(--violet)":q==="c"?"var(--dim-2)":"var(--ink-2)") + '">' + esc(tx) + "</span>" : esc(tx);
-    }
-    return o + esc(c.slice(last));
-  }
-  function typeset(root){
-    if (!window.katex || streaming) return;
-    root.querySelectorAll(".mx:not([data-k])").forEach(el => {
-      try {
-        el.innerHTML = katex.renderToString(el.dataset.tex, { displayMode: el.dataset.d === "1", throwOnError: false });
-        el.dataset.k = 1;
-      } catch(_) {}
-    });
-  }
-  function setH(el, h){ el.innerHTML = h; typeset(el); }
-  window.typesetAll = function(){ typeset(document); };
-  function md(src){
-    let h = "";
-    src.split(/```/).forEach((p, i) => {
-      if (i % 2){
-        const nl = p.indexOf("\n");
-        const l = nl > -1 ? p.slice(0, nl).trim() : "";
-        const c = nl > -1 ? p.slice(nl + 1) : p;
-        const code = c.replace(/\n$/, "");
-        const isH = /^html?$/i.test(l) || (!l && /<!doctype|<html/i.test(c));
-        const rn = /^(js|javascript|node|mjs)$/i.test(l) ? "js" : /^(py|python|python3)$/i.test(l) ? "py" : "";
-        h += '<div class="cb col" data-lang="' + escA(l) + '"><div class="ch"><span>' + esc(l || "code") + '</span><span>' + (rn ? '<button type="button" data-run="' + rn + '">Run</button>' : "") + (isH ? '<button type="button" data-p>Preview</button>' : "") + '<button type="button" data-c>Copy</button><button type="button" class="more" data-v>⤢ Expand</button></span></div><pre>' + hl(code, l) + '</pre></div>';
-      }
-      else h += txt(p);
-    });
-    return h;
-  }
-  function liteMd(src){
-    let h = "";
-    const parts = src.split(/```/);
-    for (let i = 0; i < parts.length; i++){
-      const p = parts[i];
-      if (i % 2){
-        const nl = p.indexOf("\n");
-        const c = nl > -1 ? p.slice(nl + 1) : p;
-        h += '<div class="cb live col"><pre>' + esc(c) + '</pre></div>';
-      } else {
-        p.split(/\n{2,}/).forEach(bl => {
-          const s = bl.trim();
-          if (s) h += '<p>' + esc(s).replace(/\n/g, "<br>") + '</p>';
-        });
-      }
-    }
-    return h;
-  }
-
-  /* ---------- MESSAGES ---------- */
-  function fillBubble(b, txt2, names, imgs, nimg){
-    b.textContent = txt2;
-    if (imgs && imgs.length){
-      const w = document.createElement("div"); w.className = "th";
-      imgs.forEach(im => {
-        const i = document.createElement("img");
-        i.alt = "";
-        i.src = "data:" + im.mime + ";base64," + im.data;
-        w.appendChild(i);
-      });
-      b.appendChild(w);
-    } else if (nimg){
-      const f = document.createElement("div"); f.className = "fl"; f.textContent = "🖼 " + nimg + " image" + (nimg > 1 ? "s" : ""); b.appendChild(f);
-    }
-    if (names && names.length){
-      const f = document.createElement("div"); f.className = "fl"; f.textContent = "📎 " + names.join(", "); b.appendChild(f);
-    }
-  }
-  function addU(txt2, names, imgs, nimg){
-    const d = document.createElement("div"); d.className = "u";
-    const b = document.createElement("div"); fillBubble(b, txt2, names, imgs, nimg);
-    d.appendChild(b); log.appendChild(d); return d;
-  }
-  function addA(){
-    const d = document.createElement("div");
-    d.className = "a";
-    d.innerHTML =
-      '<div class="status-chip" role="status"></div>' +
-      '<div class="think-live" hidden>' +
-        '<button type="button" class="think-live-head" aria-expanded="true">' +
-          '<span class="chev">›</span>' +
-          '<span class="think-live-dot"></span>' +
-          '<span class="think-live-label">Thinking…</span>' +
-        '</button>' +
-        '<div class="think-live-body open"><div class="think-live-inner"></div></div>' +
-      '</div>' +
-      '<div class="body"></div>';
-    log.appendChild(d);
-    return d;
-  }
-  function thinkShow(d, show){ const el = d.querySelector(".think-live"); if (!el) return null; if (show) el.hidden = false; return el; }
-  function thinkUpdate(d, text){
-    const el = thinkShow(d, true); if (!el) return;
-    const inner = el.querySelector(".think-live-inner");
-    if (inner){ inner.textContent = text; inner.scrollTop = inner.scrollHeight; }
-    down();
-  }
-  function thinkFinish(d, seconds, hadText){
-    const el = d.querySelector(".think-live"); if (!el) return;
-    if (!hadText){ el.remove(); return; }
-    el.classList.add("done");
-    const dot = el.querySelector(".think-live-dot"); if (dot) dot.remove();
-    const label = el.querySelector(".think-live-label"); if (label) label.textContent = "Thought for " + seconds + "s";
-    const head = el.querySelector(".think-live-head");
-    const panelBody = el.querySelector(".think-live-body");
-    if (head) head.setAttribute("aria-expanded", "false");
-    if (panelBody) panelBody.classList.remove("open");
-    if (head && panelBody && !head.dataset.wired){
-      head.dataset.wired = "1";
-      head.addEventListener("click", () => {
-        const open = head.getAttribute("aria-expanded") === "true";
-        head.setAttribute("aria-expanded", String(!open));
-        panelBody.classList.toggle("open", !open);
-      });
-    }
-  }
-
-  const distB = () => main.scrollHeight - main.scrollTop - main.clientHeight;
-  const syncPill = () => { const j = $("jump"); if (j) j.classList.toggle("on", distB() > 140); };
-  main.addEventListener("scroll", () => { if (distB() < 140) follow = true; syncPill(); });
-  { const j = $("jump"); if (j) j.onclick = () => { follow = true; main.scrollTo({ top: main.scrollHeight, behavior: "smooth" }); }; }
-  function down(f){ if (f || follow) requestAnimationFrame(() => { main.scrollTop = main.scrollHeight; }); }
-  function withCaret(h){
-    if (/<\/p>$/.test(h)) return h.replace(/<\/p>$/, '<span class="caret"></span></p>');
-    if (/<\/pre><\/div>$/.test(h)) return h.replace(/<\/pre><\/div>$/, '<span class="caret"></span></pre></div>');
-    return h + '<span class="caret"></span>';
-  }
-
-  function startChip(chip){
-    let i = 0, tm;
-    const n = ++sid;
-    chip.innerHTML = '<span class="spark"><svg viewBox="0 0 24 24" aria-hidden="true"><defs><linearGradient id="sg' + n + '" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#c3f53c"/><stop offset=".55" stop-color="#ff6b4a"/><stop offset="1" stop-color="#7c5cff"/></linearGradient></defs><path fill="url(#sg' + n + ')" d="M12 2l2.6 7.4L22 12l-7.4 2.6L12 22l-2.6-7.4L2 12l7.4-2.6z"/></svg></span><span class="shimmer status-text">Thinking</span>';
-    const label = chip.querySelector(".status-text");
-    const setL = x => { label.style.opacity = 0; clearTimeout(tm); tm = setTimeout(() => { label.textContent = x; label.style.opacity = 1; }, 170); };
-    const iv = setInterval(() => { i = (i + 1) % STAGES.length; setL(STAGES[i]); }, 1400);
-    return {
-      write(){ if (chip.dataset.w) return; chip.dataset.w = 1; clearInterval(iv); setL("Writing"); },
-      done(){
-        clearInterval(iv); clearTimeout(tm);
-        label.classList.remove("shimmer"); label.style.opacity = 1; label.textContent = "Done";
-        chip.classList.add("done");
-        setTimeout(() => chip.classList.add("fade-out"), 900);
-        setTimeout(() => chip.remove(), 1500);
-      },
-      stop(){ clearInterval(iv); clearTimeout(tm); chip.remove(); }
-    };
-  }
-
-  function copy(txt2, btn){
-    const ok = () => { const prev = btn.innerHTML; btn.innerHTML = "✓"; setTimeout(() => btn.innerHTML = prev, 1200); };
-    const fb = () => {
-      const a = document.createElement("textarea");
-      a.value = txt2; a.style.cssText = "position:fixed;opacity:0";
-      document.body.appendChild(a); a.select();
-      try { document.execCommand("copy"); ok(); } catch(_) {}
-      a.remove();
-    };
-    navigator.clipboard ? navigator.clipboard.writeText(txt2).then(ok).catch(fb) : fb();
-  }
-
+function copy(txt2, btn){
+  const ok = () => { const prev = btn.innerHTML; btn.innerHTML = "✓"; setTimeout(() => btn.innerHTML = prev, 1200); };
+  const fb = () => {
+    const a = document.createElement("textarea");
+    a.value = txt2; a.style.cssText = "position:fixed;opacity:0";
+    document.body.appendChild(a); a.select();
+    try { document.execCommand("copy"); ok(); } catch(_) {}
+    a.remove();
+  };
+  navigator.clipboard ? navigator.clipboard.writeText(txt2).then(ok).catch(fb) : fb();
+     }
+   
   /* ---------- STUDY KIT PARSER ---------- */
   function parseStudyKit(text){
-    const kit = { notes:"", cards:[], quiz:[], exam:"", mock:"", viva:"" };
+    const kit = { notes:"", cards:[], quiz:[], exam:"", examKeyTerms:"", mock:false, viva:false };
     if (!text) return kit;
 
     const notesM = text.match(/##\s*📖\s*Notes\s*\n([\s\S]*?)(?=\n##\s*🎴|\n##\s*📝|$)/i);
@@ -1087,13 +1170,13 @@ async function afterSignIn(){
       }
     }
 
-    const examM = text.match(/\*\*Marks:\*\*\s*([\s\S]*?)(?=\n\*\*Answer:|\n\*\*Key terms:|$)/i);
-    if (examM) kit.exam = text.match(/\*\*Answer:\*\*([\s\S]*?)(?=\n\*\*Key terms:|$)/i)?.[1].trim() || "";
+    const ansM = text.match(/\*\*Answer:\*\*\s*([\s\S]*?)(?=\n\*\*Key terms:|\n\n---|\n\n##|$)/i);
+    if (ansM) kit.exam = ansM[1].trim();
     const keyM = text.match(/\*\*Key terms:?\*\*\s*([\s\S]*?)(?=\n\n|$)/i);
     if (keyM) kit.examKeyTerms = keyM[1].trim();
 
-    if (/mock paper|Section A|Section B/i.test(text)) kit.mock = "mock";
-    if (/viva|oral exam/i.test(text)) kit.viva = "viva";
+    if (/mock paper|Section A|Section B/i.test(text)) kit.mock = true;
+    if (/viva|oral exam/i.test(text)) kit.viva = true;
 
     return kit;
   }
@@ -1106,10 +1189,15 @@ async function afterSignIn(){
     if (kit.exam) parts += '<span class="kpart">Exam</span>';
     parts += '<span class="kpart" data-pro>Mock</span><span class="kpart" data-pro>Viva</span>';
 
+    let title = "Study Kit";
+    if (kit.notes && !kit.cards.length && !kit.quiz.length) title = "Notes Ready";
+    else if (kit.cards.length && !kit.notes && !kit.quiz.length) title = "Flashcards Ready";
+    else if (kit.quiz.length && !kit.notes && !kit.cards.length) title = "Quiz Ready";
+
     return '<div class="kit-launcher">' +
       '<div class="kit-launcher-top">' +
         '<span class="kit-launcher-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg></span>' +
-        '<div class="kit-launcher-tx"><b>Study Kit</b><span>Notes · Cards · Quiz · Exam</span></div>' +
+        '<div class="kit-launcher-tx"><b>' + title + '</b><span>Open to study</span></div>' +
       '</div>' +
       '<div class="kit-launcher-parts">' + parts + '</div>' +
       '<button class="open-kit" type="button">' +
@@ -1121,6 +1209,20 @@ async function afterSignIn(){
   function wireLauncher(el, kit){
     const btn = el.querySelector(".open-kit");
     if (btn) btn.addEventListener("click", () => openStudyPanel(kit));
+  }
+
+  function emptyPanel(emoji, title, sub, btnLabel, onClick){
+    let h = '<div class="empty-panel">' +
+      '<div class="ep-ic" style="font-size:24px">' + emoji + '</div>' +
+      '<h3>' + esc(title) + '</h3>' +
+      '<p>' + esc(sub) + '</p>';
+    if (btnLabel) h += '<button type="button" data-empty-action>' + esc(btnLabel) + '</button>';
+    h += '</div>';
+    setTimeout(() => {
+      const b = document.querySelector('.empty-panel [data-empty-action]');
+      if (b && onClick) b.addEventListener("click", onClick);
+    }, 0);
+    return h;
   }
 
   /* ---------- STUDY PANEL ---------- */
@@ -1256,20 +1358,6 @@ async function afterSignIn(){
     const p = $("studyPanel"); if (p) p.classList.remove("on");
   }
 
-  function emptyPanel(emoji, title, sub, btnLabel, onClick){
-    let h = '<div class="empty-panel">' +
-      '<div class="ep-ic" style="font-size:24px">' + emoji + '</div>' +
-      '<h3>' + esc(title) + '</h3>' +
-      '<p>' + esc(sub) + '</p>';
-    if (btnLabel) h += '<button type="button" data-empty-action>' + esc(btnLabel) + '</button>';
-    h += '</div>';
-    setTimeout(() => {
-      const b = document.querySelector('.empty-panel [data-empty-action]');
-      if (b && onClick) b.addEventListener("click", onClick);
-    }, 0);
-    return h;
-  }
-
   const studyPanel = $("studyPanel");
   if (studyPanel){
     studyPanel.querySelectorAll(".ptab").forEach(tab => {
@@ -1284,7 +1372,7 @@ async function afterSignIn(){
   { const cp = $("closePanel"); if (cp) cp.addEventListener("click", closePanel); }
 
   /* ---------- WORKER STREAM ---------- */
-  async function workerStream(messages, onText, signal, fast, onThought, search, meta, allowContinue){
+  async function workerStream(messages, onText, signal, fast, onThought, search){
     let r;
     try {
       r = await fetch(WORKER_URL, {
@@ -1392,15 +1480,41 @@ async function afterSignIn(){
     const files = items.filter(f => !f.img);
     const imgs = items.filter(f => f.img).map(f => f.img);
 
-    if (pendingKind === "notes" && (files.length || imgs.length)){
-      const base = "I uploaded a file. Follow the NOTES PIPELINE format exactly: ## 📖 Notes, ## 🎴 Flashcards (F:/B: format), ## 📝 Quiz (Q:/A)/B)/C)/D)/Ans:/Ex: format). Make it exam-relevant.";
-      const full = base + files.map(f => "\n\n--- " + f.name + " ---\n" + f.text).join("");
+    const isFileKit = (pendingKind === "notes" || pendingKind === "studykit") && files.length;
+    const isSnap = pendingKind === "snap" && imgs.length;
+    const studyIntent = isStudyKitIntent(text);
+    const proIntent = isProOnlyIntent(text);
+
+    if (proIntent && !pro){
       pending = []; pendingKind = null; renderAtts();
-      return run("Notes → Flashcards → Quiz", full, files.map(f => f.name), imgs);
+      openProPaywall();
+      return;
     }
 
-    if (pendingKind === "snap" && imgs.length){
-      const prompt = "Read this exam question from the photo. Give a proper exam answer in under 400 words. Format: **Marks:** [best guess], **Answer:** (numbered points), **Key terms:** (4-6 terms).";
+    if ((studyIntent || isFileKit) && !pro){
+      if (!genAllowed()){
+        pending = []; pendingKind = null; renderAtts();
+        openProPaywall("limit");
+        return;
+      }
+    }
+
+    if (isFileKit){
+      const base = "I uploaded a file. Generate a complete study kit based STRICTLY on this content. " +
+        "Output ONLY these three sections in this exact order. No preamble, no closing, no extra commentary:\n\n" +
+        "## 📖 Notes\n[Short revision notes with key terms bolded.]\n\n" +
+        "## 🎴 Flashcards\n12 cards. Each EXACTLY:\nF: [front]\nB: [back]\n\n" +
+        "## 📝 Quiz\n5 MCQs. Each EXACTLY:\nQ: [question]\nA) [option]\nB) [option]\nC) [option]\nD) [option]\nAns: [A/B/C/D]\nEx: [one-line explanation]";
+      const full = base + files.map(f => "\n\n--- " + f.name + " ---\n" + f.text).join("");
+      pending = []; pendingKind = null; renderAtts();
+      if (!pro) bumpGen();
+      return run("Study kit from " + files[0].name, full, files.map(f => f.name), imgs);
+    }
+
+    if (isSnap){
+      const prompt = "Read this exam question from the photo. Give a proper exam answer in under 400 words. " +
+        "Format EXACTLY: **Marks:** [best guess], **Answer:** (numbered points), **Key terms:** (4-6 terms). " +
+        "No preamble, no closing.";
       pending = []; pendingKind = null; renderAtts();
       return run("📸 Snap a question", prompt, [], imgs);
     }
@@ -1409,6 +1523,7 @@ async function afterSignIn(){
     const show = text.trim() || (imgs.length && !files.length ? "Describe this image." : imgs.length ? "Review the attached files." : "Review the attached file.");
     const full = show + files.map(f => "\n\n--- " + f.name + " ---\n" + f.text).join("");
     pending = []; pendingKind = null; renderAtts();
+    if (studyIntent && !pro) bumpGen();
     return run(show, full, files.map(f => f.name), imgs);
   }
 
@@ -1427,30 +1542,58 @@ async function afterSignIn(){
     const pct = Math.min(100, Math.round((d.used / TOTAL) * 100));
     const planLine = pro ? "Pro" : "Free";
     const limitLine = pro ? "1,000,000 (1M)" : "100,000 (100k)";
-    return (
-      "You are Zyro — the AI study companion for Indian students, built by a 17-year-old in Assam. Think of yourself as a smart older sibling who happens to be great at studies. Warm, casual, direct. Never preachy, never lecturing, never robotic.\n\n" +
-      "USER ACCOUNT (use only if asked):\n" +
-      "- Plan: " + planLine + "\n" +
-      "- Token limit: " + limitLine + " per 5-hour window\n" +
-      "- Used: " + d.used + " (" + pct + "%)\n\n" +
-      "GREETING RULE: if the user's message is only a greeting, reply with ONE short friendly sentence. Never list features.\n\n" +
-      "STYLE:\n" +
-      "- Talk like a helpful friend, not a teacher. Contractions, casual tone. Zero corporate fluff.\n" +
-      "- Short by default. Under 300 words unless asked for more.\n" +
-      "- Code in fenced blocks with language tags. Close the fence.\n" +
+    const studyIntent = isStudyKitIntent(t.value);
+    const proIntent = isProOnlyIntent(t.value);
+    const isGenRequest = studyIntent || proIntent;
+
+    const base = (
+      "You are Zyro — the AI study companion for Indian students, built by a 17-year-old in Assam. " +
+      "You're like a smart older sibling: warm, casual, direct. Never preachy. Never robotic.\n\n" +
+
+      "USER: Plan=" + planLine + ", Limit=" + limitLine + " per 5h, Used=" + d.used + " (" + pct + "%)\n\n" +
+
+      "CRITICAL — BE EFFICIENT:\n" +
+      "- NO preambles. Never start with 'Sure!', 'Great question!', 'Here you go!', 'Here's your...', 'I'd be happy to...'\n" +
+      "- NO closings. Never end with 'Let me know if you need anything!', 'Hope this helps!', 'Good luck!'\n" +
+      "- NO restating the question. Get straight to the answer.\n" +
+      "- NO extra commentary, no side notes, no 'would you like me to also...'\n" +
+      "- If you're not sure about a fact or formula, say so briefly. Never invent.\n" +
+      "- Short answers by default. Under 300 words unless asked for more.\n\n" +
+
+      "TONE: Contractions, casual, direct. Like texting a smart older sibling.\n\n" +
+      "CREATOR (only if asked): Debasish Singha, 17, Assam, India. Never bring up unprompted.\n\n" +
+      "FORMAT:\n" +
+      "- Markdown. Code in fenced blocks with language tags (close the fence).\n" +
       "- Math in LaTeX: $inline$ or $$display$$.\n" +
-      "- If they seem stressed (exams, deadlines), be extra reassuring. Short, calm, no drama.\n\n" +
-      "DEFAULT LENGTH: most answers under 300 words. Exam answers under 400. Only go longer if asked.\n\n" +
-      "If a topic is vague (like 'science'), don't dump everything. Ask them to pick a specific question.\n\n" +
-      "BUILD WEBSITES: when asked to build/create a website, output ONE complete self-contained HTML file in a single ```html code block. All CSS inside <style>, JS inside <script>. Realistic content only. Photos: https://picsum.photos/seed/UNIQUEWORD/600/800. Responsive. At least 150 lines. Always close the ```html fence.\n\n" +
-      "NOTES PIPELINE: when the user says 'notes pipeline', 'notes flashcards', 'study kit', or similar, produce EXACTLY these three sections in order:\n" +
-      "## 📖 Notes\n[Short revision notes. 5-8 paragraphs. Bold key terms.]\n\n" +
-      "## 🎴 Flashcards\nOutput 12 flashcards. Each EXACTLY:\nF: [front]\nB: [back]\n\n" +
-      "## 📝 Quiz\nOutput 5 MCQs. Each EXACTLY:\nQ: [question]\nA) [option]\nB) [option]\nC) [option]\nD) [option]\nAns: [A/B/C/D]\nEx: [one-line explanation]\n\n" +
+      "- Greeting → ONE short friendly sentence, no feature list.\n\n" +
+
+      "If the topic is vague (like 'science'), ask them to pick a specific question. Don't dump everything.\n\n" +
+
+      "BUILD WEBSITES: ONE complete self-contained HTML file in a single ```html code block. " +
+      "Real CSS inside <style>, JS inside <script>. Realistic content only. " +
+      "Photos: https://picsum.photos/seed/UNIQUEWORD/600/800. Responsive, 150+ lines. Close the fence.\n\n" +
+
+      (isGenRequest
+        ? "STUDY KIT / QUIZ / MOCK / FLASHCARDS REQUEST — OUTPUT ONLY THE STRUCTURED CONTENT. " +
+          "Rules:\n" +
+          "- Output ONLY the sections the user asked for (notes → 📖, flashcards → 🎴, quiz → 📝, mock → exam sections).\n" +
+          "- Use the user's exact requested structure. If they say 'study kit', output all three: Notes, Flashcards, Quiz.\n" +
+          "- NO preamble. NO 'Here you go!'. NO closing. NO extra commentary.\n" +
+          "- NO side notes, no 'would you like...', no follow-up suggestions.\n" +
+          "- If the user attached a file, base everything ONLY on that file's content. " +
+            "Never pull facts from outside. If the file doesn't cover a topic, skip it.\n" +
+          "- If Notes: short revision notes with key terms bolded, 5-8 paragraphs max.\n" +
+          "- If Flashcards: 12 cards. Each EXACTLY:\nF: [front]\nB: [back]\n\n" +
+          "- If Quiz: 5 MCQs. Each EXACTLY:\nQ: [question]\nA) [option]\nB) [option]\nC) [option]\nD) [option]\nAns: [A/B/C/D]\nEx: [one-line explanation]\n\n" +
+          "- If Mock paper: header with marks and duration, then numbered questions grouped by section. Include a marking scheme section.\n" +
+          "- After the structured content, STOP. Do not add anything else."
+        : ""
+      ) +
       (STUDY[$("study").value] || "") +
       (getCI() ? "\n\nUser's custom instructions: " + getCI().slice(0, 800) : "") +
       "\n\nToday is " + new Date().toLocaleDateString("en", { weekday: "long", year: "numeric", month: "long", day: "numeric" }) + "."
     );
+    return base;
   };
 
   const ARROW = go.innerHTML;
@@ -1482,12 +1625,17 @@ async function afterSignIn(){
     let hadThought = false;
     const onThought = th => { hadThought = true; thinkUpdate(d, th); };
 
+    // Smoother streaming — 140ms base, 300ms past 6k chars, skip unchanged
     let lastRender = 0;
+    let lastText = "";
     const emit = x => {
       c.write();
+      if (x === lastText) return;
       const now = performance.now();
-      if (now - lastRender > 80){
+      const throttle = x.length > 6000 ? 300 : 140;
+      if (now - lastRender > throttle){
         lastRender = now;
+        lastText = x;
         setH(body, withCaret(liteMd(x)));
         down();
       }
@@ -1503,11 +1651,11 @@ async function afterSignIn(){
       const msgs = [{ role: "system", content: SYS() }, ...api(hist), imgs.length ? { role: "user", content: full, images: imgs } : { role: "user", content: full }];
 
       try {
-        out = await workerStream(msgs, emit, ctrl.signal, cheap || $("mode").value === "Fast", onThought, false, null, true);
+        out = await workerStream(msgs, emit, ctrl.signal, cheap || $("mode").value === "Fast", onThought, false);
       } catch(e1){
         if (e1 && e1.code === "empty" && !ctrl.signal.aborted){
           toast("Retrying...");
-          out = await workerStream(msgs, emit, ctrl.signal, cheap || $("mode").value === "Fast", onThought, false, null, true);
+          out = await workerStream(msgs, emit, ctrl.signal, cheap || $("mode").value === "Fast", onThought, false);
         } else throw e1;
       }
       clearTimeout(runTimeout);
@@ -1518,7 +1666,7 @@ async function afterSignIn(){
       thinkFinish(d, secs, hadThought);
 
       const kit = parseStudyKit(out);
-      if (kit.notes || kit.cards.length || kit.quiz.length){
+      if (kit.notes || kit.cards.length || kit.quiz.length || kit.exam){
         const ln = document.createElement("div");
         ln.innerHTML = launcherHTML(kit);
         const lc = ln.firstElementChild;
@@ -1787,10 +1935,29 @@ async function afterSignIn(){
   { const ciSave = $("ciSave"); if (ciSave) ciSave.addEventListener("click", () => { try { localStorage.setItem(CI, $("ci").value.trim()); } catch(_) {} $("modal").classList.remove("on"); toast("Instructions saved"); }); }
   { const ciCancel = $("ciCancel"); if (ciCancel) ciCancel.addEventListener("click", () => $("modal").classList.remove("on")); }
 
+  document.addEventListener("click", () => {
+    ["modeMenu","studyMenu","actionsMenu"].forEach(id => { const el = $(id); if (el) el.classList.remove("open"); });
+    const pb = $("plusBtn"); if (pb) pb.classList.remove("active");
+    closeMenu();
+  });
+  document.addEventListener("keydown", e => {
+    if (e.key === "Escape"){
+      closeAllMenusExcept(null);
+      closeMenu();
+      closePV();
+      const cv = $("cv"); if (cv) cv.classList.remove("on");
+      const mo = $("modal"); if (mo) mo.classList.remove("on");
+      closeAuth(); closeProfile(); closePanel();
+      const pp = document.getElementById("ppModal"); if (pp) pp.remove();
+    }
+  });
+
   /* ---------- INIT ---------- */
   updateSendState();
   updateTokenUI();
   renderList();
+  renderAcct();
+  renderProfile();
 
   if (new URLSearchParams(location.search).get("auth")){
     openAuth("signin");
