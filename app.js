@@ -1,3 +1,4 @@
+alert("v40 loaded");
 console.log("[Zyro] app.js loaded");
 
 document.addEventListener("DOMContentLoaded", () => {
