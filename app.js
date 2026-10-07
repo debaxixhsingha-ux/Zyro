@@ -1,5 +1,5 @@
 /* =========================================================
-   ZYRO app.js — v48 (limits, animations, pro popup)
+   ZYRO app.js — v49 (intent fix, self-knowledge, flashcards)
    ========================================================= */
 
 /* ---------- TOP HELPERS ---------- */
@@ -239,7 +239,6 @@ function boot(){
         try { localStorage.setItem(GEN_KEY, JSON.stringify(fresh)); } catch(_) {}
         return fresh;
       }
-      // migrate old shape
       if (typeof d.count === "number" && d.studykit === undefined){
         return { studykit: d.count, flashcard: 0, quiz: 0, reset: d.reset };
       }
@@ -460,728 +459,728 @@ function boot(){
       if (el && el !== keep) el.classList.remove("open");
     });
     const pb = $("plusBtn"); if (pb && keep !== $("actionsMenu")) pb.classList.remove("active");
-}
-   
-/* ---------- MENU ---------- */
-const menu = $("menu"), scrim = $("scrim"), menuBtn = $("menuBtn");
-function openMenu(){ menu.classList.add("on"); scrim.classList.add("on"); menuBtn.classList.add("active"); }
-function closeMenu(){ menu.classList.remove("on"); scrim.classList.remove("on"); menuBtn.classList.remove("active"); }
-if (menuBtn){
-  menuBtn.addEventListener("click", e => {
-    e.stopPropagation();
-    menu.classList.contains("on") ? closeMenu() : openMenu();
-  });
-}
-if (scrim) scrim.addEventListener("click", closeMenu);
-if (menu) menu.addEventListener("click", e => { if (e.target === menu) e.stopPropagation(); });
+  }
 
-if (menu) menu.querySelectorAll(".mi[data-mode]").forEach(b => {
-  b.addEventListener("click", e => {
-    e.stopPropagation();
-    setStudy(b.dataset.mode);
-    closeMenu();
-  });
-});
+  /* ---------- MENU ---------- */
+  const menu = $("menu"), scrim = $("scrim"), menuBtn = $("menuBtn");
+  function openMenu(){ menu.classList.add("on"); scrim.classList.add("on"); menuBtn.classList.add("active"); }
+  function closeMenu(){ menu.classList.remove("on"); scrim.classList.remove("on"); menuBtn.classList.remove("active"); }
+  if (menuBtn){
+    menuBtn.addEventListener("click", e => {
+      e.stopPropagation();
+      menu.classList.contains("on") ? closeMenu() : openMenu();
+    });
+  }
+  if (scrim) scrim.addEventListener("click", closeMenu);
+  if (menu) menu.addEventListener("click", e => { if (e.target === menu) e.stopPropagation(); });
 
-if (menu) menu.querySelectorAll(".mi[data-tool]").forEach(b => {
-  b.addEventListener("click", e => {
-    e.stopPropagation();
-    const tool = b.dataset.tool;
-    closeMenu();
-    handleToolAction(tool);
-  });
-});
-
-function handleToolAction(tool){
-  if (tool === "snap"){ pendingKind = "snap"; $("img").click(); return; }
-  if (tool === "studykit"){
-    if (!checkGenAllowed("studykit")) return;
-    setStudy("Chat");
-    t.value = "Make me a study kit for: ";
-    t.dispatchEvent(new Event("input")); t.focus(); return;
-  }
-  if (tool === "flashcard"){
-    if (!checkGenAllowed("flashcard")) return;
-    setStudy("Chat");
-    t.value = "Make flashcards for: ";
-    t.dispatchEvent(new Event("input")); t.focus(); return;
-  }
-  if (tool === "quiz"){
-    if (!checkGenAllowed("quiz")) return;
-    setStudy("Chat");
-    t.value = "Quiz me on: ";
-    t.dispatchEvent(new Event("input")); t.focus(); return;
-  }
-  if (tool === "exam"){ setStudy("Exam"); t.value = "Give me a proper exam answer (5 marks) for: "; t.dispatchEvent(new Event("input")); t.focus(); return; }
-  if (tool === "mock"){
-    if (!pro){ openProPaywall("feature"); return; }
-    t.value = "Generate a full mock paper with marking scheme for: ";
-    t.dispatchEvent(new Event("input")); t.focus(); return;
-  }
-  if (tool === "viva"){
-    toast("Viva practice is coming soon");
-    return;
-  }
-}
-
-const plusBtn = $("plusBtn"), actionsMenu = $("actionsMenu");
-if (plusBtn && actionsMenu){
-  plusBtn.addEventListener("click", e => {
-    e.stopPropagation();
-    closeAllMenusExcept(actionsMenu);
-    actionsMenu.classList.toggle("open");
-    plusBtn.classList.toggle("active");
-  });
-  actionsMenu.querySelectorAll("button").forEach(b => {
+  if (menu) menu.querySelectorAll(".mi[data-mode]").forEach(b => {
     b.addEventListener("click", e => {
       e.stopPropagation();
-      actionsMenu.classList.remove("open");
-      plusBtn.classList.remove("active");
-      if (b.dataset.soon){ toast("Viva practice is coming soon"); return; }
-      handleToolAction(b.dataset.action);
+      setStudy(b.dataset.mode);
+      closeMenu();
     });
   });
-}
 
-const themeToggle = $("themeToggle"), themeLabel = $("themeLabel");
-if (themeToggle){
-  const root = document.documentElement;
-  themeToggle.addEventListener("click", e => {
-    e.stopPropagation();
-    const cur = root.getAttribute("data-theme") || "light";
-    const next = cur === "dark" ? "light" : "dark";
-    if (next === "dark") root.setAttribute("data-theme", "dark");
-    else root.removeAttribute("data-theme");
-    if (themeLabel) themeLabel.textContent = next === "dark" ? "Light mode" : "Dark mode";
-    try { localStorage.setItem("zyro_theme", next); } catch(_) {}
-  });
-  try {
-    const savedT = localStorage.getItem("zyro_theme");
-    if (savedT === "dark"){ root.setAttribute("data-theme", "dark"); if (themeLabel) themeLabel.textContent = "Light mode"; }
-  } catch(_) {}
-}
-
-["newcBtn","newChatBtn"].forEach(id => {
-  const b = $(id);
-  if (b) b.addEventListener("click", newChat);
-});
-
-/* ---------- CHIPS ---------- */
-const chipsBox = $("chips");
-if (chipsBox){
-  chipsBox.innerHTML = "";
-  QUICK.forEach(item => {
-    const b = document.createElement("button");
-    b.type = "button";
-    let html = '<span class="em">' + item.emoji + '</span>' + item.label;
-    if (item.pro) html += ' <span class="mini-pro">PRO</span>';
-    if (item.soon) html += ' <span class="mini-soon">SOON</span>';
-    b.innerHTML = html;
-    if (item.pro) b.dataset.pro = "1";
-    if (item.soon) b.dataset.soon = "1";
-    b.addEventListener("click", () => {
-      if (item.soon){ toast("Viva practice is coming soon"); return; }
-      handleToolAction(item.kind);
+  if (menu) menu.querySelectorAll(".mi[data-tool]").forEach(b => {
+    b.addEventListener("click", e => {
+      e.stopPropagation();
+      const tool = b.dataset.tool;
+      closeMenu();
+      handleToolAction(tool);
     });
-    chipsBox.appendChild(b);
   });
-}
 
-/* ---------- VOICE ---------- */
-const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-const micBtn = $("micBtn");
-let recog = null, listening = false;
-if (SR && micBtn){
-  micBtn.style.display = "grid";
-  micBtn.addEventListener("click", () => {
-    if (listening){ try { recog.stop(); } catch(_) {} return; }
-    try {
-      recog = new SR();
-      recog.lang = "en-IN";
-      recog.interimResults = true;
-      recog.continuous = false;
-      let base = t.value ? t.value + " " : "";
-      recog.onstart = () => { listening = true; micBtn.classList.add("rec"); };
-      recog.onend = () => { listening = false; micBtn.classList.remove("rec"); };
-      recog.onerror = () => { listening = false; micBtn.classList.remove("rec"); };
-      recog.onresult = e => {
-        let text = "";
-        for (let i = e.resultIndex; i < e.results.length; i++){
-          text += e.results[i][0].transcript;
-        }
-        t.value = base + text;
-        t.dispatchEvent(new Event("input"));
-      };
-      recog.start();
-    } catch(_) { toast("Voice not supported here"); }
-  });
-}
+  function handleToolAction(tool){
+    if (tool === "snap"){ pendingKind = "snap"; $("img").click(); return; }
+    if (tool === "studykit"){
+      if (!checkGenAllowed("studykit")) return;
+      setStudy("Chat");
+      t.value = "Make me a study kit for: ";
+      t.dispatchEvent(new Event("input")); t.focus(); return;
+    }
+    if (tool === "flashcard"){
+      if (!checkGenAllowed("flashcard")) return;
+      setStudy("Chat");
+      t.value = "Make flashcards for: ";
+      t.dispatchEvent(new Event("input")); t.focus(); return;
+    }
+    if (tool === "quiz"){
+      if (!checkGenAllowed("quiz")) return;
+      setStudy("Chat");
+      t.value = "Quiz me on: ";
+      t.dispatchEvent(new Event("input")); t.focus(); return;
+    }
+    if (tool === "exam"){ setStudy("Exam"); t.value = "Give me a proper exam answer (5 marks) for: "; t.dispatchEvent(new Event("input")); t.focus(); return; }
+    if (tool === "mock"){
+      if (!pro){ openProPaywall("feature"); return; }
+      t.value = "Generate a full mock paper with marking scheme for: ";
+      t.dispatchEvent(new Event("input")); t.focus(); return;
+    }
+    if (tool === "viva"){
+      toast("Viva practice is coming soon");
+      return;
+    }
+  }
 
-const EYE_OPEN = '<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/>';
-const EYE_OFF = '<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/>';
-{ const eye = $("amEye"), icon = $("amEyeIcon"), pw = $("amPw");
-  if (eye && icon && pw){
-    eye.addEventListener("click", function(e){
-      e.preventDefault();
-      const showing = pw.type === "text";
-      pw.type = showing ? "password" : "text";
-      icon.innerHTML = showing ? EYE_OPEN : EYE_OFF;
+  const plusBtn = $("plusBtn"), actionsMenu = $("actionsMenu");
+  if (plusBtn && actionsMenu){
+    plusBtn.addEventListener("click", e => {
+      e.stopPropagation();
+      closeAllMenusExcept(actionsMenu);
+      actionsMenu.classList.toggle("open");
+      plusBtn.classList.toggle("active");
+    });
+    actionsMenu.querySelectorAll("button").forEach(b => {
+      b.addEventListener("click", e => {
+        e.stopPropagation();
+        actionsMenu.classList.remove("open");
+        plusBtn.classList.remove("active");
+        if (b.dataset.soon){ toast("Viva practice is coming soon"); return; }
+        handleToolAction(b.dataset.action);
+      });
     });
   }
-}
 
-function sbClient(){
-  if (!SUPABASE_URL) return Promise.resolve(null);
-  if (sb) return Promise.resolve(sb);
-  if (!sbP) sbP = loadJS("https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2").then(() => {
-    sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-    return sb;
-  });
-  return sbP;
-}
-
-function renderAcct(){
-  const ava = $("acctAva"), em = $("acctEmail");
-  if (ava) ava.textContent = user ? (user.email || "Z").toUpperCase()[0] : "?";
-  if (em) em.textContent = user ? (user.email || "").split("@")[0].slice(0, 12) : "Sign in";
-  const acctBtn = $("authBtn");
-  if (acctBtn){
-    let pill = acctBtn.querySelector(".pro-pill");
-    if (user && pro && !pill){
-      pill = document.createElement("span");
-      pill.className = "pro-pill";
-      pill.textContent = "PRO";
-      acctBtn.appendChild(pill);
-    } else if ((!user || !pro) && pill){
-      pill.remove();
-    }
-  }
-  const up = $("upgradeCard");
-  if (up) up.style.display = (user && pro) ? "none" : "";
-  const pUp = $("profileUpgradeCard");
-  if (pUp) pUp.style.display = (user && pro) ? "none" : "";
-}
-
-function renderProfile(){
-  const ava = $("profileAva"), em = $("profileEmail"), meta = $("profileMeta");
-  if (ava) ava.textContent = user ? (user.email || "Z").toUpperCase()[0] : "?";
-  if (em) em.textContent = user ? (user.email || "") : "Not signed in";
-  if (meta) meta.textContent = user ? ("Signed in" + (pro ? " · Pro" : " · Free")) : "Sign in to sync across devices";
-  const pn = $("profilePlanName"); if (pn) pn.textContent = pro ? "Pro" : "Free";
-  const pl = $("profilePlanLimit"); if (pl) pl.textContent = pro ? "750k tokens / 5h" : "100k tokens / 5h";
-  paintBar();
-}
-
-const authBtn = $("authBtn");
-if (authBtn){
-  authBtn.addEventListener("click", e => {
-    e.stopPropagation();
-    if (user) openProfile();
-    else openAuth("signin");
-  });
-}
-
-const acctUpgrade = $("acctUpgrade");
-if (acctUpgrade){
-  acctUpgrade.addEventListener("click", e => {
-    e.stopPropagation();
-    closeMenu();
-    openRazorpayCheckout("monthly");
-  });
-}
-
-const profilePanel = $("profilePanel");
-function openProfile(){ renderProfile(); if (profilePanel) profilePanel.classList.add("on"); }
-function closeProfile(){ if (profilePanel) profilePanel.classList.remove("on"); }
-{ const cp = $("closeProfile"); if (cp) cp.addEventListener("click", closeProfile); }
-{ const pu = $("profileUpgradeBtn"); if (pu) pu.addEventListener("click", () => { closeProfile(); openRazorpayCheckout("monthly"); }); }
-{ const so = $("profileSignOut"); if (so) so.addEventListener("click", async () => {
-    const s = await sbClient();
-    if (s){ try { await s.auth.signOut(); } catch(_) {} }
-    user = null; pro = false; TOTAL = 100000;
-    renderAcct(); renderProfile(); updateTokenUI(); renderList();
-    closeProfile(); closeMenu();
-    toast("Signed out");
-}); }
-
-/* ---------- AUTH ---------- */
-let authMode = "signin";
-function setAuthMode(m){
-  authMode = m;
-  const amTitle = $("amTitle"), amSub = $("amSub"), amGo = $("amGo"), amSwitch = $("amSwitch");
-  if (!amTitle) return;
-  if (m === "signup"){
-    amTitle.textContent = "Create your account";
-    amSub.textContent = "Sync chats across devices. Free.";
-    amGo.textContent = "Create account";
-    amSwitch.textContent = "Sign in";
-    amSwitch.previousSibling.textContent = "Already have an account? ";
-  } else {
-    amTitle.textContent = "Sign in";
-    amSub.textContent = "Sync your chats across devices.";
-    amGo.textContent = "Sign in";
-    amSwitch.textContent = "Create one";
-    amSwitch.previousSibling.textContent = "No account? ";
-  }
-  const msg = $("amMsg"); if (msg) msg.textContent = "";
-}
-function openAuth(m){ setAuthMode(m || "signin"); $("authModal").classList.add("on"); setTimeout(() => $("amEmail").focus(), 60); }
-function closeAuth(){ const am = $("authModal"); if (am) am.classList.remove("on"); if ($("amPw")) $("amPw").value = ""; if ($("amMsg")) $("amMsg").textContent = ""; }
-
-{ const c = $("amCancel"); if (c) c.addEventListener("click", closeAuth); }
-{ const s = $("amSwitch"); if (s) s.addEventListener("click", e => { e.preventDefault(); setAuthMode(authMode === "signin" ? "signup" : "signin"); }); }
-{ const g = $("amGo"); if (g) g.addEventListener("click", async () => {
-    const em = $("amEmail").value.trim().toLowerCase(), pw = $("amPw").value, msg = $("amMsg"), btn = $("amGo");
-    if (!em || pw.length < 6){ msg.style.color = "#dc2626"; msg.textContent = "Enter an email and a password with 6+ characters."; return; }
-    msg.style.color = "var(--dim)"; msg.textContent = "Working..."; btn.disabled = true;
-    const s = await sbClient();
-    if (!s){ btn.disabled = false; msg.style.color = "#dc2626"; msg.textContent = "Supabase isn't configured."; return; }
-    const r = authMode === "signup"
-      ? await s.auth.signUp({ email: em, password: pw, options: { emailRedirectTo: location.origin + location.pathname } })
-      : await s.auth.signInWithPassword({ email: em, password: pw });
-    btn.disabled = false;
-    if (r.error){ msg.style.color = "#dc2626"; msg.textContent = r.error.message; return; }
-    if (authMode === "signup" && r.data && !r.data.session){
-      msg.style.color = "#16a34a"; msg.textContent = "Check your email to confirm, then sign in."; return;
-    }
-    closeAuth();
-    toast(authMode === "signup" ? "Account created" : "Signed in");
-  });
-}
-
-async function loadProfile(){
-  try {
-    const s = await sbClient();
-    const { data } = await s.from("profiles").select("pro").eq("id", user.id).maybeSingle();
-    pro = !!(data && data.pro);
-    TOTAL = L().tokens;
-    updateTokenUI(); renderAcct(); renderProfile();
-  } catch(_) {}
-}
-async function syncUsageFromCloud(){
-  if (!user) return;
-  try {
-    const s = await sbClient();
-    if (!s) return;
-    const day = new Date().toISOString().slice(0, 10);
-    const { data } = await s.from("usage").select("total").eq("user_id", user.id).eq("day", day).maybeSingle();
-    if (data && typeof data.total === "number"){
-      const d = getTokens();
-      if (data.total > d.used){ d.used = data.total; saveTokens(d); updateTokenUI(); }
-    }
-  } catch(_) {}
-}
-function cloudSave(){
-  if (!user || !cur) return;
-  clearTimeout(syncT);
-  syncT = setTimeout(async () => {
+  const themeToggle = $("themeToggle"), themeLabel = $("themeLabel");
+  if (themeToggle){
+    const root = document.documentElement;
+    themeToggle.addEventListener("click", e => {
+      e.stopPropagation();
+      const cur = root.getAttribute("data-theme") || "light";
+      const next = cur === "dark" ? "light" : "dark";
+      if (next === "dark") root.setAttribute("data-theme", "dark");
+      else root.removeAttribute("data-theme");
+      if (themeLabel) themeLabel.textContent = next === "dark" ? "Light mode" : "Dark mode";
+      try { localStorage.setItem("zyro_theme", next); } catch(_) {}
+    });
     try {
-      const s = await sbClient();
-      if (!s) return;
-      const msgs = JSON.parse(JSON.stringify(cur.msgs));
-      msgs.forEach(m => { delete m.imgs; });
-      await s.from("chats").upsert({ id: cur.id, user_id: user.id, title: cur.title, pin: !!cur.pin, ts: cur.ts, msgs: msgs.slice(-40) }, { onConflict: "id" });
-    } catch(_) {}
-  }, 1200);
-}
-function cloudDelete(id){
-  if (!user) return;
-  sbClient().then(s => { if (s) s.from("chats").delete().eq("id", id).then(() => {}).catch(() => {}); });
-}
-async function pullCloud(){
-  try {
-    const s = await sbClient(); if (!s) return;
-    const { data } = await s.from("chats").select("*").order("ts", { ascending: false }).limit(100);
-    if (!data) return;
-    let changed = false;
-    for (const r of data){
-      const ex = chats.find(c => c.id === r.id);
-      if (!ex){ chats.push({ id: r.id, title: r.title, pin: r.pin, ts: r.ts, msgs: r.msgs }); changed = true; }
-      else if ((r.ts || 0) > (ex.ts || 0)){ ex.title = r.title; ex.pin = r.pin; ex.ts = r.ts; ex.msgs = r.msgs; changed = true; }
-    }
-    if (changed){ save(); renderList(); toast("Chats synced"); }
-  } catch(_) {}
-}
-function cloudUsage(n){
-  if (!user) return;
-  uAcc += n; clearTimeout(uT);
-  uT = setTimeout(async () => {
-    try {
-      const s = await sbClient(); if (!s || !uAcc) return;
-      const a = uAcc; uAcc = 0;
-      await s.rpc("add_usage", { amt: a });
-    } catch(_) {}
-  }, 15000);
-}
-async function afterSignIn(){
-  renderAcct(); renderProfile();
-  await loadProfile();
-  await pullCloud();
-  await syncUsageFromCloud();
-  renderAcct(); renderProfile();
-}
-(async () => {
-  let s;
-  try { s = await sbClient(); } catch(_) {}
-  if (!s){ renderAcct(); renderProfile(); return; }
-  try {
-    const { data } = await s.auth.getSession();
-    user = (data && data.session && data.session.user) || null;
-  } catch(_) {}
-  s.auth.onAuthStateChange((_e, ses) => {
-    user = (ses && ses.user) || null;
-    if (!user){ pro = false; TOTAL = 100000; renderAcct(); renderProfile(); updateTokenUI(); renderList(); }
-    else afterSignIn();
-  });
-  if (user) await afterSignIn();
-  else { renderAcct(); renderProfile(); }
-})();
-
-/* ---------- CHAT LIST ---------- */
-try { chats = JSON.parse(localStorage.getItem(CK) || "[]"); } catch(_) { chats = []; }
-
-function save(){
-  chats = [...chats.filter(c => c.pin), ...chats.filter(c => !c.pin)].slice(0, 40);
-  for (;;){
-    try { localStorage.setItem(CK, JSON.stringify(chats)); break; }
-    catch(_) { if (chats.length <= 1) break; chats.pop(); }
-  }
-  cloudSave();
-  renderList();
-}
-function fmtDate(ts){
-  if (!ts) return "";
-  const d = new Date(ts), now = new Date();
-  const hms = String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0");
-  if (d.toDateString() === now.toDateString()) return "Today " + hms;
-  if (d.toDateString() === new Date(now - 86400000).toDateString()) return "Yesterday " + hms;
-  return d.getDate() + " " + d.toLocaleString("en", { month: "short" });
-}
-function renderList(){
-  const l = $("chatsList"); if (!l) return;
-  l.innerHTML = "";
-  const arr = [...chats.filter(c => c.pin), ...chats.filter(c => !c.pin)].slice(0, 10);
-  const countEl = $("chatsCount");
-  if (!arr.length){
-    l.innerHTML = '<div style="color:var(--dim);font-size:12px;padding:8px 11px;font-weight:500">No chats yet</div>';
-    if (countEl) countEl.textContent = "0 chats";
-    return;
-  }
-  if (countEl) countEl.textContent = arr.length + (arr.length === 1 ? " chat" : " chats");
-  arr.forEach(c => {
-    const d = document.createElement("button");
-    d.type = "button";
-    d.className = "chat-item";
-    d.innerHTML = '<b>' + esc(c.title || "Untitled") + '</b><small>' + fmtDate(c.ts) + '</small>';
-    d.addEventListener("click", e => { e.stopPropagation(); openChat(c.id); closeMenu(); });
-    l.appendChild(d);
-  });
-}
-{ const ct = $("chatsToggle"); if (ct) ct.addEventListener("click", e => {
-  e.stopPropagation();
-  ct.classList.toggle("open");
-  const drop = $("chatsDrop"); if (drop) drop.classList.toggle("open");
-}); }
-{ const del = $("deleteOldChats"); if (del) del.addEventListener("click", async e => {
-  e.stopPropagation();
-  if (!confirm("Delete chats older than 30 days?")) return;
-  const cutoff = Date.now() - 30 * 86400000;
-  const toDelete = chats.filter(c => (c.ts || 0) < cutoff);
-  if (!toDelete.length){ toast("No old chats to delete"); return; }
-  chats = chats.filter(c => (c.ts || 0) >= cutoff);
-  try { localStorage.setItem(CK, JSON.stringify(chats)); } catch(_) {}
-  if (user){
-    try {
-      const s = await sbClient();
-      if (s){ for (const c of toDelete){ await s.from("chats").delete().eq("id", c.id); } }
+      const savedT = localStorage.getItem("zyro_theme");
+      if (savedT === "dark"){ root.setAttribute("data-theme", "dark"); if (themeLabel) themeLabel.textContent = "Light mode"; }
     } catch(_) {}
   }
-  if (toDelete.find(c => c === cur)){ cur = null; hist = []; log.innerHTML = ""; log.classList.remove("on"); const hero = $("hero"); if (hero) hero.classList.remove("hide"); }
-  renderList();
-  closeMenu();
-  toast("Deleted " + toDelete.length + " old chat" + (toDelete.length > 1 ? "s" : ""));
-}); }
 
-function newChat(){
-  try { if (ctrl) ctrl.abort(); } catch(_) {}
-  busy = false; streaming = false; setGo(false); clearBusyWatchdog();
-  cur = null; hist = []; log.innerHTML = ""; log.classList.remove("on");
-  const hero = $("hero"); if (hero) hero.classList.remove("hide");
-  closeMenu();
-  try { t.focus(); } catch(_) {}
-}
-function openChat(id){
-  try { if (ctrl) ctrl.abort(); } catch(_) {}
-  busy = false; streaming = false; setGo(false); clearBusyWatchdog();
-  const c = chats.find(x => x.id === id); if (!c) return;
-  cur = c; hist = c.msgs; log.innerHTML = "";
-  const hero = $("hero"); if (hero) hero.classList.add("hide");
-  log.classList.add("on");
-  c.msgs.forEach((m) => {
-    if (m.role === "user"){ addU(m.show ?? m.content, m.att, m.imgs, m.nimg); }
-    else {
-      const d = addA();
-      const sc = d.querySelector(".status-chip"); if (sc) sc.remove();
-      const tl = d.querySelector(".think-live"); if (tl) tl.remove();
-      setH(d.querySelector(".body"), md(m.content));
-      const kit = parseStudyKit(m.content);
-      if (kit.notes || kit.cards.length || kit.quiz.length){
-        const ln = document.createElement("div");
-        ln.innerHTML = launcherHTML(kit);
-        const lc = ln.firstElementChild;
-        d.appendChild(lc);
-        wireLauncher(lc, kit);
-      }
-    }
+  ["newcBtn","newChatBtn"].forEach(id => {
+    const b = $(id);
+    if (b) b.addEventListener("click", newChat);
   });
-  closeMenu(); down(1);
-}
 
-/* ---------- MARKDOWN ---------- */
-const MR = /\$\$([\s\S]+?)\$\$|\\\[([\s\S]+?)\\\]|\\\(([\s\S]+?)\\\)|\$([^\s$](?:[^$\n]*?[^\s$])?)\$(?!\d)/g;
-const inl = x => {
-  const st = [], tk = h => "\u0001" + (st.push(h) - 1) + "\u0002";
-  x = x.replace(/`([^`]+)`/g, (_, c) => tk('<code class="i">' + esc(c) + '</code>'));
-  x = x.replace(MR, (m, a, b, c, d) => {
-    if (d !== undefined && !/[\\^_=+\-*\/<>{}()]|^[A-Za-z]$|\d/.test(d)) return m;
-    return tk('<span class="mx" data-d="' + (a !== undefined || b !== undefined ? 1 : 0) + '" data-tex="' + escA(a ?? b ?? c ?? d) + '">' + esc(m) + '</span>');
-  });
-  return esc(x).replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>").replace(/\u0001(\d+)\u0002/g, (_, i) => st[i]);
-};
-function renderTable(rows){
-  if (!rows.length) return "";
-  const splitRow = r => r.replace(/^\s*\|/, "").replace(/\|\s*$/, "").split("|").map(c => c.trim());
-  const head = splitRow(rows[0]);
-  let h = '<div style="overflow-x:auto;margin:12px 0;border:1px solid var(--line);border-radius:12px;background:var(--bg-3)"><table style="border-collapse:collapse;width:100%;font-size:14px"><thead><tr>';
-  head.forEach(c => h += '<th style="padding:10px 14px;text-align:left;border-bottom:1px solid var(--line);background:var(--bg-4);color:var(--ink);font-weight:700;font-size:13px">' + inl(c) + "</th>");
-  h += "</tr></thead><tbody>";
-  for (let r = 1; r < rows.length; r++){
-    h += "<tr>";
-    splitRow(rows[r]).forEach(c => h += '<td style="padding:10px 14px;text-align:left;border-bottom:1px solid var(--line);color:var(--ink-2)">' + inl(c) + "</td>");
-    h += "</tr>";
+  /* ---------- CHIPS ---------- */
+  const chipsBox = $("chips");
+  if (chipsBox){
+    chipsBox.innerHTML = "";
+    QUICK.forEach(item => {
+      const b = document.createElement("button");
+      b.type = "button";
+      let html = '<span class="em">' + item.emoji + '</span>' + item.label;
+      if (item.pro) html += ' <span class="mini-pro">PRO</span>';
+      if (item.soon) html += ' <span class="mini-soon">SOON</span>';
+      b.innerHTML = html;
+      if (item.pro) b.dataset.pro = "1";
+      if (item.soon) b.dataset.soon = "1";
+      b.addEventListener("click", () => {
+        if (item.soon){ toast("Viva practice is coming soon"); return; }
+        handleToolAction(item.kind);
+      });
+      chipsBox.appendChild(b);
+    });
   }
-  h += "</tbody></table></div>";
-  return h;
-}
-function txt(p){
-  const lines = p.split("\n");
-  let h = "", l = null, pa = [];
-  const fp = () => { if (pa.length){ h += "<p>" + inl(pa.join("\n")) + "</p>"; pa = []; } };
-  const fl = () => { if (l){ h += "</" + l + ">"; l = null; } };
-  const isTableRow = s => /^\s*\|.+\|\s*$/.test(s);
-  const isTableSep = s => /^\s*\|[\s\-:|]+\|\s*$/.test(s) && /-/.test(s);
-  let i = 0;
-  while (i < lines.length){
-    const ln = lines[i];
-    let m;
-    if (isTableRow(ln) && i + 1 < lines.length && isTableSep(lines[i + 1])){
-      fp(); fl();
-      const rows = [ln]; i += 2;
-      while (i < lines.length && isTableRow(lines[i])){ rows.push(lines[i]); i++; }
-      h += renderTable(rows);
-      continue;
-    }
-    if (m = ln.match(/^\s{0,3}(#{1,6})\s+(.*)/)){
-      fp(); fl();
-      const n = Math.min(m[1].length + 1, 4);
-      h += "<h" + n + ">" + inl(m[2]) + "</h" + n + ">";
-    }
-    else if (/^\s*([-*_])\1{2,}\s*$/.test(ln)){ fp(); fl(); h += "<hr>"; }
-    else if (m = ln.match(/^\s*[-*]\s+(.*)/)){
-      fp();
-      if (l !== "ul"){ fl(); h += "<ul>"; l = "ul"; }
-      h += "<li>" + inl(m[1]) + "</li>";
-    }
-    else if (m = ln.match(/^\s*\d+[.)]\s+(.*)/)){
-      fp();
-      if (l !== "ol"){ fl(); h += "<ol>"; l = "ol"; }
-      h += "<li>" + inl(m[1]) + "</li>";
-    }
-    else if (!ln.trim()){ fp(); fl(); }
-    else { fl(); pa.push(ln); }
-    i++;
-  }
-  fp(); fl();
-  return h;
-}
 
-const KW = new Set("abstract and as assert async await break case catch class const continue def default del do elif else enum except export extends final finally for from fn func function if implements import in interface is lambda let loop match mod mut namespace new not null None nil of or package pass private protected pub public raise return self static struct super switch this throw throws trait true True false False try type typeof union unsafe use using var void while with yield select insert update delete create table where join group order by limit values".split(" "));
-const HASH = /^(py|python|bash|sh|shell|zsh|ruby|rb|yaml|yml|toml|r|perl|dockerfile|makefile|ini|conf|powershell|ps1)$/i;
-const CM = { h: /#[^\n]*/, q: /--[^\n]*|\/\*[\s\S]*?\*\//, s: /\/\/[^\n]*|\/\*[\s\S]*?\*\/|<!--[\s\S]*?-->/ };
-const REST = /("(?:\\.|[^"\\\n])*"|'(?:\\.|[^'\\\n])*'|`(?:\\.|[^`\\])*`)|(\b0x[0-9a-f]+\b|\b\d[\d_]*(?:\.\d+)?(?:e[+-]?\d+)?\b)|(\b[A-Za-z_]\w*\b)/;
-const RX = {};
-function hl(c, l){
-  if (c.length > 20000) return esc(c);
-  const k = HASH.test(l) ? "h" : /^sql$/i.test(l) ? "q" : "s";
-  const re = RX[k] || (RX[k] = new RegExp("(" + CM[k].source + ")|" + REST.source, "gi"));
-  re.lastIndex = 0;
-  let o = "", last = 0, m;
-  while ((m = re.exec(c))){
-    if (m[0] === "") break;
-    o += esc(c.slice(last, m.index));
-    last = re.lastIndex;
-    const tx = m[0];
-    const q = m[1] ? "c" : m[2] ? "s" : m[3] ? "n" : KW.has(tx) ? "k" : /^[A-Z][a-z]/.test(tx) ? "t" : "";
-    o += q ? '<span style="color:' + (q==="k"?"var(--coral)":q==="s"?"var(--violet)":q==="c"?"var(--dim-2)":"var(--ink-2)") + '">' + esc(tx) + "</span>" : esc(tx);
+  /* ---------- VOICE ---------- */
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const micBtn = $("micBtn");
+  let recog = null, listening = false;
+  if (SR && micBtn){
+    micBtn.style.display = "grid";
+    micBtn.addEventListener("click", () => {
+      if (listening){ try { recog.stop(); } catch(_) {} return; }
+      try {
+        recog = new SR();
+        recog.lang = "en-IN";
+        recog.interimResults = true;
+        recog.continuous = false;
+        let base = t.value ? t.value + " " : "";
+        recog.onstart = () => { listening = true; micBtn.classList.add("rec"); };
+        recog.onend = () => { listening = false; micBtn.classList.remove("rec"); };
+        recog.onerror = () => { listening = false; micBtn.classList.remove("rec"); };
+        recog.onresult = e => {
+          let text = "";
+          for (let i = e.resultIndex; i < e.results.length; i++){
+            text += e.results[i][0].transcript;
+          }
+          t.value = base + text;
+          t.dispatchEvent(new Event("input"));
+        };
+        recog.start();
+      } catch(_) { toast("Voice not supported here"); }
+    });
   }
-  return o + esc(c.slice(last));
-}
-function typeset(root){
-  if (!window.katex || streaming) return;
-  root.querySelectorAll(".mx:not([data-k])").forEach(el => {
-    try {
-      el.innerHTML = katex.renderToString(el.dataset.tex, { displayMode: el.dataset.d === "1", throwOnError: false });
-      el.dataset.k = 1;
-    } catch(_) {}
-  });
-}
-function setH(el, h){ el.innerHTML = h; typeset(el); }
-window.typesetAll = function(){ typeset(document); };
-function md(src){
-  let h = "";
-  src.split(/```/).forEach((p, i) => {
-    if (i % 2){
-      const nl = p.indexOf("\n");
-      const l = nl > -1 ? p.slice(0, nl).trim() : "";
-      const c = nl > -1 ? p.slice(nl + 1) : p;
-      const code = c.replace(/\n$/, "");
-      const isH = /^html?$/i.test(l) || (!l && /<!doctype|<html/i.test(c));
-      const rn = /^(js|javascript|node|mjs)$/i.test(l) ? "js" : /^(py|python|python3)$/i.test(l) ? "py" : "";
-      h += '<div class="cb col" data-lang="' + escA(l) + '"><div class="ch"><span>' + esc(l || "code") + '</span><span>' + (rn ? '<button type="button" data-run="' + rn + '">Run</button>' : "") + (isH ? '<button type="button" data-p>Preview</button>' : "") + '<button type="button" data-c>Copy</button><button type="button" class="more" data-v>⤢ Expand</button></span></div><pre>' + hl(code, l) + '</pre></div>';
-    }
-    else h += txt(p);
-  });
-  return h;
-}
-function liteMd(src){
-  let h = "";
-  const parts = src.split(/```/);
-  for (let i = 0; i < parts.length; i++){
-    const p = parts[i];
-    if (i % 2){
-      const nl = p.indexOf("\n");
-      const c = nl > -1 ? p.slice(nl + 1) : p;
-      h += '<div class="cb live col"><pre>' + esc(c) + '</pre></div>';
-    } else {
-      p.split(/\n{2,}/).forEach(bl => {
-        const s = bl.trim();
-        if (s) h += '<p>' + esc(s).replace(/\n/g, "<br>") + '</p>';
+
+  const EYE_OPEN = '<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/>';
+  const EYE_OFF = '<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/>';
+  { const eye = $("amEye"), icon = $("amEyeIcon"), pw = $("amPw");
+    if (eye && icon && pw){
+      eye.addEventListener("click", function(e){
+        e.preventDefault();
+        const showing = pw.type === "text";
+        pw.type = showing ? "password" : "text";
+        icon.innerHTML = showing ? EYE_OPEN : EYE_OFF;
       });
     }
   }
-  return h;
-}
 
-function fillBubble(b, txt2, names, imgs, nimg){
-  b.textContent = txt2;
-  if (imgs && imgs.length){
-    const w = document.createElement("div"); w.className = "th";
-    imgs.forEach(im => {
-      const i = document.createElement("img");
-      i.alt = "";
-      i.src = "data:" + im.mime + ";base64," + im.data;
-      w.appendChild(i);
+  function sbClient(){
+    if (!SUPABASE_URL) return Promise.resolve(null);
+    if (sb) return Promise.resolve(sb);
+    if (!sbP) sbP = loadJS("https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2").then(() => {
+      sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+      return sb;
     });
-    b.appendChild(w);
-  } else if (nimg){
-    const f = document.createElement("div"); f.className = "fl"; f.textContent = "🖼 " + nimg + " image" + (nimg > 1 ? "s" : ""); b.appendChild(f);
+    return sbP;
   }
-  if (names && names.length){
-    const f = document.createElement("div"); f.className = "fl"; f.textContent = "📎 " + names.join(", "); b.appendChild(f);
+
+  function renderAcct(){
+    const ava = $("acctAva"), em = $("acctEmail");
+    if (ava) ava.textContent = user ? (user.email || "Z").toUpperCase()[0] : "?";
+    if (em) em.textContent = user ? (user.email || "").split("@")[0].slice(0, 12) : "Sign in";
+    const acctBtn = $("authBtn");
+    if (acctBtn){
+      let pill = acctBtn.querySelector(".pro-pill");
+      if (user && pro && !pill){
+        pill = document.createElement("span");
+        pill.className = "pro-pill";
+        pill.textContent = "PRO";
+        acctBtn.appendChild(pill);
+      } else if ((!user || !pro) && pill){
+        pill.remove();
+      }
+    }
+    const up = $("upgradeCard");
+    if (up) up.style.display = (user && pro) ? "none" : "";
+    const pUp = $("profileUpgradeCard");
+    if (pUp) pUp.style.display = (user && pro) ? "none" : "";
   }
-}
-function addU(txt2, names, imgs, nimg){
-  const d = document.createElement("div"); d.className = "u";
-  const b = document.createElement("div"); fillBubble(b, txt2, names, imgs, nimg);
-  d.appendChild(b); log.appendChild(d); return d;
-}
-function addA(){
-  const d = document.createElement("div");
-  d.className = "a";
-  d.innerHTML =
-    '<div class="status-chip" role="status"></div>' +
-    '<div class="think-live" hidden>' +
-      '<button type="button" class="think-live-head" aria-expanded="true">' +
-        '<span class="chev">›</span>' +
-        '<span class="think-live-dot"></span>' +
-        '<span class="think-live-label">Thinking…</span>' +
-      '</button>' +
-      '<div class="think-live-body open"><div class="think-live-inner"></div></div>' +
-    '</div>' +
-    '<div class="body"></div>';
-  log.appendChild(d);
-  return d;
-}
-function thinkShow(d, show){ const el = d.querySelector(".think-live"); if (!el) return null; if (show) el.hidden = false; return el; }
-function thinkUpdate(d, text){
-  const el = thinkShow(d, true); if (!el) return;
-  const inner = el.querySelector(".think-live-inner");
-  if (inner){ inner.textContent = text; inner.scrollTop = inner.scrollHeight; }
-  down();
-}
-function thinkFinish(d, seconds, hadText){
-  const el = d.querySelector(".think-live"); if (!el) return;
-  if (!hadText){ el.remove(); return; }
-  el.classList.add("done");
-  const dot = el.querySelector(".think-live-dot"); if (dot) dot.remove();
-  const label = el.querySelector(".think-live-label"); if (label) label.textContent = "Thought for " + seconds + "s";
-  const head = el.querySelector(".think-live-head");
-  const panelBody = el.querySelector(".think-live-body");
-  if (head) head.setAttribute("aria-expanded", "false");
-  if (panelBody) panelBody.classList.remove("open");
-  if (head && panelBody && !head.dataset.wired){
-    head.dataset.wired = "1";
-    head.addEventListener("click", () => {
-      const open = head.getAttribute("aria-expanded") === "true";
-      head.setAttribute("aria-expanded", String(!open));
-      panelBody.classList.toggle("open", !open);
+
+  function renderProfile(){
+    const ava = $("profileAva"), em = $("profileEmail"), meta = $("profileMeta");
+    if (ava) ava.textContent = user ? (user.email || "Z").toUpperCase()[0] : "?";
+    if (em) em.textContent = user ? (user.email || "") : "Not signed in";
+    if (meta) meta.textContent = user ? ("Signed in" + (pro ? " · Pro" : " · Free")) : "Sign in to sync across devices";
+    const pn = $("profilePlanName"); if (pn) pn.textContent = pro ? "Pro" : "Free";
+    const pl = $("profilePlanLimit"); if (pl) pl.textContent = pro ? "750k tokens / 5h" : "100k tokens / 5h";
+    paintBar();
+  }
+
+  const authBtn = $("authBtn");
+  if (authBtn){
+    authBtn.addEventListener("click", e => {
+      e.stopPropagation();
+      if (user) openProfile();
+      else openAuth("signin");
     });
   }
-}
 
-const distB = () => main.scrollHeight - main.scrollTop - main.clientHeight;
-const syncPill = () => { const j = $("jump"); if (j) j.classList.toggle("on", distB() > 140); };
-main.addEventListener("scroll", () => { if (distB() < 140) follow = true; syncPill(); });
-{ const j = $("jump"); if (j) j.onclick = () => { follow = true; main.scrollTo({ top: main.scrollHeight, behavior: "smooth" }); }; }
-function down(f){ if (f || follow) requestAnimationFrame(() => { main.scrollTop = main.scrollHeight; }); }
-function withCaret(h){
-  if (/<\/p>$/.test(h)) return h.replace(/<\/p>$/, '<span class="caret"></span></p>');
-  if (/<\/pre><\/div>$/.test(h)) return h.replace(/<\/pre><\/div>$/, '<span class="caret"></span></pre></div>');
-  return h + '<span class="caret"></span>';
-}
+  const acctUpgrade = $("acctUpgrade");
+  if (acctUpgrade){
+    acctUpgrade.addEventListener("click", e => {
+      e.stopPropagation();
+      closeMenu();
+      openRazorpayCheckout("monthly");
+    });
+  }
 
-function startChip(chip){
-  let i = 0, tm;
-  const n = ++sid;
-  chip.innerHTML = '<span class="spark"><svg viewBox="0 0 24 24" aria-hidden="true"><defs><linearGradient id="sg' + n + '" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#c3f53c"/><stop offset=".55" stop-color="#ff6b4a"/><stop offset="1" stop-color="#7c5cff"/></linearGradient></defs><path fill="url(#sg' + n + ')" d="M12 2l2.6 7.4L22 12l-7.4 2.6L12 22l-2.6-7.4L2 12l7.4-2.6z"/></svg></span><span class="shimmer status-text">Thinking</span>';
-  const label = chip.querySelector(".status-text");
-  const setL = x => { label.style.opacity = 0; clearTimeout(tm); tm = setTimeout(() => { label.textContent = x; label.style.opacity = 1; }, 170); };
-  const iv = setInterval(() => { i = (i + 1) % STAGES.length; setL(STAGES[i]); }, 1400);
-  return {
-    write(){ if (chip.dataset.w) return; chip.dataset.w = 1; clearInterval(iv); setL("Writing"); },
-    done(){
-      clearInterval(iv); clearTimeout(tm);
-      label.classList.remove("shimmer"); label.style.opacity = 1; label.textContent = "Done";
-      chip.classList.add("done");
-      setTimeout(() => chip.classList.add("fade-out"), 900);
-      setTimeout(() => chip.remove(), 1500);
-    },
-    stop(){ clearInterval(iv); clearTimeout(tm); chip.remove(); }
+  const profilePanel = $("profilePanel");
+  function openProfile(){ renderProfile(); if (profilePanel) profilePanel.classList.add("on"); }
+  function closeProfile(){ if (profilePanel) profilePanel.classList.remove("on"); }
+  { const cp = $("closeProfile"); if (cp) cp.addEventListener("click", closeProfile); }
+  { const pu = $("profileUpgradeBtn"); if (pu) pu.addEventListener("click", () => { closeProfile(); openRazorpayCheckout("monthly"); }); }
+  { const so = $("profileSignOut"); if (so) so.addEventListener("click", async () => {
+      const s = await sbClient();
+      if (s){ try { await s.auth.signOut(); } catch(_) {} }
+      user = null; pro = false; TOTAL = 100000;
+      renderAcct(); renderProfile(); updateTokenUI(); renderList();
+      closeProfile(); closeMenu();
+      toast("Signed out");
+  }); }
+
+  /* ---------- AUTH ---------- */
+  let authMode = "signin";
+  function setAuthMode(m){
+    authMode = m;
+    const amTitle = $("amTitle"), amSub = $("amSub"), amGo = $("amGo"), amSwitch = $("amSwitch");
+    if (!amTitle) return;
+    if (m === "signup"){
+      amTitle.textContent = "Create your account";
+      amSub.textContent = "Sync chats across devices. Free.";
+      amGo.textContent = "Create account";
+      amSwitch.textContent = "Sign in";
+      amSwitch.previousSibling.textContent = "Already have an account? ";
+    } else {
+      amTitle.textContent = "Sign in";
+      amSub.textContent = "Sync your chats across devices.";
+      amGo.textContent = "Sign in";
+      amSwitch.textContent = "Create one";
+      amSwitch.previousSibling.textContent = "No account? ";
+    }
+    const msg = $("amMsg"); if (msg) msg.textContent = "";
+  }
+  function openAuth(m){ setAuthMode(m || "signin"); $("authModal").classList.add("on"); setTimeout(() => $("amEmail").focus(), 60); }
+  function closeAuth(){ const am = $("authModal"); if (am) am.classList.remove("on"); if ($("amPw")) $("amPw").value = ""; if ($("amMsg")) $("amMsg").textContent = ""; }
+
+  { const c = $("amCancel"); if (c) c.addEventListener("click", closeAuth); }
+  { const s = $("amSwitch"); if (s) s.addEventListener("click", e => { e.preventDefault(); setAuthMode(authMode === "signin" ? "signup" : "signin"); }); }
+  { const g = $("amGo"); if (g) g.addEventListener("click", async () => {
+      const em = $("amEmail").value.trim().toLowerCase(), pw = $("amPw").value, msg = $("amMsg"), btn = $("amGo");
+      if (!em || pw.length < 6){ msg.style.color = "#dc2626"; msg.textContent = "Enter an email and a password with 6+ characters."; return; }
+      msg.style.color = "var(--dim)"; msg.textContent = "Working..."; btn.disabled = true;
+      const s = await sbClient();
+      if (!s){ btn.disabled = false; msg.style.color = "#dc2626"; msg.textContent = "Supabase isn't configured."; return; }
+      const r = authMode === "signup"
+        ? await s.auth.signUp({ email: em, password: pw, options: { emailRedirectTo: location.origin + location.pathname } })
+        : await s.auth.signInWithPassword({ email: em, password: pw });
+      btn.disabled = false;
+      if (r.error){ msg.style.color = "#dc2626"; msg.textContent = r.error.message; return; }
+      if (authMode === "signup" && r.data && !r.data.session){
+        msg.style.color = "#16a34a"; msg.textContent = "Check your email to confirm, then sign in."; return;
+      }
+      closeAuth();
+      toast(authMode === "signup" ? "Account created" : "Signed in");
+    });
+  }
+
+  async function loadProfile(){
+    try {
+      const s = await sbClient();
+      const { data } = await s.from("profiles").select("pro").eq("id", user.id).maybeSingle();
+      pro = !!(data && data.pro);
+      TOTAL = L().tokens;
+      updateTokenUI(); renderAcct(); renderProfile();
+    } catch(_) {}
+  }
+  async function syncUsageFromCloud(){
+    if (!user) return;
+    try {
+      const s = await sbClient();
+      if (!s) return;
+      const day = new Date().toISOString().slice(0, 10);
+      const { data } = await s.from("usage").select("total").eq("user_id", user.id).eq("day", day).maybeSingle();
+      if (data && typeof data.total === "number"){
+        const d = getTokens();
+        if (data.total > d.used){ d.used = data.total; saveTokens(d); updateTokenUI(); }
+      }
+    } catch(_) {}
+  }
+  function cloudSave(){
+    if (!user || !cur) return;
+    clearTimeout(syncT);
+    syncT = setTimeout(async () => {
+      try {
+        const s = await sbClient();
+        if (!s) return;
+        const msgs = JSON.parse(JSON.stringify(cur.msgs));
+        msgs.forEach(m => { delete m.imgs; });
+        await s.from("chats").upsert({ id: cur.id, user_id: user.id, title: cur.title, pin: !!cur.pin, ts: cur.ts, msgs: msgs.slice(-40) }, { onConflict: "id" });
+      } catch(_) {}
+    }, 1200);
+  }
+  function cloudDelete(id){
+    if (!user) return;
+    sbClient().then(s => { if (s) s.from("chats").delete().eq("id", id).then(() => {}).catch(() => {}); });
+  }
+  async function pullCloud(){
+    try {
+      const s = await sbClient(); if (!s) return;
+      const { data } = await s.from("chats").select("*").order("ts", { ascending: false }).limit(100);
+      if (!data) return;
+      let changed = false;
+      for (const r of data){
+        const ex = chats.find(c => c.id === r.id);
+        if (!ex){ chats.push({ id: r.id, title: r.title, pin: r.pin, ts: r.ts, msgs: r.msgs }); changed = true; }
+        else if ((r.ts || 0) > (ex.ts || 0)){ ex.title = r.title; ex.pin = r.pin; ex.ts = r.ts; ex.msgs = r.msgs; changed = true; }
+      }
+      if (changed){ save(); renderList(); toast("Chats synced"); }
+    } catch(_) {}
+  }
+  function cloudUsage(n){
+    if (!user) return;
+    uAcc += n; clearTimeout(uT);
+    uT = setTimeout(async () => {
+      try {
+        const s = await sbClient(); if (!s || !uAcc) return;
+        const a = uAcc; uAcc = 0;
+        await s.rpc("add_usage", { amt: a });
+      } catch(_) {}
+    }, 15000);
+  }
+  async function afterSignIn(){
+    renderAcct(); renderProfile();
+    await loadProfile();
+    await pullCloud();
+    await syncUsageFromCloud();
+    renderAcct(); renderProfile();
+  }
+  (async () => {
+    let s;
+    try { s = await sbClient(); } catch(_) {}
+    if (!s){ renderAcct(); renderProfile(); return; }
+    try {
+      const { data } = await s.auth.getSession();
+      user = (data && data.session && data.session.user) || null;
+    } catch(_) {}
+    s.auth.onAuthStateChange((_e, ses) => {
+      user = (ses && ses.user) || null;
+      if (!user){ pro = false; TOTAL = 100000; renderAcct(); renderProfile(); updateTokenUI(); renderList(); }
+      else afterSignIn();
+    });
+    if (user) await afterSignIn();
+    else { renderAcct(); renderProfile(); }
+  })();
+
+  /* ---------- CHAT LIST ---------- */
+  try { chats = JSON.parse(localStorage.getItem(CK) || "[]"); } catch(_) { chats = []; }
+
+  function save(){
+    chats = [...chats.filter(c => c.pin), ...chats.filter(c => !c.pin)].slice(0, 40);
+    for (;;){
+      try { localStorage.setItem(CK, JSON.stringify(chats)); break; }
+      catch(_) { if (chats.length <= 1) break; chats.pop(); }
+    }
+    cloudSave();
+    renderList();
+  }
+  function fmtDate(ts){
+    if (!ts) return "";
+    const d = new Date(ts), now = new Date();
+    const hms = String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0");
+    if (d.toDateString() === now.toDateString()) return "Today " + hms;
+    if (d.toDateString() === new Date(now - 86400000).toDateString()) return "Yesterday " + hms;
+    return d.getDate() + " " + d.toLocaleString("en", { month: "short" });
+  }
+  function renderList(){
+    const l = $("chatsList"); if (!l) return;
+    l.innerHTML = "";
+    const arr = [...chats.filter(c => c.pin), ...chats.filter(c => !c.pin)].slice(0, 10);
+    const countEl = $("chatsCount");
+    if (!arr.length){
+      l.innerHTML = '<div style="color:var(--dim);font-size:12px;padding:8px 11px;font-weight:500">No chats yet</div>';
+      if (countEl) countEl.textContent = "0 chats";
+      return;
+    }
+    if (countEl) countEl.textContent = arr.length + (arr.length === 1 ? " chat" : " chats");
+    arr.forEach(c => {
+      const d = document.createElement("button");
+      d.type = "button";
+      d.className = "chat-item";
+      d.innerHTML = '<b>' + esc(c.title || "Untitled") + '</b><small>' + fmtDate(c.ts) + '</small>';
+      d.addEventListener("click", e => { e.stopPropagation(); openChat(c.id); closeMenu(); });
+      l.appendChild(d);
+    });
+  }
+  { const ct = $("chatsToggle"); if (ct) ct.addEventListener("click", e => {
+    e.stopPropagation();
+    ct.classList.toggle("open");
+    const drop = $("chatsDrop"); if (drop) drop.classList.toggle("open");
+  }); }
+  { const del = $("deleteOldChats"); if (del) del.addEventListener("click", async e => {
+    e.stopPropagation();
+    if (!confirm("Delete chats older than 30 days?")) return;
+    const cutoff = Date.now() - 30 * 86400000;
+    const toDelete = chats.filter(c => (c.ts || 0) < cutoff);
+    if (!toDelete.length){ toast("No old chats to delete"); return; }
+    chats = chats.filter(c => (c.ts || 0) >= cutoff);
+    try { localStorage.setItem(CK, JSON.stringify(chats)); } catch(_) {}
+    if (user){
+      try {
+        const s = await sbClient();
+        if (s){ for (const c of toDelete){ await s.from("chats").delete().eq("id", c.id); } }
+      } catch(_) {}
+    }
+    if (toDelete.find(c => c === cur)){ cur = null; hist = []; log.innerHTML = ""; log.classList.remove("on"); const hero = $("hero"); if (hero) hero.classList.remove("hide"); }
+    renderList();
+    closeMenu();
+    toast("Deleted " + toDelete.length + " old chat" + (toDelete.length > 1 ? "s" : ""));
+  }); }
+
+  function newChat(){
+    try { if (ctrl) ctrl.abort(); } catch(_) {}
+    busy = false; streaming = false; setGo(false); clearBusyWatchdog();
+    cur = null; hist = []; log.innerHTML = ""; log.classList.remove("on");
+    const hero = $("hero"); if (hero) hero.classList.remove("hide");
+    closeMenu();
+    try { t.focus(); } catch(_) {}
+  }
+  function openChat(id){
+    try { if (ctrl) ctrl.abort(); } catch(_) {}
+    busy = false; streaming = false; setGo(false); clearBusyWatchdog();
+    const c = chats.find(x => x.id === id); if (!c) return;
+    cur = c; hist = c.msgs; log.innerHTML = "";
+    const hero = $("hero"); if (hero) hero.classList.add("hide");
+    log.classList.add("on");
+    c.msgs.forEach((m) => {
+      if (m.role === "user"){ addU(m.show ?? m.content, m.att, m.imgs, m.nimg); }
+      else {
+        const d = addA();
+        const sc = d.querySelector(".status-chip"); if (sc) sc.remove();
+        const tl = d.querySelector(".think-live"); if (tl) tl.remove();
+        setH(d.querySelector(".body"), md(m.content));
+        const kit = parseStudyKit(m.content);
+        if (kit.notes || kit.cards.length || kit.quiz.length){
+          const ln = document.createElement("div");
+          ln.innerHTML = launcherHTML(kit);
+          const lc = ln.firstElementChild;
+          d.appendChild(lc);
+          wireLauncher(lc, kit);
+        }
+      }
+    });
+    closeMenu(); down(1);
+  }
+
+  /* ---------- MARKDOWN ---------- */
+  const MR = /\$\$([\s\S]+?)\$\$|\\\[([\s\S]+?)\\\]|\\\(([\s\S]+?)\\\)|\$([^\s$](?:[^$\n]*?[^\s$])?)\$(?!\d)/g;
+  const inl = x => {
+    const st = [], tk = h => "\u0001" + (st.push(h) - 1) + "\u0002";
+    x = x.replace(/`([^`]+)`/g, (_, c) => tk('<code class="i">' + esc(c) + '</code>'));
+    x = x.replace(MR, (m, a, b, c, d) => {
+      if (d !== undefined && !/[\\^_=+\-*\/<>{}()]|^[A-Za-z]$|\d/.test(d)) return m;
+      return tk('<span class="mx" data-d="' + (a !== undefined || b !== undefined ? 1 : 0) + '" data-tex="' + escA(a ?? b ?? c ?? d) + '">' + esc(m) + '</span>');
+    });
+    return esc(x).replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>").replace(/\u0001(\d+)\u0002/g, (_, i) => st[i]);
   };
-}
+  function renderTable(rows){
+    if (!rows.length) return "";
+    const splitRow = r => r.replace(/^\s*\|/, "").replace(/\|\s*$/, "").split("|").map(c => c.trim());
+    const head = splitRow(rows[0]);
+    let h = '<div style="overflow-x:auto;margin:12px 0;border:1px solid var(--line);border-radius:12px;background:var(--bg-3)"><table style="border-collapse:collapse;width:100%;font-size:14px"><thead><tr>';
+    head.forEach(c => h += '<th style="padding:10px 14px;text-align:left;border-bottom:1px solid var(--line);background:var(--bg-4);color:var(--ink);font-weight:700;font-size:13px">' + inl(c) + "</th>");
+    h += "</tr></thead><tbody>";
+    for (let r = 1; r < rows.length; r++){
+      h += "<tr>";
+      splitRow(rows[r]).forEach(c => h += '<td style="padding:10px 14px;text-align:left;border-bottom:1px solid var(--line);color:var(--ink-2)">' + inl(c) + "</td>");
+      h += "</tr>";
+    }
+    h += "</tbody></table></div>";
+    return h;
+  }
+  function txt(p){
+    const lines = p.split("\n");
+    let h = "", l = null, pa = [];
+    const fp = () => { if (pa.length){ h += "<p>" + inl(pa.join("\n")) + "</p>"; pa = []; } };
+    const fl = () => { if (l){ h += "</" + l + ">"; l = null; } };
+    const isTableRow = s => /^\s*\|.+\|\s*$/.test(s);
+    const isTableSep = s => /^\s*\|[\s\-:|]+\|\s*$/.test(s) && /-/.test(s);
+    let i = 0;
+    while (i < lines.length){
+      const ln = lines[i];
+      let m;
+      if (isTableRow(ln) && i + 1 < lines.length && isTableSep(lines[i + 1])){
+        fp(); fl();
+        const rows = [ln]; i += 2;
+        while (i < lines.length && isTableRow(lines[i])){ rows.push(lines[i]); i++; }
+        h += renderTable(rows);
+        continue;
+      }
+      if (m = ln.match(/^\s{0,3}(#{1,6})\s+(.*)/)){
+        fp(); fl();
+        const n = Math.min(m[1].length + 1, 4);
+        h += "<h" + n + ">" + inl(m[2]) + "</h" + n + ">";
+      }
+      else if (/^\s*([-*_])\1{2,}\s*$/.test(ln)){ fp(); fl(); h += "<hr>"; }
+      else if (m = ln.match(/^\s*[-*]\s+(.*)/)){
+        fp();
+        if (l !== "ul"){ fl(); h += "<ul>"; l = "ul"; }
+        h += "<li>" + inl(m[1]) + "</li>";
+      }
+      else if (m = ln.match(/^\s*\d+[.)]\s+(.*)/)){
+        fp();
+        if (l !== "ol"){ fl(); h += "<ol>"; l = "ol"; }
+        h += "<li>" + inl(m[1]) + "</li>";
+      }
+      else if (!ln.trim()){ fp(); fl(); }
+      else { fl(); pa.push(ln); }
+      i++;
+    }
+    fp(); fl();
+    return h;
+  }
 
-function copy(txt2, btn){
-  const ok = () => { const prev = btn.innerHTML; btn.innerHTML = "✓"; setTimeout(() => btn.innerHTML = prev, 1200); };
-  const fb = () => {
-    const a = document.createElement("textarea");
-    a.value = txt2; a.style.cssText = "position:fixed;opacity:0";
-    document.body.appendChild(a); a.select();
-    try { document.execCommand("copy"); ok(); } catch(_) {}
-    a.remove();
-  };
-  navigator.clipboard ? navigator.clipboard.writeText(txt2).then(ok).catch(fb) : fb();
-     }
-   
+  const KW = new Set("abstract and as assert async await break case catch class const continue def default del do elif else enum except export extends final finally for from fn func function if implements import in interface is lambda let loop match mod mut namespace new not null None nil of or package pass private protected pub public raise return self static struct super switch this throw throws trait true True false False try type typeof union unsafe use using var void while with yield select insert update delete create table where join group order by limit values".split(" "));
+  const HASH = /^(py|python|bash|sh|shell|zsh|ruby|rb|yaml|yml|toml|r|perl|dockerfile|makefile|ini|conf|powershell|ps1)$/i;
+  const CM = { h: /#[^\n]*/, q: /--[^\n]*|\/\*[\s\S]*?\*\//, s: /\/\/[^\n]*|\/\*[\s\S]*?\*\/|<!--[\s\S]*?-->/ };
+  const REST = /("(?:\\.|[^"\\\n])*"|'(?:\\.|[^'\\\n])*'|`(?:\\.|[^`\\])*`)|(\b0x[0-9a-f]+\b|\b\d[\d_]*(?:\.\d+)?(?:e[+-]?\d+)?\b)|(\b[A-Za-z_]\w*\b)/;
+  const RX = {};
+  function hl(c, l){
+    if (c.length > 20000) return esc(c);
+    const k = HASH.test(l) ? "h" : /^sql$/i.test(l) ? "q" : "s";
+    const re = RX[k] || (RX[k] = new RegExp("(" + CM[k].source + ")|" + REST.source, "gi"));
+    re.lastIndex = 0;
+    let o = "", last = 0, m;
+    while ((m = re.exec(c))){
+      if (m[0] === "") break;
+      o += esc(c.slice(last, m.index));
+      last = re.lastIndex;
+      const tx = m[0];
+      const q = m[1] ? "c" : m[2] ? "s" : m[3] ? "n" : KW.has(tx) ? "k" : /^[A-Z][a-z]/.test(tx) ? "t" : "";
+      o += q ? '<span style="color:' + (q==="k"?"var(--coral)":q==="s"?"var(--violet)":q==="c"?"var(--dim-2)":"var(--ink-2)") + '">' + esc(tx) + "</span>" : esc(tx);
+    }
+    return o + esc(c.slice(last));
+  }
+  function typeset(root){
+    if (!window.katex || streaming) return;
+    root.querySelectorAll(".mx:not([data-k])").forEach(el => {
+      try {
+        el.innerHTML = katex.renderToString(el.dataset.tex, { displayMode: el.dataset.d === "1", throwOnError: false });
+        el.dataset.k = 1;
+      } catch(_) {}
+    });
+  }
+  function setH(el, h){ el.innerHTML = h; typeset(el); }
+  window.typesetAll = function(){ typeset(document); };
+  function md(src){
+    let h = "";
+    src.split(/```/).forEach((p, i) => {
+      if (i % 2){
+        const nl = p.indexOf("\n");
+        const l = nl > -1 ? p.slice(0, nl).trim() : "";
+        const c = nl > -1 ? p.slice(nl + 1) : p;
+        const code = c.replace(/\n$/, "");
+        const isH = /^html?$/i.test(l) || (!l && /<!doctype|<html/i.test(c));
+        const rn = /^(js|javascript|node|mjs)$/i.test(l) ? "js" : /^(py|python|python3)$/i.test(l) ? "py" : "";
+        h += '<div class="cb col" data-lang="' + escA(l) + '"><div class="ch"><span>' + esc(l || "code") + '</span><span>' + (rn ? '<button type="button" data-run="' + rn + '">Run</button>' : "") + (isH ? '<button type="button" data-p>Preview</button>' : "") + '<button type="button" data-c>Copy</button><button type="button" class="more" data-v>⤢ Expand</button></span></div><pre>' + hl(code, l) + '</pre></div>';
+      }
+      else h += txt(p);
+    });
+    return h;
+  }
+  function liteMd(src){
+    let h = "";
+    const parts = src.split(/```/);
+    for (let i = 0; i < parts.length; i++){
+      const p = parts[i];
+      if (i % 2){
+        const nl = p.indexOf("\n");
+        const c = nl > -1 ? p.slice(nl + 1) : p;
+        h += '<div class="cb live col"><pre>' + esc(c) + '</pre></div>';
+      } else {
+        p.split(/\n{2,}/).forEach(bl => {
+          const s = bl.trim();
+          if (s) h += '<p>' + esc(s).replace(/\n/g, "<br>") + '</p>';
+        });
+      }
+    }
+    return h;
+  }
+
+  function fillBubble(b, txt2, names, imgs, nimg){
+    b.textContent = txt2;
+    if (imgs && imgs.length){
+      const w = document.createElement("div"); w.className = "th";
+      imgs.forEach(im => {
+        const i = document.createElement("img");
+        i.alt = "";
+        i.src = "data:" + im.mime + ";base64," + im.data;
+        w.appendChild(i);
+      });
+      b.appendChild(w);
+    } else if (nimg){
+      const f = document.createElement("div"); f.className = "fl"; f.textContent = "🖼 " + nimg + " image" + (nimg > 1 ? "s" : ""); b.appendChild(f);
+    }
+    if (names && names.length){
+      const f = document.createElement("div"); f.className = "fl"; f.textContent = "📎 " + names.join(", "); b.appendChild(f);
+    }
+  }
+  function addU(txt2, names, imgs, nimg){
+    const d = document.createElement("div"); d.className = "u";
+    const b = document.createElement("div"); fillBubble(b, txt2, names, imgs, nimg);
+    d.appendChild(b); log.appendChild(d); return d;
+  }
+  function addA(){
+    const d = document.createElement("div");
+    d.className = "a";
+    d.innerHTML =
+      '<div class="status-chip" role="status"></div>' +
+      '<div class="think-live" hidden>' +
+        '<button type="button" class="think-live-head" aria-expanded="true">' +
+          '<span class="chev">›</span>' +
+          '<span class="think-live-dot"></span>' +
+          '<span class="think-live-label">Thinking…</span>' +
+        '</button>' +
+        '<div class="think-live-body open"><div class="think-live-inner"></div></div>' +
+      '</div>' +
+      '<div class="body"></div>';
+    log.appendChild(d);
+    return d;
+  }
+  function thinkShow(d, show){ const el = d.querySelector(".think-live"); if (!el) return null; if (show) el.hidden = false; return el; }
+  function thinkUpdate(d, text){
+    const el = thinkShow(d, true); if (!el) return;
+    const inner = el.querySelector(".think-live-inner");
+    if (inner){ inner.textContent = text; inner.scrollTop = inner.scrollHeight; }
+    down();
+  }
+  function thinkFinish(d, seconds, hadText){
+    const el = d.querySelector(".think-live"); if (!el) return;
+    if (!hadText){ el.remove(); return; }
+    el.classList.add("done");
+    const dot = el.querySelector(".think-live-dot"); if (dot) dot.remove();
+    const label = el.querySelector(".think-live-label"); if (label) label.textContent = "Thought for " + seconds + "s";
+    const head = el.querySelector(".think-live-head");
+    const panelBody = el.querySelector(".think-live-body");
+    if (head) head.setAttribute("aria-expanded", "false");
+    if (panelBody) panelBody.classList.remove("open");
+    if (head && panelBody && !head.dataset.wired){
+      head.dataset.wired = "1";
+      head.addEventListener("click", () => {
+        const open = head.getAttribute("aria-expanded") === "true";
+        head.setAttribute("aria-expanded", String(!open));
+        panelBody.classList.toggle("open", !open);
+      });
+    }
+  }
+
+  const distB = () => main.scrollHeight - main.scrollTop - main.clientHeight;
+  const syncPill = () => { const j = $("jump"); if (j) j.classList.toggle("on", distB() > 140); };
+  main.addEventListener("scroll", () => { if (distB() < 140) follow = true; syncPill(); });
+  { const j = $("jump"); if (j) j.onclick = () => { follow = true; main.scrollTo({ top: main.scrollHeight, behavior: "smooth" }); }; }
+  function down(f){ if (f || follow) requestAnimationFrame(() => { main.scrollTop = main.scrollHeight; }); }
+  function withCaret(h){
+    if (/<\/p>$/.test(h)) return h.replace(/<\/p>$/, '<span class="caret"></span></p>');
+    if (/<\/pre><\/div>$/.test(h)) return h.replace(/<\/pre><\/div>$/, '<span class="caret"></span></pre></div>');
+    return h + '<span class="caret"></span>';
+  }
+
+  function startChip(chip){
+    let i = 0, tm;
+    const n = ++sid;
+    chip.innerHTML = '<span class="spark"><svg viewBox="0 0 24 24" aria-hidden="true"><defs><linearGradient id="sg' + n + '" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#c3f53c"/><stop offset=".55" stop-color="#ff6b4a"/><stop offset="1" stop-color="#7c5cff"/></linearGradient></defs><path fill="url(#sg' + n + ')" d="M12 2l2.6 7.4L22 12l-7.4 2.6L12 22l-2.6-7.4L2 12l7.4-2.6z"/></svg></span><span class="shimmer status-text">Thinking</span>';
+    const label = chip.querySelector(".status-text");
+    const setL = x => { label.style.opacity = 0; clearTimeout(tm); tm = setTimeout(() => { label.textContent = x; label.style.opacity = 1; }, 170); };
+    const iv = setInterval(() => { i = (i + 1) % STAGES.length; setL(STAGES[i]); }, 1400);
+    return {
+      write(){ if (chip.dataset.w) return; chip.dataset.w = 1; clearInterval(iv); setL("Writing"); },
+      done(){
+        clearInterval(iv); clearTimeout(tm);
+        label.classList.remove("shimmer"); label.style.opacity = 1; label.textContent = "Done";
+        chip.classList.add("done");
+        setTimeout(() => chip.classList.add("fade-out"), 900);
+        setTimeout(() => chip.remove(), 1500);
+      },
+      stop(){ clearInterval(iv); clearTimeout(tm); chip.remove(); }
+    };
+  }
+
+  function copy(txt2, btn){
+    const ok = () => { const prev = btn.innerHTML; btn.innerHTML = "✓"; setTimeout(() => btn.innerHTML = prev, 1200); };
+    const fb = () => {
+      const a = document.createElement("textarea");
+      a.value = txt2; a.style.cssText = "position:fixed;opacity:0";
+      document.body.appendChild(a); a.select();
+      try { document.execCommand("copy"); ok(); } catch(_) {}
+      a.remove();
+    };
+    navigator.clipboard ? navigator.clipboard.writeText(txt2).then(ok).catch(fb) : fb();
+  }
+
   /* ---------- STUDY KIT PARSER ---------- */
   function parseStudyKit(text){
     const kit = { notes:"", cards:[], quiz:[] };
@@ -1316,7 +1315,6 @@ function copy(txt2, btn){
         html += '</div>';
         quizEl.innerHTML = html;
 
-        // Quiz interaction — always highlight correct answer
         quizEl.querySelectorAll(".quiz-item").forEach(item => {
           const opts = item.querySelectorAll(".opt");
           opts.forEach(o => {
@@ -1336,7 +1334,6 @@ function copy(txt2, btn){
       }
     }
 
-    // Choose target tab
     let targetTab = "notes";
     if (!kit.notes && kit.cards.length) targetTab = "cards";
     if (!kit.notes && !kit.cards.length && kit.quiz.length) targetTab = "quiz";
@@ -1529,7 +1526,7 @@ function copy(txt2, btn){
     const full = show + files.map(f => "\n\n--- " + f.name + " ---\n" + f.text).join("");
     pending = []; pendingKind = null; renderAtts();
     if (!pro && intent && intent !== "mock" && intent !== "viva") bumpGen(intent);
-    return run(show, full, files.map(f => f.name), imgs);
+    return run(show, full, files.map(f => f.name), imgs, intent);
   }
 
   const ERR = {
@@ -1542,12 +1539,11 @@ function copy(txt2, btn){
     net: "Can't reach the server. Check your connection and retry."
   };
 
-  const SYS = () => {
+  const SYS = (intent) => {
     const d = getTokens();
     const pct = Math.min(100, Math.round((d.used / TOTAL) * 100));
     const planLine = pro ? "Pro" : "Free";
     const limitLine = pro ? "750,000 (750k)" : "100,000 (100k)";
-    const intent = detectGenIntent(t.value);
     const isGenRequest = !!intent;
 
     let sys = "";
@@ -1561,14 +1557,21 @@ function copy(txt2, btn){
           "OUTPUT EXACTLY THIS STRUCTURE:\n\n" +
           "## 📖 Notes\n[5-8 short paragraphs. Bold key terms with **term**.]\n\n" +
           "## 🎴 Flashcards\n" +
-          "F: [front]\nB: [back]\nF: [next front]\nB: [next back]\n[12 cards total. NO numbering.]\n\n" +
+          "Write 12 cards. Each card is EXACTLY two lines:\n" +
+          "F: <question or term>\n" +
+          "B: <answer or definition>\n" +
+          "Repeat the F:/B: pair 12 times. No numbering, no bullets, no blank lines between pairs, no sub-headers.\n\n" +
           "## 📝 Quiz\n" +
           "Q: [question]\nA) [option]\nB) [option]\nC) [option]\nD) [option]\nAns: [A/B/C/D]\nEx: [one line]\n[5 questions total]\n\n" +
           "RULES:\n- Headers EXACTLY: '## 📖 Notes', '## 🎴 Flashcards', '## 📝 Quiz'.\n- NO other headings.\n- NO LaTeX. Plain text math.\n- After last quiz, STOP.\n\n";
       } else if (intent === "flashcard"){
         sys +=
           "OUTPUT EXACTLY:\n\n## 🎴 Flashcards\n" +
-          "F: [front]\nB: [back]\n[12 cards total. NO numbering. NO notes, no quiz. Just cards.]\n\n" +
+          "Write 12 cards. Each card is EXACTLY two lines:\n" +
+          "F: <question or term>\n" +
+          "B: <answer or definition>\n" +
+          "Repeat the F:/B: pair 12 times. No numbering, no bullets, no blank lines between pairs.\n" +
+          "No notes section, no quiz section — just the cards.\n\n" +
           "After last card, STOP.\n\n";
       } else if (intent === "quiz"){
         sys +=
@@ -1588,6 +1591,13 @@ function copy(txt2, btn){
       "- Banned words: 'delve', 'utilize', 'furthermore', 'moreover', 'comprehensive', 'in conclusion'.\n\n" +
       "EFFICIENCY:\n- NO preambles. NO closings. NO restating.\n- If unsure, say so in one line. Never invent.\n- Under 300 words unless asked for more.\n\n" +
       "USER: Plan=" + planLine + ", Limit=" + limitLine + "/5h, Used=" + d.used + " (" + pct + "%)\n\n" +
+      "ABOUT ZYRO (only mention if the user asks about features, Pro, pricing, limits, or what you can do — never list unprompted):\n" +
+      "- Zyro is an AI study buddy for Indian students (CBSE, ICSE, state boards, JEE, NEET, university).\n" +
+      "- Free plan: 100k tokens / 5h, 2 study kits per day, 3 flashcard sets per day, 3 quizzes per day, 3 images per message, 1 file up to 8 MB.\n" +
+      "- Pro plan (₹349/month): 750k tokens / 5h, 10 study kits per day, 15 flashcard sets per day, 50 quizzes per day, 15 images per message, 3 files up to 20 MB, longer code runs (60s JS / 180s Python), and full mock papers with marking scheme.\n" +
+      "- Modes: Chat (casual), Solver (step-by-step), Socratic (hints), Exam prep (marks-ready answers).\n" +
+      "- Tools: study kits (notes + flashcards + quiz), snap a question (photo → exam answer), exam answers, full mock papers (Pro only), voice viva practice (coming soon).\n" +
+      "- Free limits refill every 5 hours (tokens) or every 24 hours (daily tools). Upgrades happen in-app via the menu.\n\n" +
       "CREATOR (only if asked): Debasish Singha, 17, Assam. Never bring up unprompted.\n\n" +
       "FORMAT:\n- Markdown. Code in fenced blocks with language tag (close the fence).\n- For regular chat: LaTeX allowed as $inline$ or $$display$$.\n- Greeting → ONE short friendly sentence.\n\n" +
       "Vague topics ('science') → ask them to pick a specific question.\n\n" +
@@ -1606,7 +1616,8 @@ function copy(txt2, btn){
     else { go.innerHTML = ARROW; go.classList.remove("on"); go.setAttribute("aria-label", "Send"); }
   }
 
-  async function run(show, full, names, imgs){
+  async function run(show, full, names, imgs, intent){
+    if (intent === undefined) intent = detectGenIntent(show);
     imgs = imgs || [];
     if (busy) return;
     busy = true; streaming = true;
@@ -1648,7 +1659,7 @@ function copy(txt2, btn){
     try {
       let out;
       if (!WORKER_URL) throw { code: "nowork" };
-      const msgs = [{ role: "system", content: SYS() }, ...api(hist), imgs.length ? { role: "user", content: full, images: imgs } : { role: "user", content: full }];
+      const msgs = [{ role: "system", content: SYS(intent) }, ...api(hist), imgs.length ? { role: "user", content: full, images: imgs } : { role: "user", content: full }];
 
       try {
         out = await workerStream(msgs, emit, ctrl.signal, cheap || $("mode").value === "Fast", onThought, false);
