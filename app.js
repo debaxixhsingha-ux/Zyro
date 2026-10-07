@@ -1,5 +1,5 @@
 /* =========================================================
-   ZYRO app.js — v35 (concise exam mode, 5 chips)
+   ZYRO app.js — v40 (v10 UI, study kit panel, sibling vibe)
    ========================================================= */
 
 /* ---------- TOP HELPERS ---------- */
@@ -31,8 +31,6 @@ const SUPABASE_ANON_KEY="sb_publishable_LC3DrFcQAsG3HSILCekaFw_SOVVDxjA";
 const TOKEN_KEY="zyro_tokens";
 const CI="zyro_ci";
 const CK="zyro_chats";
-const WAITLIST_KEY="zyro_waitlist";
-const WAITLIST_DONE_KEY="zyro_waitlist_done";
 const RECENT_OPEN_KEY="zyro_recent_open";
 const TOKEN_RESET_MS = 5 * 60 * 60 * 1000;
 const STREAM_TIMEOUT_MS = 90000;
@@ -45,6 +43,7 @@ let ctrl=null,hist=[],busy=false,streaming=false;
 let pending=[],pendingKind=null;
 let sid=0,follow=true,uAcc=0,uT=null,syncT=null;
 let busyWatchdog=null;
+let lastKit=null;
 const LIM=12000;
 
 const RZP_WORKER_URL = WORKER_URL.replace(/\/$/, "");
@@ -58,14 +57,13 @@ function showProModal(paymentId){
   modal.innerHTML =
     '<div class="mb" style="max-width:380px;text-align:center">' +
       '<div style="font-size:56px;line-height:1;margin:8px 0 16px">🎉</div>' +
-      '<h3 style="margin:0 0 8px;font-size:22px;font-weight:600">Welcome to Zyro Pro!</h3>' +
-      '<p style="margin:0 0 18px;color:var(--dim);font-size:14px;line-height:1.6">Your payment was successful. You now have <b style="color:var(--ink)">1,000,000 tokens</b> per 5-hour window — 10× the free limit.</p>' +
-      '<div style="background:var(--box);border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin:0 0 18px;font-family:JetBrains Mono,monospace;font-size:12px;color:var(--dim);word-break:break-all;text-align:left">' +
+      '<h3 style="margin:0 0 8px;font-size:22px;font-weight:800">Welcome to Zyro Pro!</h3>' +
+      '<p style="margin:0 0 18px;color:var(--dim);font-size:14px;line-height:1.6">Your payment went through. You now get <b style="color:var(--ink)">1,000,000 tokens</b> per 5-hour window — 10× the free limit.</p>' +
+      '<div style="background:var(--bg-3);border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin:0 0 18px;font-family:JetBrains Mono,monospace;font-size:12px;color:var(--dim);word-break:break-all;text-align:left">' +
         '<div style="color:var(--dim-2);text-transform:uppercase;letter-spacing:.1em;font-size:10px;margin-bottom:4px">Payment ID</div>' +
         '<div style="color:var(--ink)">' + esc(paymentId) + '</div>' +
       '</div>' +
-      '<button class="primary" id="proStart" style="width:100%;padding:12px;border-radius:12px;font-weight:600;font-size:14.5px;cursor:pointer;border:0;background:var(--ink);color:var(--bg)">Start using Pro</button>' +
-      '<p style="margin:12px 0 0;font-size:11.5px;color:var(--dim-2)">A receipt has been emailed to you.</p>' +
+      '<button class="primary" id="proStart" style="width:100%;padding:12px;border-radius:12px;font-weight:800;font-size:14.5px;cursor:pointer;border:0;background:var(--ink);color:var(--bg)">Start using Pro</button>' +
     '</div>';
   document.body.appendChild(modal);
   const start = () => { modal.remove(); location.reload(); };
@@ -84,8 +82,8 @@ function openProPaywall(){
   modal.innerHTML =
     '<div class="mb" style="max-width:400px">' +
       '<div style="font-size:40px;text-align:center;margin:4px 0 10px">✨</div>' +
-      '<h3 style="margin:0 0 6px;text-align:center;font-weight:600">This is a Pro feature</h3>' +
-      '<p style="margin:0 0 18px;text-align:center;color:var(--dim);font-size:14px;line-height:1.6">Unlock it with Zyro Pro · ₹349/month</p>' +
+      '<h3 style="margin:0 0 6px;text-align:center">This one\'s a Pro feature</h3>' +
+      '<p style="margin:0 0 18px;text-align:center">Unlock it with Zyro Pro · ₹349/month</p>' +
       '<ul style="margin:0 0 20px;padding:0 0 0 22px;font-size:14px;color:var(--ink-2);line-height:1.9">' +
         '<li><b style="color:var(--ink)">1,000,000 tokens</b> per 5 hours (10× free)</li>' +
         '<li><b style="color:var(--ink)">15 images</b> per message (free: 3)</li>' +
@@ -95,8 +93,8 @@ function openProPaywall(){
         '<li><b style="color:var(--ink)">Viva practice</b></li>' +
       '</ul>' +
       '<div style="display:flex;flex-direction:column;gap:8px">' +
-        '<button id="ppUpgrade" style="padding:12px;border-radius:12px;font-weight:600;font-size:14.5px;cursor:pointer;border:0;background:linear-gradient(135deg,#f0b48a,var(--acc));color:#0a0a0a">Upgrade now · ₹349/mo</button>' +
-        '<button id="ppClose" style="padding:12px;border-radius:12px;font-weight:600;font-size:14.5px;cursor:pointer;border:1px solid var(--line);background:none;color:var(--ink)">Maybe later</button>' +
+        '<button id="ppUpgrade" style="padding:12px;border-radius:12px;font-weight:800;font-size:14.5px;cursor:pointer;border:0;background:var(--violet);color:#fff">Go Pro · ₹349/mo</button>' +
+        '<button id="ppClose" style="padding:12px;border-radius:12px;font-weight:700;font-size:14.5px;cursor:pointer;border:1px solid var(--line-2);background:none;color:var(--ink)">Maybe later</button>' +
       '</div>' +
     '</div>';
   document.body.appendChild(modal);
@@ -156,7 +154,7 @@ async function openRazorpayCheckout(plan){
       name: "Zyro",
       description: label,
       prefill: { email: user.email || "" },
-      theme: { color: "#d97757" },
+      theme: { color: "#7c5cff" },
       modal: { ondismiss: function(){ toast("Payment cancelled"); } },
       handler: function(response){
         toast("Verifying…");
@@ -194,76 +192,6 @@ async function openRazorpayCheckout(plan){
   .catch(() => toast("Could not reach payment server"));
 }
 
-/* ---------- INJECTED STUDY STYLES ---------- */
-(function(){
-  if (document.getElementById("zyro-study-style")) return;
-  var s = document.createElement("style");
-  s.id = "zyro-study-style";
-  s.textContent = [
-    ".body .table-wrap{overflow-x:auto;margin:12px 0;border:1px solid var(--line);border-radius:12px;background:var(--box)}",
-    ".body table{border-collapse:collapse;width:100%;font-size:14px}",
-    ".body th,.body td{padding:10px 14px;text-align:left;border-bottom:1px solid var(--line);vertical-align:top}",
-    ".body th{background:var(--box-2);color:var(--ink);font-weight:600;font-size:13px;white-space:nowrap}",
-    ".body tr:last-child td{border-bottom:0}",
-    ".body td{color:var(--ink-2)}",
-    ".fc-trigger{display:inline-flex;align-items:center;gap:9px;border:1px solid var(--acc-line);background:var(--acc-soft);border-radius:12px;padding:10px 14px;margin:12px 0;cursor:pointer;font-size:13.5px;color:var(--ink)}",
-    ".fc-trigger b{color:var(--acc);font-weight:600}",
-    ".fc-modal{position:fixed;inset:0;background:rgba(0,0,0,.85);backdrop-filter:blur(20px);display:none;align-items:center;justify-content:center;z-index:500;padding:20px}",
-    ".fc-modal.on{display:flex}",
-    ".fc-stage{width:100%;max-width:520px;display:flex;flex-direction:column;gap:18px}",
-    ".fc-head{display:flex;align-items:center;justify-content:space-between;color:var(--dim);font-size:13px;font-family:JetBrains Mono,monospace}",
-    ".fc-head button{background:none;border:0;color:var(--dim);font-size:14px;padding:6px 10px;border-radius:8px;cursor:pointer}",
-    ".fc-card{background:var(--bg-2);border:1px solid var(--line-2);border-radius:24px;padding:44px 28px;min-height:280px;display:flex;align-items:center;justify-content:center;text-align:center;font-size:22px;line-height:1.4;cursor:pointer;user-select:none;position:relative}",
-    ".fc-card .side{position:absolute;top:16px;left:20px;font:600 10px JetBrains Mono,monospace;color:var(--dim);letter-spacing:.15em;text-transform:uppercase}",
-    ".fc-card .hint{position:absolute;bottom:16px;left:50%;transform:translateX(-50%);font-size:11.5px;color:var(--dim-2)}",
-    ".fc-card.back{background:linear-gradient(145deg,rgba(217,119,87,.14),var(--bg-2));border-color:var(--acc-line)}",
-    ".fc-card.back .side{color:var(--acc)}",
-    ".fc-nav{display:flex;align-items:center;justify-content:center;gap:12px;color:var(--dim);font-size:13.5px}",
-    ".fc-nav button{background:var(--box-2);border:1px solid var(--line);color:var(--ink);padding:10px 20px;border-radius:12px;cursor:pointer;font-size:15px}",
-    ".fc-nav button:disabled{opacity:.35;cursor:not-allowed}",
-    ".quiz-trigger{display:inline-flex;align-items:center;gap:9px;border:1px solid var(--line-2);background:var(--box);border-radius:12px;padding:10px 14px;margin:12px 0;cursor:pointer;font-size:13.5px;color:var(--ink)}",
-    ".quiz-trigger b{color:var(--acc)}",
-    ".quiz-modal{position:fixed;inset:0;background:rgba(0,0,0,.88);backdrop-filter:blur(20px);display:none;align-items:flex-start;justify-content:center;z-index:500;padding:20px;overflow-y:auto}",
-    ".quiz-modal.on{display:flex}",
-    ".quiz-stage{width:100%;max-width:560px;background:var(--bg-2);border:1px solid var(--line-2);border-radius:22px;padding:24px;margin:auto 0;display:flex;flex-direction:column;gap:18px}",
-    ".quiz-head{display:flex;align-items:center;justify-content:space-between;font:600 12px JetBrains Mono,monospace;color:var(--dim);letter-spacing:.08em;text-transform:uppercase}",
-    ".quiz-head button{background:none;border:0;color:var(--dim);padding:6px 10px;border-radius:8px;cursor:pointer}",
-    ".quiz-q{font-size:17px;line-height:1.55;color:var(--ink)}",
-    ".quiz-opts{display:flex;flex-direction:column;gap:10px}",
-    ".quiz-opt{display:flex;align-items:flex-start;gap:12px;border:1px solid var(--line);background:var(--box);border-radius:14px;padding:13px 16px;cursor:pointer;font-size:15px;color:var(--ink);text-align:left}",
-    ".quiz-opt.correct{background:rgba(62,207,142,.12);border-color:rgba(62,207,142,.5)}",
-    ".quiz-opt.wrong{background:rgba(229,72,77,.1);border-color:rgba(229,72,77,.5)}",
-    ".quiz-opt .letter{width:24px;height:24px;border-radius:8px;background:var(--box-2);display:grid;place-items:center;font:600 12px JetBrains Mono,monospace;color:var(--dim);flex:none}",
-    ".quiz-opt.correct .letter{background:rgba(62,207,142,.2);color:#3ecf8e}",
-    ".quiz-opt.wrong .letter{background:rgba(229,72,77,.2);color:#e5484d}",
-    ".quiz-exp{margin-top:2px;font-size:13px;color:var(--dim);padding:10px 14px;border-left:2px solid var(--acc);background:var(--box);border-radius:0 8px 8px 0}",
-    ".quiz-score{text-align:center;padding:30px 20px}",
-    ".quiz-score .big{font-size:56px;font-weight:600;color:var(--ink);letter-spacing:-2px;display:block;margin:12px 0 4px}",
-    ".quiz-score .lbl{font:600 12px JetBrains Mono,monospace;color:var(--dim);letter-spacing:.14em;text-transform:uppercase}",
-    ".fix-btn{display:inline-flex;align-items:center;gap:7px;margin-top:6px;border:1px solid var(--acc-line);background:var(--acc-soft);color:var(--acc);border-radius:10px;padding:7px 13px;font-size:13px;cursor:pointer}",
-    ".chips button[data-pro]{position:relative;border-color:var(--acc-line);background:linear-gradient(160deg,rgba(217,119,87,.12),transparent)}",
-    ".chips button[data-pro]::after{content:'PRO';position:absolute;top:-6px;right:-4px;font-size:9px;font-weight:700;letter-spacing:.06em;color:#0a0a0a;background:linear-gradient(135deg,#f0b48a,var(--acc));padding:2px 6px;border-radius:6px;line-height:1}",
-    ".pro-card{background:linear-gradient(160deg,rgba(217,119,87,.15),rgba(217,119,87,.04));border:1px solid var(--acc-line);border-radius:14px;padding:14px;margin:10px 0}",
-    ".pro-card h4{margin:0 0 4px;font-size:14px;color:var(--ink);display:flex;align-items:center;gap:8px}",
-    ".pro-card p{margin:0 0 12px;font-size:12.5px;color:var(--dim);line-height:1.5}",
-    ".pro-card .btn-up{width:100%;border:0;background:linear-gradient(135deg,#f0b48a,var(--acc));color:#0a0a0a;font-weight:600;padding:10px;border-radius:10px;cursor:pointer;font-size:14px}",
-    ".up-modal{position:fixed;inset:0;background:rgba(0,0,0,.88);backdrop-filter:blur(20px);display:none;align-items:center;justify-content:center;z-index:500;padding:20px}",
-    ".up-modal.on{display:flex}",
-    ".up-box{width:100%;max-width:400px;background:var(--bg-2);border:1px solid var(--acc-line);border-radius:22px;padding:26px 22px}",
-    ".up-box h3{margin:0 0 6px;font-size:20px;color:var(--ink)}",
-    ".up-box .sub{margin:0 0 18px;font-size:13.5px;color:var(--dim)}",
-    ".up-box .price{font-size:34px;font-weight:600;color:var(--ink);letter-spacing:-1px;margin:0 0 4px}",
-    ".up-box .price em{font-style:normal;font-size:14px;font-weight:400;color:var(--dim);letter-spacing:0}",
-    ".up-box ul{margin:14px 0 20px;padding:0;list-style:none;display:flex;flex-direction:column;gap:8px}",
-    ".up-box li{font-size:13.5px;color:var(--ink-2);display:flex;gap:9px;align-items:flex-start}",
-    ".up-box .actions{display:flex;flex-direction:column;gap:8px}",
-    ".up-box .actions button{padding:12px;border-radius:12px;font-weight:600;font-size:14.5px;cursor:pointer;border:1px solid var(--line)}",
-    ".up-box .actions button.primary{background:linear-gradient(135deg,#f0b48a,var(--acc));color:#0a0a0a;border:0}",
-    ".up-box .actions button.ghost{background:none;color:var(--ink)}"
-  ].join("");
-  document.head.appendChild(s);
-})();
-
 /* =========================================================
    BOOT
    ========================================================= */
@@ -272,7 +200,7 @@ function boot(){
   const log = $("log"), t = $("t"), go = $("go"), main = $("main");
   if (!log || !t || !go || !main){ showErr("Core elements missing from app.html"); return; }
 
-  const esc = s => s.replace(/[&<>]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
+  const esc = s => String(s||"").replace(/[&<>]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
   const escA = s => esc(s).replace(/"/g,"&quot;");
   const sleep = ms => new Promise(r => setTimeout(r, ms));
   const getCI = () => { try { return localStorage.getItem(CI) || ""; } catch(_) { return ""; } };
@@ -321,24 +249,25 @@ function boot(){
     return String(dt.getHours()).padStart(2, "0") + ":" + String(dt.getMinutes()).padStart(2, "0");
   }
 
-  function paintBar(used, last){
-    const pct = Math.min(100, (used/TOTAL) * 100);
-    const p = used > 0 && pct < 0.1 ? "<0.1" : pct < 10 ? pct.toFixed(1) : Math.floor(pct);
+  function paintBar(){
+    const d = getTokens();
+    const pct = Math.min(100, (d.used/TOTAL) * 100);
+    const p = d.used > 0 && pct < 0.1 ? "<0.1" : pct < 10 ? pct.toFixed(1) : Math.floor(pct);
     const tp = $("tPct"); if (tp) tp.textContent = p + "% used";
     const f = $("fTotal");
     if (f){ f.style.width = pct + "%"; f.className = "token-fill" + (pct >= 95 ? " danger" : pct >= 80 ? " warn" : ""); }
     const tl = $("tLast");
-    if (tl){ tl.textContent = "refills at " + nextRefillTime(); tl.className = "token-refill"; }
+    if (tl){ tl.textContent = "refills " + nextRefillTime(); }
+    const tp2 = $("tPlan");
+    if (tp2) tp2.textContent = pro ? "PRO · 1M / 5h" : "Free · 100k / 5h";
   }
 
-  function updateTokenUI(){
-    const d = getTokens(); paintBar(d.used, d.last);
-    applyLimits();
-  }
+  function updateTokenUI(){ paintBar(); applyLimits(); }
 
   function applyLimits(){
     const out = tokensOut();
-    ["fileBtn","imgBtn"].forEach(id => { const el = $(id); if (el) el.disabled = out; });
+    const fb = $("file"); // hidden
+    ["imgBtn","fileBtn"].forEach(id => { const el = $(id); if (el) el.disabled = out; });
     const mb = $("mode");
     if (mb){
       const th = mb.querySelector('option[value="Thinking"]');
@@ -349,44 +278,49 @@ function boot(){
 
   setInterval(updateTokenUI, 30000);
 
-  function toast(m){ const e = $("toast"); if (!e) return; e.textContent = m; e.classList.add("on"); setTimeout(() => e.classList.remove("on"), 1600); }
+  function toast(m){
+    const e = $("toast"); if (!e) return;
+    e.textContent = m; e.classList.add("on");
+    setTimeout(() => e.classList.remove("on"), 1800);
+  }
 
   /* ---------- MODES + STUDY ---------- */
   const MODES = { Fast:"Quick short answer, minimal thinking.", Auto:"Balanced speed and depth.", Thinking:"Deep analysis, long detailed answer." };
   const STAGES = ["Thinking","Analyzing","Planning steps"];
   const STUDY = {
-    Chat: "",
+    Chat:
+      "CHAT. Talk like a helpful older sibling — casual, warm, direct. " +
+      "Keep replies short unless asked. No lectures. If they seem stuck or stressed, keep it even simpler. " +
+      "You can still do math, code, writing — just keep the tone friendly.",
     Solver:
       "SOLVER. Solve step-by-step. " +
-      "Rules: keep the whole answer under 350 words unless the problem truly needs more. " +
-      "Number each step. Show formulas inline. Put the final answer in **bold** on its own line. " +
+      "Rules: under 350 words unless the problem truly needs more. " +
+      "Number each step. Show formulas inline. Final answer in **bold** on its own line. " +
       "End with one line: **Key concept:** [name]. " +
-      "Do NOT add extra examples, side notes, or alternative methods unless the user asks.",
+      "No extra examples or side notes unless asked.",
     Socratic:
       "SOCRATIC TUTOR. Guide, don't lecture. " +
-      "Rules: reply in under 80 words. Ask ONE question or give ONE hint per turn. " +
-      "Never dump the full answer. If the user is stuck after two tries, give the smallest possible next step, not the whole solution. " +
-      "Stay encouraging and short.",
+      "Under 80 words. Ask ONE question or give ONE hint per turn. " +
+      "Never dump the full answer. If they're stuck twice, give the smallest next step. Warm and encouraging.",
     Exam:
-      "EXAM MODE. You are helping an Indian student write exam-ready answers. " +
+      "EXAM MODE. Help an Indian student write exam-ready answers. " +
       "RULES:\n" +
-      "1. If the user gives a BROAD topic (e.g. 'science', 'physics', 'chapter 5', 'photosynthesis') without a specific question, DO NOT start writing an answer. " +
-      "Reply with a short list of 3-4 likely exam questions on that topic and ask them to pick one. Nothing else. Keep it under 80 words.\n" +
-      "2. If the user gives a SPECIFIC question, answer it in under 400 words total. Format:\n" +
+      "1. If the topic is BROAD (e.g. 'science', 'physics', 'chapter 5'), DO NOT write an answer. " +
+      "Reply with 3-4 likely exam questions on that topic and ask them to pick one. Under 80 words.\n" +
+      "2. If a SPECIFIC question, answer in under 400 words total. Format:\n" +
       "   **Marks:** [2 / 5 / 10 — your best guess]\n" +
       "   **Answer:** numbered points (3-6 points), tight.\n" +
       "   **Key terms:** 4-6 terms, comma-separated.\n" +
-      "3. Never write more than 400 words. If they need more, they can ask 'expand'.\n" +
+      "3. Never more than 400 words. If they need more, they'll ask 'expand'.\n" +
       "4. No introductions, no conclusions, no filler. Just the answer."
   };
 
-  // Exactly 5 chips: 3 free + 2 pro
   const QUICK = [
-    ["📸 Snap a question","","Exam",1,"snap"],
-    ["📚 Notes → Flashcards → Quiz","","Chat",1,"notes"],
-    ["✍️ Exam answer","Give me a proper exam answer (5 marks) for: ","Exam"],
-    ["📝 Full mock paper","Generate a full exam paper (with marking scheme) for: ","Exam",0,"",true],
-    ["🎤 Viva practice","Start viva practice. Ask me one question at a time, grade each answer out of 5, and give short feedback: ","Socratic",0,"",true]
+    { label:"Snap a question", emoji:"📸", kind:"snap" },
+    { label:"Study kit", emoji:"📚", kind:"studykit" },
+    { label:"Exam answer", emoji:"✍️", kind:"exam" },
+    { label:"Mock paper", emoji:"🎯", kind:"mock", pro:true },
+    { label:"Viva", emoji:"🎤", kind:"viva", pro:true }
   ];
 
   const hiddenMode = $("mode");
@@ -401,23 +335,23 @@ function boot(){
     [["Chat","Chat"],["Solver","Solver"],["Socratic","Socratic"],["Exam","Exam prep"]].forEach(([v,l]) => hiddenStudy.add(new Option(l,v)));
   }
 
-  /* ---------- MODE DROPDOWN ---------- */
+  /* ---------- MODE (speed) DROPDOWN ---------- */
   const MODE_ICONS = {
-    Fast:'<svg class="lead" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L4 14h7l-1 8 9-12h-7z"/></svg>',
-    Auto:'<svg class="lead" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v4l3 2"/></svg>',
-    Thinking:'<svg class="lead" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21h6M10 17h4M12 3a6 6 0 0 0-3 11v3h6v-3a6 6 0 0 0-3-11z"/></svg>'
+    Fast:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L4 14h7l-1 8 9-12h-7z"/></svg>',
+    Auto:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v4l3 2"/></svg>',
+    Thinking:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21h6M10 17h4M12 3a6 6 0 0 0-3 11v3h6v-3a6 6 0 0 0-3-11z"/></svg>'
   };
-  const modeBtn=$("modeBtn"), modeMenu=$("modeMenu"), modeLabel=$("modeLabel"), modeWrap=$("modeWrap");
+
+  const modeBtn=$("modeBtn"), modeMenu=$("modeMenu"), modeLabel=$("modeLabel");
   function setMode(m){
     if (!MODES[m]) m = "Auto";
     if (hiddenMode) hiddenMode.value = m;
     if (modeLabel) modeLabel.textContent = m;
-    if (modeBtn){ const old = modeBtn.querySelector(".lead"); if (old) old.outerHTML = MODE_ICONS[m]; }
-    if (modeMenu) modeMenu.querySelectorAll(".mode-opt").forEach(o => o.classList.toggle("active", o.dataset.mode === m));
+    if (modeMenu) modeMenu.querySelectorAll("button").forEach(o => o.classList.toggle("active", o.dataset.mode === m));
   }
   if (modeBtn && modeMenu){
-    modeBtn.addEventListener("click", e => { e.stopPropagation(); modeMenu.classList.toggle("open"); });
-    modeMenu.querySelectorAll(".mode-opt").forEach(opt => {
+    modeBtn.addEventListener("click", e => { e.stopPropagation(); closeAllMenusExcept(modeMenu); modeMenu.classList.toggle("open"); });
+    modeMenu.querySelectorAll("button").forEach(opt => {
       opt.addEventListener("click", e => {
         e.stopPropagation();
         setMode(opt.dataset.mode);
@@ -427,18 +361,20 @@ function boot(){
   }
   setMode("Auto");
 
-  /* ---------- STUDY DROPDOWN ---------- */
-  const studyBtn=$("studyBtn"), studyMenu=$("studyMenu"), studyLabel=$("studyLabel"), studyWrap=$("studyWrap");
+  /* ---------- STUDY MODE DROPDOWN ---------- */
+  const studyBtn=$("studyBtn"), studyMenu=$("studyMenu"), studyLabel=$("studyLabel");
   function setStudy(v){
     if (!STUDY.hasOwnProperty(v)) v = "Chat";
     if (hiddenStudy) hiddenStudy.value = v;
     if (studyLabel) studyLabel.textContent = (v === "Exam") ? "Exam prep" : v;
-    if (studyMenu) studyMenu.querySelectorAll(".study-opt").forEach(o => o.classList.toggle("active", o.dataset.study === v));
+    if (studyMenu) studyMenu.querySelectorAll("button").forEach(o => o.classList.toggle("active", o.dataset.study === v));
+    const menu = $("menu");
+    if (menu) menu.querySelectorAll(".mi[data-mode]").forEach(x => x.classList.toggle("active", x.dataset.mode === v));
     try { localStorage.setItem("zyro_study", v); } catch(_) {}
   }
   if (studyBtn && studyMenu){
-    studyBtn.addEventListener("click", e => { e.stopPropagation(); studyMenu.classList.toggle("open"); });
-    studyMenu.querySelectorAll(".study-opt").forEach(opt => {
+    studyBtn.addEventListener("click", e => { e.stopPropagation(); closeAllMenusExcept(studyMenu); studyMenu.classList.toggle("open"); });
+    studyMenu.querySelectorAll("button").forEach(opt => {
       opt.addEventListener("click", e => {
         e.stopPropagation();
         setStudy(opt.dataset.study);
@@ -446,89 +382,149 @@ function boot(){
       });
     });
   }
-  try { const sv = localStorage.getItem("zyro_study"); if (sv) setStudy(sv); else setStudy("Chat"); } catch(_) { setStudy("Chat"); }
+  try { const sv = localStorage.getItem("zyro_study"); if (sv) setStudy(sv); else setStudy("Exam"); } catch(_) { setStudy("Exam"); }
 
-  document.addEventListener("click", e => {
-    if (modeWrap && !modeWrap.contains(e.target) && modeMenu) modeMenu.classList.remove("open");
-    if (studyWrap && !studyWrap.contains(e.target) && studyMenu) studyMenu.classList.remove("open");
-    const drop = $("acctDrop");
-    const authBtnEl = $("authBtn");
-    if (drop && drop.classList.contains("open")){
-      if (!drop.contains(e.target) && (!authBtnEl || !authBtnEl.contains(e.target))) drop.classList.remove("open");
-    }
+  function closeAllMenusExcept(keep){
+    ["modeMenu","studyMenu","actionsMenu"].forEach(id => {
+      const el = $(id);
+      if (el && el !== keep) el.classList.remove("open");
+    });
+    const pb = $("plusBtn"); if (pb && keep !== $("actionsMenu")) pb.classList.remove("active");
+  }
+
+  document.addEventListener("click", () => {
+    ["modeMenu","studyMenu","actionsMenu"].forEach(id => { const el = $(id); if (el) el.classList.remove("open"); });
+    const pb = $("plusBtn"); if (pb) pb.classList.remove("active");
+    closeMenu();
   });
   document.addEventListener("keydown", e => {
     if (e.key === "Escape"){
-      if (modeMenu) modeMenu.classList.remove("open");
-      if (studyMenu) studyMenu.classList.remove("open");
-      const drop = $("acctDrop"); if (drop) drop.classList.remove("open");
-      document.querySelectorAll(".fc-modal.on,.quiz-modal.on,.up-modal.on,#ppModal").forEach(m => m.remove ? m.remove() : m.classList.remove("on"));
+      closeAllMenusExcept(null);
+      closeMenu();
+      closePV();
+      const cv = $("cv"); if (cv) cv.classList.remove("on");
+      const mo = $("modal"); if (mo) mo.classList.remove("on");
+      closeAuth();
+      const pn = $("studyPanel"); if (pn) pn.classList.remove("on");
+      const pp = document.getElementById("ppModal"); if (pp) pp.remove();
     }
   });
 
-  /* ---------- QUICK CHIPS (exactly 5) ---------- */
+  /* ---------- MENU (settings) ---------- */
+  const menu = $("menu"), scrim = $("scrim"), menuBtn = $("menuBtn");
+  function openMenu(){ menu.classList.add("on"); scrim.classList.add("on"); menuBtn.classList.add("active"); }
+  function closeMenu(){ menu.classList.remove("on"); scrim.classList.remove("on"); menuBtn.classList.remove("active"); }
+  if (menuBtn){
+    menuBtn.addEventListener("click", e => {
+      e.stopPropagation();
+      menu.classList.contains("on") ? closeMenu() : openMenu();
+    });
+  }
+  if (scrim) scrim.addEventListener("click", closeMenu);
+  if (menu) menu.addEventListener("click", e => { if (e.target === menu) e.stopPropagation(); });
+
+  // Menu: study modes
+  if (menu) menu.querySelectorAll(".mi[data-mode]").forEach(b => {
+    b.addEventListener("click", e => {
+      e.stopPropagation();
+      setStudy(b.dataset.mode);
+      closeMenu();
+    });
+  });
+
+  // Menu: study tools
+  if (menu) menu.querySelectorAll(".mi[data-tool]").forEach(b => {
+    b.addEventListener("click", e => {
+      e.stopPropagation();
+      const tool = b.dataset.tool;
+      closeMenu();
+      handleToolAction(tool);
+    });
+  });
+
+  function handleToolAction(tool){
+    if (tool === "snap"){ pendingKind = "snap"; $("img").click(); return; }
+    if (tool === "studykit"){ t.value = "Make me a study kit for: "; t.dispatchEvent(new Event("input")); t.focus(); return; }
+    if (tool === "exam"){ t.value = "Give me a proper exam answer (5 marks) for: "; t.dispatchEvent(new Event("input")); t.focus(); return; }
+    if (tool === "mock"){
+      if (!pro){ openProPaywall(); return; }
+      t.value = "Generate a full mock paper with marking scheme for: ";
+      t.dispatchEvent(new Event("input")); t.focus(); return;
+    }
+    if (tool === "viva"){
+      if (!pro){ openProPaywall(); return; }
+      t.value = "Start viva practice on this topic. Ask one question at a time, grade each answer out of 5, and give short feedback: ";
+      t.dispatchEvent(new Event("input")); t.focus(); return;
+    }
+  }
+
+  // Plus actions dropdown
+  const plusBtn = $("plusBtn"), actionsMenu = $("actionsMenu");
+  if (plusBtn && actionsMenu){
+    plusBtn.addEventListener("click", e => {
+      e.stopPropagation();
+      closeAllMenusExcept(actionsMenu);
+      actionsMenu.classList.toggle("open");
+      plusBtn.classList.toggle("active");
+    });
+    actionsMenu.querySelectorAll("button").forEach(b => {
+      b.addEventListener("click", e => {
+        e.stopPropagation();
+        actionsMenu.classList.remove("open");
+        plusBtn.classList.remove("active");
+        handleToolAction(b.dataset.action);
+      });
+    });
+  }
+
+  // Theme toggle
+  const themeToggle = $("themeToggle"), themeLabel = $("themeLabel");
+  if (themeToggle){
+    const root = document.documentElement;
+    themeToggle.addEventListener("click", e => {
+      e.stopPropagation();
+      const cur = root.getAttribute("data-theme") || "light";
+      const next = cur === "dark" ? "light" : "dark";
+      if (next === "dark") root.setAttribute("data-theme", "dark");
+      else root.removeAttribute("data-theme");
+      if (themeLabel) themeLabel.textContent = next === "dark" ? "Light mode" : "Dark mode";
+      try { localStorage.setItem("zyro_theme", next); } catch(_) {}
+    });
+    try {
+      const saved = localStorage.getItem("zyro_theme");
+      if (saved === "dark"){ root.setAttribute("data-theme", "dark"); if (themeLabel) themeLabel.textContent = "Light mode"; }
+    } catch(_) {}
+  }
+
+  // New chat buttons
+  ["newcBtn","newChatBtn"].forEach(id => {
+    const b = $(id);
+    if (b) b.addEventListener("click", newChat);
+  });
+
+  /* ---------- QUICK CHIPS ---------- */
   const chipsBox = $("chips");
   if (chipsBox){
     chipsBox.innerHTML = "";
     QUICK.forEach(item => {
-      const [label, pre, st, pdf, kind, proOnly] = item;
       const b = document.createElement("button");
       b.type = "button";
-      b.textContent = label;
-      if (proOnly) b.dataset.pro = "1";
-      b.onclick = () => {
-        if (proOnly && !pro){ openProPaywall(); return; }
-        setStudy(st);
-        t.value = pre;
-        t.dispatchEvent(new Event("input"));
-        t.focus();
-        try { t.setSelectionRange(t.value.length, t.value.length); } catch(_) {}
-        if (pdf){ pendingKind = kind || null; $("file").click(); }
-      };
+      let html = '<span class="em">' + item.emoji + '</span>' + item.label;
+      if (item.pro) html += ' <span class="mini-pro">PRO</span>';
+      b.innerHTML = html;
+      if (item.pro) b.dataset.pro = "1";
+      b.addEventListener("click", () => handleToolAction(item.kind));
       chipsBox.appendChild(b);
     });
   }
 
-  /* ---------- ATTACH BUTTONS ---------- */
-  { const ib = $("imgBtn"); if (ib) ib.onclick = () => $("img").click(); }
-  { const fb = $("fileBtn"); if (fb) fb.onclick = () => $("file").click(); }
-  { const mb = $("moreBtn"); if (mb) mb.onclick = () => toast("More attachments coming soon"); }
-
-  /* ---------- RIGHT-ALIGN SEND GROUP ---------- */
-  {
-    const row = document.querySelector(".row");
-    if (row && go){
-      const sp = document.createElement("div");
-      sp.style.cssText = "flex:1 1 0;min-width:0;pointer-events:none";
-      row.insertBefore(sp, go);
-    }
-  }
-
   /* ---------- VOICE INPUT ---------- */
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const micBtn = $("micBtn");
   let recog = null, listening = false;
-  if (SR){
-    const micBtn = document.createElement("button");
-    micBtn.type = "button";
-    micBtn.className = "mic-btn";
-    micBtn.title = "Voice input";
-    micBtn.setAttribute("aria-label", "Voice input");
-    const micSvg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-    micSvg.setAttribute("viewBox", "0 0 24 24");
-    micSvg.setAttribute("fill", "none");
-    micSvg.setAttribute("stroke", "currentColor");
-    micSvg.setAttribute("stroke-width", "1.8");
-    micSvg.setAttribute("stroke-linecap", "round");
-    micSvg.setAttribute("stroke-linejoin", "round");
-    const r1 = document.createElementNS("http://www.w3.org/2000/svg", "rect");
-    r1.setAttribute("x","9"); r1.setAttribute("y","2"); r1.setAttribute("width","6"); r1.setAttribute("height","12"); r1.setAttribute("rx","3");
-    const p1 = document.createElementNS("http://www.w3.org/2000/svg", "path");
-    p1.setAttribute("d","M5 10a7 7 0 0 0 14 0M12 17v5M8 22h8");
-    micSvg.appendChild(r1); micSvg.appendChild(p1);
-    micBtn.appendChild(micSvg);
-    const row = document.querySelector(".row");
-    if (row && go) row.insertBefore(micBtn, go);
-    micBtn.onclick = () => {
+  if (SR && micBtn){
+    micBtn.style.display = "grid";
+    micBtn.addEventListener("click", () => {
       if (listening){ try { recog.stop(); } catch(_) {} return; }
       try {
         recog = new SR();
@@ -549,7 +545,7 @@ function boot(){
         };
         recog.start();
       } catch(_) { toast("Voice not supported here"); }
-    };
+    });
   }
 
   /* ---------- PASSWORD EYE ---------- */
@@ -557,11 +553,12 @@ function boot(){
   const EYE_OFF = '<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/>';
   { const eye = $("amEye"), icon = $("amEyeIcon"), pw = $("amPw");
     if (eye && icon && pw){
-      eye.onclick = function(){
+      eye.addEventListener("click", function(e){
+        e.preventDefault();
         const showing = pw.type === "text";
         pw.type = showing ? "password" : "text";
         icon.innerHTML = showing ? EYE_OPEN : EYE_OFF;
-      };
+      });
     }
   }
 
@@ -576,140 +573,60 @@ function boot(){
     return sbP;
   }
 
-  /* ---------- WAITLIST ---------- */
-  const waitlistSlot = $("waitlistSlot");
-  const waitlistCard = document.createElement("div");
-  waitlistCard.className = "waitlist-card";
-  waitlistCard.id = "waitlistCard";
-  waitlistCard.innerHTML =
-    '<h4>Get notified when Pro launches</h4>' +
-    '<p>We\'ll email you when Zyro Pro is live. No spam, ever.</p>' +
-    '<div class="wl-row"><input type="email" id="wlEmail" placeholder="you@example.com" autocomplete="email"><button id="wlGo">Notify me</button></div>' +
-    '<div class="ok" id="wlOk">✅ You\'re on the list!</div>';
-  if (waitlistSlot) waitlistSlot.appendChild(waitlistCard);
-
-  function waitlistAlreadyDone(){
-    try { return localStorage.getItem(WAITLIST_DONE_KEY) === "1"; } catch(_) { return false; }
-  }
-  function restoreWaitlistState(){
-    if (!waitlistCard) return;
-    if (waitlistAlreadyDone()){
-      waitlistCard.classList.add("done");
-      const em = (function(){ try { const arr = JSON.parse(localStorage.getItem(WAITLIST_KEY) || "[]"); return arr[arr.length-1] || ""; } catch(_) { return ""; } })();
-      const wlOk = $("wlOk");
-      if (wlOk) wlOk.textContent = em ? ("✅ On the list — " + em) : "✅ You're on the list!";
-    }
-  }
-  restoreWaitlistState();
-
-  { const wlGo = waitlistCard.querySelector("#wlGo");
-    const wlEmail = waitlistCard.querySelector("#wlEmail");
-    const wlOk = waitlistCard.querySelector("#wlOk");
-    if (wlGo){
-      wlGo.onclick = async () => {
-        const em = (wlEmail.value || "").trim().toLowerCase();
-        if (!em || !/^\S+@\S+\.\S+$/.test(em)){ toast("Enter a valid email"); return; }
-        wlGo.disabled = true; wlGo.textContent = "…";
-        try {
-          const arr = JSON.parse(localStorage.getItem(WAITLIST_KEY) || "[]");
-          if (!arr.includes(em)) arr.push(em);
-          localStorage.setItem(WAITLIST_KEY, JSON.stringify(arr));
-          localStorage.setItem(WAITLIST_DONE_KEY, "1");
-        } catch(_) {}
-        try {
-          const s = await sbClient();
-          if (s) await s.from("waitlist").insert({ email: em });
-        } catch(_) {}
-        waitlistCard.classList.add("done");
-        wlOk.textContent = "✅ You're on the list! We'll email " + em + ".";
-        toast("You're on the waitlist 🎉");
-      };
-    }
-  }
-
-  /* ---------- ACCOUNT DROPDOWN ---------- */
-  const acctDrop = $("acctDrop");
+  /* ---------- ACCOUNT RENDER ---------- */
   function renderAcct(){
-    if (!acctDrop) return;
-    const initial = user ? esc((user.email || "Z").toUpperCase()[0]) : "?";
-    const emailLine = user ? esc(user.email || "") : "Not signed in";
-    const metaLine = user ? ("Signed in · " + (pro ? "Pro" : "Free")) : "Tap to sign in or create account";
-    const created = user && user.created_at ? new Date(user.created_at).toLocaleDateString("en", { year: "numeric", month: "short", day: "numeric" }) : "";
-    const d = getTokens();
-    const pct = Math.min(100, (d.used/TOTAL) * 100);
-    const p = d.used > 0 && pct < 0.1 ? "<0.1" : pct < 10 ? pct.toFixed(1) : Math.floor(pct);
-
-    acctDrop.innerHTML =
-      '<div class="acct-head">' +
-        '<span class="ava">' + initial + '</span>' +
-        '<div class="info">' +
-          '<div class="em">' + emailLine + '</div>' +
-          '<div class="meta">' + metaLine + '</div>' +
-        '</div>' +
-        (pro ? '<em class="pro-pill">PRO</em>' : '') +
-      '</div>' +
-
-      '<div class="token-section">' +
-        '<div class="tl" style="margin:0 0 8px">Tokens</div>' +
-        '<div class="token-bar">' +
-          '<div class="token-info"><span>' + p + '% used</span><span>refills ' + nextRefillTime() + '</span></div>' +
-          '<div class="token-progress"><div class="token-fill' + (pct >= 95 ? ' danger' : pct >= 80 ? ' warn' : '') + '" style="width:' + pct + '%"></div></div>' +
-          '<div class="tn">' + (pro ? 'PRO · 1M tokens / 5 hours' : 'Free · 100k tokens / 5 hours') + '</div>' +
-        '</div>' +
-      '</div>' +
-
-      (user && created ? '<div class="tl" style="margin:0">Account created ' + created + '</div>' : '') +
-
-      '<div class="acct-actions">' +
-        (user
-          ? (pro
-              ? '<button type="button" id="acctSignOut">Sign out</button>'
-              : '<button type="button" class="primary" id="acctUpgrade">Upgrade to Pro · ₹349/mo</button><button type="button" id="acctSignOut">Sign out</button>')
-          : '<button type="button" class="primary" id="acctSignIn">Sign in / Sign up</button>'
-        ) +
-      '</div>';
-  }
-
-  { const ab = $("authBtn"); if (ab){
-      ab.onclick = e => {
-        e.stopPropagation();
-        if (user){ renderAcct(); acctDrop.classList.toggle("open"); }
-        else openAuth("signin");
-      };
+    const ava = $("acctAva"), em = $("acctEmail");
+    if (!ava || !em) return;
+    if (user){
+      const initial = (user.email || "Z").toUpperCase()[0];
+      ava.textContent = initial;
+      em.textContent = (user.email || "").split("@")[0].slice(0, 12);
+      // Pro pill
+      const acctBtn = $("authBtn");
+      if (acctBtn){
+        let pill = acctBtn.querySelector(".pro-pill");
+        if (pro && !pill){
+          pill = document.createElement("span");
+          pill.className = "pro-pill";
+          pill.textContent = "PRO";
+          acctBtn.appendChild(pill);
+        } else if (!pro && pill){
+          pill.remove();
+        }
+      }
+      // Hide upgrade card if pro
+      const up = $("upgradeCard");
+      if (up) up.style.display = pro ? "none" : "";
+    } else {
+      ava.textContent = "?";
+      em.textContent = "Sign in";
+      const acctBtn = $("authBtn");
+      if (acctBtn){ const p = acctBtn.querySelector(".pro-pill"); if (p) p.remove(); }
+      const up = $("upgradeCard");
+      if (up) up.style.display = "";
     }
   }
 
-  document.addEventListener("click", e => {
-    if (e.target.id === "acctSignIn"){ const d = $("acctDrop"); if (d) d.classList.remove("open"); openAuth("signin"); return; }
-    if (e.target.id === "acctUpgrade"){ const d = $("acctDrop"); if (d) d.classList.remove("open"); openRazorpayCheckout("monthly"); return; }
-    if (e.target.id === "acctSignOut"){
-      (async () => {
-        const s = await sbClient();
-        if (s){ try { await s.auth.signOut(); } catch(_) {} }
-        user = null; pro = false; TOTAL = 100000;
-        renderAcct(); renderAuth(); updateTokenUI();
-        const d = $("acctDrop"); if (d) d.classList.remove("open");
-        toast("Signed out");
-      })();
-      return;
-    }
-  });
+  const authBtn = $("authBtn");
+  if (authBtn){
+    authBtn.addEventListener("click", e => {
+      e.stopPropagation();
+      if (user) openMenu();
+      else openAuth("signin");
+    });
+  }
+
+  // Upgrade button inside menu
+  const acctUpgrade = $("acctUpgrade");
+  if (acctUpgrade){
+    acctUpgrade.addEventListener("click", e => {
+      e.stopPropagation();
+      closeMenu();
+      openRazorpayCheckout("monthly");
+    });
+  }
 
   /* ---------- AUTH MODAL ---------- */
-  function renderAuth(){
-    const ab = $("authBtn");
-    if (ab){
-      if (user){
-        const initial = esc((user.email || "Z").toUpperCase()[0]);
-        ab.innerHTML = '<span style="font-weight:600;font-size:14px">' + initial + '</span>';
-        ab.title = user.email || "Account";
-      } else {
-        ab.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-7 8-7s8 3 8 7"/></svg>';
-        ab.title = "Sign in";
-      }
-    }
-  }
-
   let authMode = "signin";
   function setAuthMode(m){
     authMode = m;
@@ -719,35 +636,35 @@ function boot(){
       amTitle.textContent = "Create your account";
       amSub.textContent = "Sync chats across devices. Free.";
       amGo.textContent = "Create account";
-      amSwitch.previousSibling.textContent = "Already have an account? ";
       amSwitch.textContent = "Sign in";
+      amSwitch.previousSibling.textContent = "Already have an account? ";
     } else {
       amTitle.textContent = "Sign in";
       amSub.textContent = "Sync your chats across devices.";
       amGo.textContent = "Sign in";
-      amSwitch.previousSibling.textContent = "No account? ";
       amSwitch.textContent = "Create one";
+      amSwitch.previousSibling.textContent = "No account? ";
     }
-    $("amMsg").textContent = "";
+    const msg = $("amMsg"); if (msg) msg.textContent = "";
   }
   function openAuth(m){ setAuthMode(m || "signin"); $("authModal").classList.add("on"); setTimeout(() => $("amEmail").focus(), 60); }
   function closeAuth(){ const am = $("authModal"); if (am) am.classList.remove("on"); if ($("amPw")) $("amPw").value = ""; if ($("amMsg")) $("amMsg").textContent = ""; }
 
-  { const c = $("amCancel"); if (c) c.onclick = closeAuth; }
-  { const s = $("amSwitch"); if (s) s.onclick = e => { e.preventDefault(); setAuthMode(authMode === "signin" ? "signup" : "signin"); }; }
-  { const g = $("amGo"); if (g) g.onclick = async () => {
+  { const c = $("amCancel"); if (c) c.addEventListener("click", closeAuth); }
+  { const s = $("amSwitch"); if (s) s.addEventListener("click", e => { e.preventDefault(); setAuthMode(authMode === "signin" ? "signup" : "signin"); }); }
+  { const g = $("amGo"); if (g) g.addEventListener("click", async () => {
       const em = $("amEmail").value.trim().toLowerCase(), pw = $("amPw").value, msg = $("amMsg"), btn = $("amGo");
-      if (!em || pw.length < 6){ msg.style.color = "#e5484d"; msg.textContent = "Enter an email and a password with 6+ characters."; return; }
+      if (!em || pw.length < 6){ msg.style.color = "#dc2626"; msg.textContent = "Enter an email and a password with 6+ characters."; return; }
       msg.style.color = "var(--dim)"; msg.textContent = "Working…"; btn.disabled = true;
       const s = await sbClient();
-      if (!s){ btn.disabled = false; msg.style.color = "#e5484d"; msg.textContent = "Supabase isn't configured."; return; }
+      if (!s){ btn.disabled = false; msg.style.color = "#dc2626"; msg.textContent = "Supabase isn't configured."; return; }
       const r = authMode === "signup"
         ? await s.auth.signUp({ email: em, password: pw, options: { emailRedirectTo: location.origin + location.pathname } })
         : await s.auth.signInWithPassword({ email: em, password: pw });
       btn.disabled = false;
-      if (r.error){ msg.style.color = "#e5484d"; msg.textContent = r.error.message; return; }
+      if (r.error){ msg.style.color = "#dc2626"; msg.textContent = r.error.message; return; }
       if (authMode === "signup" && r.data && !r.data.session){
-        msg.style.color = "#3ecf8e"; msg.textContent = "✅ Check your email to confirm, then sign in."; return;
+        msg.style.color = "#16a34a"; msg.textContent = "✅ Check your email to confirm, then sign in."; return;
       }
       closeAuth();
       toast(authMode === "signup" ? "Account created 🎉" : "Signed in");
@@ -819,45 +736,102 @@ function boot(){
     }, 15000);
   }
   async function afterSignIn(){
-    renderAuth(); renderAcct();
+    renderAcct();
     await loadProfile();
     await pullCloud();
     await syncUsageFromCloud();
-    renderAuth(); renderAcct();
+    renderAcct();
   }
   (async () => {
     let s;
     try { s = await sbClient(); } catch(_) {}
-    if (!s){ renderAuth(); renderAcct(); return; }
+    if (!s){ renderAcct(); return; }
     try {
       const { data } = await s.auth.getSession();
       user = (data && data.session && data.session.user) || null;
     } catch(_) {}
     s.auth.onAuthStateChange((_e, ses) => {
       user = (ses && ses.user) || null;
-      if (!user){ pro = false; TOTAL = 100000; renderAuth(); renderAcct(); updateTokenUI(); }
+      if (!user){ pro = false; TOTAL = 100000; renderAcct(); updateTokenUI(); }
       else afterSignIn();
     });
     if (user) await afterSignIn();
-    else { renderAuth(); renderAcct(); }
+    else renderAcct();
   })();
 
-  /* ---------- RECENT TOGGLE ---------- */
-  const recentToggle = $("recentToggle");
-  const listEl = $("list");
-  function setRecentOpen(open){
-    if (!recentToggle || !listEl) return;
-    recentToggle.classList.toggle("open", open);
-    listEl.classList.toggle("open", open);
-    try { localStorage.setItem(RECENT_OPEN_KEY, open ? "1" : "0"); } catch(_) {}
+  /* ---------- CHAT LIST ---------- */
+  try { chats = JSON.parse(localStorage.getItem(CK) || "[]"); } catch(_) { chats = []; }
+
+  function save(){
+    chats = [...chats.filter(c => c.pin), ...chats.filter(c => !c.pin)].slice(0, 40);
+    for (;;){
+      try { localStorage.setItem(CK, JSON.stringify(chats)); break; }
+      catch(_) { if (chats.length <= 1) break; chats.pop(); }
+    }
+    cloudSave();
   }
-  if (recentToggle && listEl){
-    const saved = (function(){ try { return localStorage.getItem(RECENT_OPEN_KEY); } catch(_) { return null; } })();
-    setRecentOpen(saved === null ? true : saved === "1");
-    recentToggle.onclick = () => {
-      setRecentOpen(!recentToggle.classList.contains("open"));
-      if (listEl.classList.contains("open")) renderList();
-    };
+  function fmtDate(ts){
+    if (!ts) return "";
+    const d = new Date(ts), now = new Date();
+    const hms = String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0");
+    if (d.toDateString() === now.toDateString()) return "Today " + hms;
+    if (d.toDateString() === new Date(now - 86400000).toDateString()) return "Yesterday " + hms;
+    return d.getDate() + " " + d.toLocaleString("en", { month: "short" });
+  }
+  function renderList(){
+    const l = $("list"); if (!l) return;
+    l.innerHTML = "";
+    const arr = [...chats.filter(c => c.pin), ...chats.filter(c => !c.pin)].slice(0, 5);
+    if (!arr.length){
+      l.innerHTML = '<div style="color:var(--dim);font-size:12.5px;padding:6px 12px;font-weight:500">No chats yet</div>';
+      return;
+    }
+    arr.forEach(c => {
+      const d = document.createElement("button");
+      d.type = "button";
+      d.className = "mi" + (c === cur ? " active" : "");
+      d.innerHTML =
+        '<span class="mi-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>' +
+        '<span class="mi-tx"><b>' + esc(c.title || "Untitled") + '</b><span>' + fmtDate(c.ts) + '</span></span>';
+      d.addEventListener("click", e => { e.stopPropagation(); openChat(c.id); closeMenu(); });
+      l.appendChild(d);
+    });
+  }
+
+  function newChat(){
+    try { if (ctrl) ctrl.abort(); } catch(_) {}
+    busy = false; streaming = false; setGo(false); clearBusyWatchdog();
+    cur = null; hist = []; log.innerHTML = ""; log.classList.remove("on");
+    const hero = $("hero"); if (hero) hero.classList.remove("hide");
+    closeMenu();
+    try { t.focus(); } catch(_) {}
+  }
+  function openChat(id){
+    try { if (ctrl) ctrl.abort(); } catch(_) {}
+    busy = false; streaming = false; setGo(false); clearBusyWatchdog();
+    const c = chats.find(x => x.id === id); if (!c) return;
+    cur = c; hist = c.msgs; log.innerHTML = "";
+    const hero = $("hero"); if (hero) hero.classList.add("hide");
+    log.classList.add("on");
+    c.msgs.forEach((m, i) => {
+      if (m.role === "user"){ addU(m.show ?? m.content, m.att, m.imgs, m.nimg); }
+      else {
+        const d = addA();
+        const sc = d.querySelector(".status-chip"); if (sc) sc.remove();
+        const tl = d.querySelector(".think-live"); if (tl) tl.remove();
+        setH(d.querySelector(".body"), md(m.content));
+        // Re-render study kit launcher if applicable
+        const kit = parseStudyKit(m.content);
+        if (kit.notes || kit.cards.length || kit.quiz.length){
+          const ln = document.createElement("div");
+          ln.innerHTML = launcherHTML(kit);
+          const lc = ln.firstElementChild;
+          d.appendChild(lc);
+          wireLauncher(lc, kit);
+        }
+      }
+    });
+    closeMenu(); down(1);
   }
 
   /* ---------- MARKDOWN ---------- */
@@ -875,12 +849,12 @@ function boot(){
     if (!rows.length) return "";
     const splitRow = r => r.replace(/^\s*\|/, "").replace(/\|\s*$/, "").split("|").map(c => c.trim());
     const head = splitRow(rows[0]);
-    let h = '<div class="table-wrap"><table><thead><tr>';
-    head.forEach(c => h += "<th>" + inl(c) + "</th>");
+    let h = '<div style="overflow-x:auto;margin:12px 0;border:1px solid var(--line);border-radius:12px;background:var(--bg-3)"><table style="border-collapse:collapse;width:100%;font-size:14px"><thead><tr>';
+    head.forEach(c => h += '<th style="padding:10px 14px;text-align:left;border-bottom:1px solid var(--line);background:var(--bg-4);color:var(--ink);font-weight:700;font-size:13px">' + inl(c) + "</th>");
     h += "</tr></thead><tbody>";
     for (let r = 1; r < rows.length; r++){
       h += "<tr>";
-      splitRow(rows[r]).forEach(c => h += "<td>" + inl(c) + "</td>");
+      splitRow(rows[r]).forEach(c => h += '<td style="padding:10px 14px;text-align:left;border-bottom:1px solid var(--line);color:var(--ink-2)">' + inl(c) + "</td>");
       h += "</tr>";
     }
     h += "</tbody></table></div>";
@@ -945,7 +919,7 @@ function boot(){
       last = re.lastIndex;
       const tx = m[0];
       const q = m[1] ? "c" : m[2] ? "s" : m[3] ? "n" : KW.has(tx) ? "k" : /^[A-Z][a-z]/.test(tx) ? "t" : "";
-      o += q ? '<span class="h' + q + '">' + esc(tx) + "</span>" : esc(tx);
+      o += q ? '<span class="h' + q + '" style="color:' + (q==="k"?"var(--coral)":q==="s"?"var(--violet)":q==="c"?"var(--dim-2)":"var(--ink-2)") + '">' + esc(tx) + "</span>" : esc(tx);
     }
     return o + esc(c.slice(last));
   }
@@ -958,7 +932,7 @@ function boot(){
       } catch(_) {}
     });
   }
-  function setH(el, h){ el.innerHTML = h; typeset(el); enhanceStudy(el); }
+  function setH(el, h){ el.innerHTML = h; typeset(el); }
   window.typesetAll = function(){ typeset(document); };
   function md(src){
     let h = "";
@@ -995,42 +969,6 @@ function boot(){
     return h;
   }
 
-  /* ---------- STUDY ENHANCER ---------- */
-  function enhanceStudy(root){
-    if (!root) return;
-    const full = root.textContent || "";
-    if (full.length < 50) return;
-    if (!/\bF:\s/.test(full) && !/\bQ:\s/.test(full)) return;
-
-    const fcMatches = [...full.matchAll(/^\s*F:\s*(.+?)\s*\n\s*B:\s*(.+?)(?=\n\s*F:|\n\s*##|\n\s*$)/gims)];
-    if (fcMatches.length >= 3 && !root.querySelector(".fc-trigger")){
-      const cards = fcMatches.map(m => ({ a: m[1].trim(), b: m[2].trim() }));
-      window._zyroFCsets = window._zyroFCsets || [];
-      const idx = window._zyroFCsets.push(cards) - 1;
-      const trigger = document.createElement("div");
-      trigger.className = "fc-trigger";
-      trigger.dataset.idx = idx;
-      trigger.innerHTML = '📚 <b>' + cards.length + ' flashcards</b> ready · Tap to study';
-      root.insertBefore(trigger, root.firstChild);
-    }
-
-    const quizBlocks = [];
-    const quizRe = /^\s*Q:\s*(.+?)\s*\n\s*A\)\s*(.+?)\s*\n\s*B\)\s*(.+?)\s*\n\s*C\)\s*(.+?)\s*\n\s*D\)\s*(.+?)\s*\n\s*Ans:\s*([A-D])\s*(?:\n\s*Ex:\s*(.+?))?(?=\n\s*Q:|\n\s*##|\n\s*$)/gims;
-    let m;
-    while ((m = quizRe.exec(full))){
-      quizBlocks.push({ q: m[1].trim(), opts: [m[2].trim(), m[3].trim(), m[4].trim(), m[5].trim()], ans: m[6].trim().toUpperCase(), ex: (m[7] || "").trim() });
-    }
-    if (quizBlocks.length >= 3 && !root.querySelector(".quiz-trigger")){
-      window._zyroQuizSets = window._zyroQuizSets || [];
-      const idx = window._zyroQuizSets.push(quizBlocks) - 1;
-      const trigger = document.createElement("div");
-      trigger.className = "quiz-trigger";
-      trigger.dataset.idx = idx;
-      trigger.innerHTML = '📝 <b>' + quizBlocks.length + '-question quiz</b> · Tap to start';
-      root.insertBefore(trigger, root.firstChild);
-    }
-  }
-
   /* ---------- MESSAGES ---------- */
   function fillBubble(b, txt, names, imgs, nimg){
     b.textContent = txt;
@@ -1040,7 +978,6 @@ function boot(){
         const i = document.createElement("img");
         i.alt = "";
         i.src = "data:" + im.mime + ";base64," + im.data;
-        i.style.cssText = "width:84px;height:84px;object-fit:cover;border-radius:10px;display:block;max-width:84px;max-height:84px;";
         w.appendChild(i);
       });
       b.appendChild(w);
@@ -1057,10 +994,8 @@ function boot(){
     d.appendChild(b); log.appendChild(d); return d;
   }
   function addA(){
-    const msgId = Date.now().toString(36);
     const d = document.createElement("div");
     d.className = "a";
-    d.dataset.msgId = msgId;
     d.innerHTML =
       '<div class="status-chip" role="status"></div>' +
       '<div class="think-live" hidden>' +
@@ -1116,7 +1051,7 @@ function boot(){
   function startChip(chip){
     let i = 0, tm;
     const n = ++sid;
-    chip.innerHTML = '<span class="spark"><svg viewBox="0 0 24 24" aria-hidden="true"><defs><linearGradient id="sg' + n + '" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#d97757"/><stop offset=".55" stop-color="#f0b48a"/><stop offset="1" stop-color="#d97757"/></linearGradient></defs><path fill="url(#sg' + n + ')" d="M12 2l2.6 7.4L22 12l-7.4 2.6L12 22l-2.6-7.4L2 12l7.4-2.6z"/></svg></span><span class="shimmer status-text">Thinking</span>';
+    chip.innerHTML = '<span class="spark"><svg viewBox="0 0 24 24" aria-hidden="true"><defs><linearGradient id="sg' + n + '" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#c3f53c"/><stop offset=".55" stop-color="#ff6b4a"/><stop offset="1" stop-color="#7c5cff"/></linearGradient></defs><path fill="url(#sg' + n + ')" d="M12 2l2.6 7.4L22 12l-7.4 2.6L12 22l-2.6-7.4L2 12l7.4-2.6z"/></svg></span><span class="shimmer status-text">Thinking</span>';
     const label = chip.querySelector(".status-text");
     const setL = x => { label.style.opacity = 0; clearTimeout(tm); tm = setTimeout(() => { label.textContent = x; label.style.opacity = 1; }, 170); };
     const iv = setInterval(() => { i = (i + 1) % STAGES.length; setL(STAGES[i]); }, 1400);
@@ -1145,145 +1080,241 @@ function boot(){
     navigator.clipboard ? navigator.clipboard.writeText(txt).then(ok).catch(fb) : fb();
   }
 
-  const SVG_COPY = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
-  const SVG_LIKE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 10v12"/><path d="M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h2.76a2 2 0 0 0 1.79-1.11L12 2a3.13 3.13 0 0 1 3 3.88Z"/></svg>';
-  const SVG_DISLIKE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 14V2"/><path d="M9 18.12 10 14H4.17a2 2 0 0 1-1.92-2.56l2.33-8A2 2 0 0 1 6.5 2H20a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-2.76a2 2 0 0 0-1.79 1.11L12 22a3.13 3.13 0 0 1-3-3.88Z"/></svg>';
-  const SVG_REGEN = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/><path d="M3 21v-5h5"/></svg>';
-  const SVG_CONT = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>';
+  /* ---------- STUDY KIT PARSER ---------- */
+  function parseStudyKit(text){
+    const kit = { notes:"", cards:[], quiz:[], exam:"", mock:"", viva:"" };
+    if (!text) return kit;
 
-  log.addEventListener("click", e => {
-    const vw = e.target.closest("[data-v]"); if (vw) return toggleCode(vw.closest(".cb"));
-    const rb = e.target.closest("[data-run]"); if (rb) return runCode(rb.closest(".cb"), rb.dataset.run, rb);
-    const eb = e.target.closest("[data-edit]"); if (eb) return startEdit(eb.closest(".u"));
-    const cb = e.target.closest("[data-c]"); if (cb) return copy(cb.closest(".cb").querySelector("pre").textContent, cb);
-    const pv = e.target.closest("[data-p]");
-    if (pv){
-      let html = pv.closest(".cb").querySelector("pre").textContent || "";
-      if (!/<!doctype|<html/i.test(html)){
-        html = '<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><style>body{font-family:system-ui,sans-serif;margin:0;padding:16px;color:#111;background:#fff}</style></head><body>' + html + '</body></html>';
+    const notesM = text.match(/##\s*📖\s*Notes\s*\n([\s\S]*?)(?=\n##\s*🎴|\n##\s*📝|$)/i);
+    if (notesM) kit.notes = notesM[1].trim();
+
+    const fcM = text.match(/##\s*🎴\s*Flashcards?\s*\n([\s\S]*?)(?=\n##\s*📝|\n##\s*📖|$)/i);
+    if (fcM){
+      const re = /^\s*F:\s*(.+?)\s*\n\s*B:\s*(.+?)(?=\n\s*F:|\n\s*##|\n\s*$)/gims;
+      let m;
+      while ((m = re.exec(fcM[1]))){ kit.cards.push({ a: m[1].trim(), b: m[2].trim() }); }
+    }
+
+    const qM = text.match(/##\s*📝\s*Quiz\s*\n([\s\S]*?)(?=\n##\s*📖|\n##\s*🎴|$)/i);
+    if (qM){
+      const re = /^\s*Q:\s*(.+?)\s*\n\s*A\)\s*(.+?)\s*\n\s*B\)\s*(.+?)\s*\n\s*C\)\s*(.+?)\s*\n\s*D\)\s*(.+?)\s*\n\s*Ans:\s*([A-D])\s*(?:\n\s*Ex:\s*(.+?))?(?=\n\s*Q:|\n\s*##|\n\s*$)/gims;
+      let m;
+      while ((m = re.exec(qM[1]))){
+        kit.quiz.push({ q: m[1].trim(), opts: [m[2].trim(), m[3].trim(), m[4].trim(), m[5].trim()], ans: m[6].toUpperCase(), ex: (m[7]||"").trim() });
       }
-      $("pvf").srcdoc = html;
-      $("pv").classList.add("on");
-      return;
     }
-    const cp = e.target.closest("[data-copywhole]");
-    if (cp){
-      const a = cp.closest(".a");
-      const body = a && a.querySelector(".body");
-      if (body) copy(body.innerText, cp);
-      return;
-    }
-    const cont = e.target.closest("[data-cont]");
-    if (cont){
-      const a = cont.closest(".a");
-      if (a && a === log.lastElementChild) continueReply(a);
-      return;
-    }
-    const fx = e.target.closest("[data-fix]");
-    if (fx){
-      const cb2 = fx.closest(".cb");
-      const code = cb2.querySelector("pre").textContent;
-      const err = cb2.querySelector(".out") ? cb2.querySelector(".out").textContent : "";
-      const msg = "Fix this code. It failed.\n\nCode:\n```\n" + code + "\n```\n\nError:\n```\n" + err + "\n```\n\nExplain what caused the error and give the corrected code.";
-      t.value = msg; t.dispatchEvent(new Event("input"));
-      $("f").requestSubmit();
-      return;
-    }
-    const rg = e.target.closest("[data-regen]");
-    if (rg){ if (rg.closest(".a") === log.lastElementChild) regen(); else toast("Only the last reply can be regenerated"); return; }
-    const lk = e.target.closest("[data-like]");
-    if (lk){ lk.classList.add("active"); const d = lk.parentElement.querySelector("[data-dislike]"); if (d) d.classList.remove("active"); toast("Thanks!"); return; }
-    const dk = e.target.closest("[data-dislike]");
-    if (dk){ dk.classList.add("active"); const l = dk.parentElement.querySelector("[data-like]"); if (l) l.classList.remove("active"); toast("Thanks!"); }
-  });
 
-  const todayStr = () => new Date().toLocaleDateString("en", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
-  const needsSearch = s => /\b(latest|newest|recent(ly)?|today|tonight|yesterday|tomorrow|this (week|month|year)|news|released?|launch(ed|es)?|new version|prices?|score|weather|who (is|won)|what'?s new|trending|202[4-9]|203\d)\b/i.test(s) || (/\b(claude|chatgpt|gpt-?\d+|openai|anthropic|gemini|grok|deepseek|llama|qwen|mistral|nvidia|iphone|pixel|galaxy|react|next\.?js|python)\b/i.test(s) && /\b(models?|versions?|releases?|new|newest|latest|vs|versus|compare|comparison|pricing|price|available|exists?|sonnet|opus|haiku|\d+(\.\d+)?)\b/i.test(s));
+    // Generic exam answer (5-mark format)
+    const examM = text.match(/\*\*Marks:\*\*\s*([\s\S]*?)(?=\n\*\*Answer:|\n\*\*Key terms:|$)/i);
+    if (examM) kit.exam = text.match(/\*\*Answer:\*\*([\s\S]*?)(?=\n\*\*Key terms:|$)/i)?.[1].trim() || "";
+    const keyM = text.match(/\*\*Key terms:?\*\*\s*([\s\S]*?)(?=\n\n|$)/i);
+    if (keyM) kit.examKeyTerms = keyM[1].trim();
 
-  function appFacts(){ return "Today is " + todayStr() + "."; }
+    // Mock
+    if (/mock paper|Section A|Section B/i.test(text)) kit.mock = "mock";
 
-  /* ---------- SYSTEM PROMPT (Pro-aware + Study-focused) ---------- */
-  const SYS = () => {
-    const d = getTokens();
-    const pct = Math.min(100, Math.round((d.used / TOTAL) * 100));
-    const planLine = pro ? "Pro" : "Free";
-    const limitLine = pro ? "1,000,000 (1M)" : "100,000 (100k)";
-    const proLine = pro
-      ? "Pro includes: up to 15 images per message, 3 files up to 20 MB, longer code-run timeouts, full mock papers, viva practice."
-      : "Pro (₹349/month) unlocks 1M tokens/5h, 15 images per message, 3 files up to 20 MB, longer code-run timeouts, full mock papers, viva practice.";
-    return (
-      "You are Zyro — the AI study companion built for Indian students: B.Tech, JEE, NEET, CBSE/ICSE boards, and state exams.\n\n" +
+    // Viva
+    if (/viva|oral exam/i.test(text)) kit.viva = "viva";
 
-      "PRIMARY PURPOSE: help the student LEARN. Be focused, exam-ready, and concise. " +
-      "Never write essays or 'books' unless explicitly asked. " +
-      "Default to short, structured, exam-format answers. If the user wants more, they'll ask.\n\n" +
-
-      "USER ACCOUNT (only if they ask):\n" +
-      "- Plan: " + planLine + "\n" +
-      "- Token limit: " + limitLine + " tokens per 5-hour window\n" +
-      "- Tokens used this window: " + d.used + " (" + pct + "%)\n" +
-      "- " + proLine + "\n" +
-      "- If they say they upgraded to Pro, celebrate briefly. Never volunteer this info unprompted.\n\n" +
-
-      "GREETING RULE: if the user's message is only a greeting (hi, hey, hello, yo, etc), reply with ONE short friendly sentence. Never list features.\n\n" +
-
-      "STYLE:\n" +
-      "- Clear, concise, markdown. No filler, no introductions, no conclusions.\n" +
-      "- Code in fenced blocks with language tags. ALWAYS close the code fence.\n" +
-      "- Math in LaTeX: $inline$ or $$display$$.\n" +
-      "- Admit uncertainty. Search results win when provided. Never claim to be another company's assistant.\n\n" +
-
-      "CREATOR (only when asked): Debasish Singha, 17, student at Reliance Senior Secondary School in Assam, India. Never bring him up unprompted.\n\n" +
-
-      "DEFAULT LENGTH: most answers should be under 300 words. For exam questions, under 400. Only go longer if the user explicitly asks for detail, expansion, or 'explain fully'.\n\n" +
-
-      "If the user gives a VAGUE topic (like 'science' or 'physics') without a specific question, ask them to pick a specific question or sub-topic. Don't dump everything.\n\n" +
-
-      "BUILD WEBSITES: when the user asks to build/create/make a website, webpage, landing page, UI, dashboard, portfolio, store or form:\n" +
-      "- Output ONE complete self-contained HTML file in a single ```html code block.\n" +
-      "- All CSS inside <style>, all JS inside <script>. No external files.\n" +
-      "- REALISTIC content only. NEVER use Lorem ipsum, 'placeholder', 'TODO', or '...' abbreviations.\n" +
-      "- Photos: use https://picsum.photos/seed/UNIQUEWORD/600/800 with a DIFFERENT word per image.\n" +
-      "- Responsive, at least 150 lines. Always close the ```html fence at the end.\n\n" +
-
-      "NOTES PIPELINE: when the user says 'notes pipeline', 'notes flashcards', 'notes → flashcards', or similar, produce EXACTLY these three sections in order:\n" +
-      "## 📖 Notes\n[Short revision notes. 5-8 paragraphs max.]\n\n" +
-      "## 🎴 Flashcards\nOutput 12 flashcards. Each EXACTLY:\nF: [front]\nB: [back]\n\n" +
-      "## 📝 Quiz\nOutput 5 MCQs. Each EXACTLY:\nQ: [question]\nA) [option]\nB) [option]\nC) [option]\nD) [option]\nAns: [A/B/C/D]\nEx: [one-line explanation]\n\n" +
-
-      (STUDY[$("study").value] || "") +
-      (getCI() ? "\n\nUser's custom instructions: " + getCI().slice(0, 800) : "") +
-      "\n\n" + appFacts()
-    );
-  };
-
-  function addGround(d, src, sep){
-    const ok = (src || []).filter(x => x && /^https?:\/\//i.test(x.uri));
-    if (!ok.length && !sep) return;
-    const w = document.createElement("div"); w.className = "ground";
-    if (ok.length){
-      const s = document.createElement("div"); s.className = "srcs";
-      const l = document.createElement("span"); l.textContent = "Sources"; s.appendChild(l);
-      ok.slice(0, 6).forEach(x => { const a = document.createElement("a"); a.href = x.uri; a.target = "_blank"; a.rel = "noopener noreferrer"; a.textContent = (x.title || x.uri).slice(0, 40); s.appendChild(a); });
-      w.appendChild(s);
-    }
-    if (sep){
-      const f = document.createElement("iframe");
-      f.className = "sep";
-      f.setAttribute("sandbox", "allow-popups allow-popups-to-escape-sandbox");
-      f.title = "Search";
-      f.srcdoc = sep;
-      w.appendChild(f);
-    }
-    d.appendChild(w);
+    return kit;
   }
 
-  const ARROW = go.innerHTML;
-  const STOPI = '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><rect x="5" y="5" width="14" height="14" rx="3"/></svg>';
-  function setGo(on){
-    if (on){ go.innerHTML = STOPI; go.classList.add("on"); go.setAttribute("aria-label", "Stop"); }
-    else { go.innerHTML = ARROW; go.classList.remove("on"); go.setAttribute("aria-label", "Send"); }
+  function launcherHTML(kit){
+    let parts = "";
+    if (kit.notes) parts += '<span class="kpart">Notes</span>';
+    if (kit.cards.length) parts += '<span class="kpart">' + kit.cards.length + ' cards</span>';
+    if (kit.quiz.length) parts += '<span class="kpart">' + kit.quiz.length + ' quiz</span>';
+    if (kit.exam) parts += '<span class="kpart">Exam</span>';
+    parts += '<span class="kpart" data-pro>Mock</span><span class="kpart" data-pro>Viva</span>';
+
+    return '<div class="kit-launcher">' +
+      '<div class="kit-launcher-top">' +
+        '<span class="kit-launcher-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg></span>' +
+        '<div class="kit-launcher-tx"><b>Study Kit</b><span>Notes · Cards · Quiz · Exam</span></div>' +
+      '</div>' +
+      '<div class="kit-launcher-parts">' + parts + '</div>' +
+      '<button class="open-kit" type="button">' +
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>' +
+        'Open study kit' +
+      '</button>' +
+    '</div>';
   }
+  function wireLauncher(el, kit){
+    const btn = el.querySelector(".open-kit");
+    if (btn) btn.addEventListener("click", () => openStudyPanel(kit));
+  }
+
+  /* ---------- STUDY PANEL ---------- */
+  function openStudyPanel(kit){
+    lastKit = kit;
+    const panel = $("studyPanel");
+    if (!panel) return;
+
+    // Title
+    const titleEl = $("panelTitle");
+    if (titleEl){
+      const topic = (cur && cur.title) || "Study Kit";
+      titleEl.textContent = topic.slice(0, 40);
+    }
+
+    // Notes
+    const notesEl = panel.querySelector('[data-pcontent="notes"]');
+    if (notesEl){
+      if (kit.notes){
+        notesEl.innerHTML =
+          '<p class="p-eyebrow">Revision notes</p>' +
+          '<h2 class="p-title">Quick <em>revision</em></h2>' +
+          '<p class="p-sub">Everything you actually need. No fluff.</p>' +
+          '<div class="notes">' + txt(kit.notes) + '</div>';
+      } else {
+        notesEl.innerHTML = emptyPanel("📝", "No notes in this kit", "Ask Zyro to 'make me a study kit' for notes + cards + quiz.");
+      }
+    }
+
+    // Cards
+    const cardsEl = panel.querySelector('[data-pcontent="cards"]');
+    if (cardsEl){
+      if (kit.cards.length){
+        let html = '<p class="p-eyebrow">Flashcards</p><h2 class="p-title">Tap to <em>reveal</em></h2><p class="p-sub">' + kit.cards.length + ' cards. Try answering before you flip.</p><div class="cards">';
+        kit.cards.forEach((c, i) => {
+          const num = String(i+1).padStart(2, "0");
+          html += '<div class="card' + (i===0 ? ' open' : '') + '">' +
+            '<div class="card-head">' +
+              '<span class="card-num">' + num + '</span>' +
+              '<span class="card-q">' + esc(c.a) + '</span>' +
+              '<svg class="card-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>' +
+            '</div>' +
+            '<div class="card-body"><div class="card-body-inner">' + txt(c.b) + '</div></div>' +
+          '</div>';
+        });
+        html += '</div>';
+        cardsEl.innerHTML = html;
+        cardsEl.querySelectorAll(".card").forEach(c => c.addEventListener("click", () => c.classList.toggle("open")));
+      } else {
+        cardsEl.innerHTML = emptyPanel("🃏", "No flashcards", "Ask Zyro for a study kit to generate flashcards from any topic.");
+      }
+    }
+
+    // Quiz
+    const quizEl = panel.querySelector('[data-pcontent="quiz"]');
+    if (quizEl){
+      if (kit.quiz.length){
+        let html = '<p class="p-eyebrow">Pop quiz</p><h2 class="p-title">Let\'s <em>test</em> it</h2><p class="p-sub">' + kit.quiz.length + ' questions. Tap an option to check.</p><div class="quiz">';
+        kit.quiz.forEach((q, i) => {
+          const num = "Q" + (i+1);
+          html += '<div class="quiz-item">' +
+            '<div class="quiz-q"><span class="quiz-n">' + num + '</span><span class="quiz-q-text">' + esc(q.q) + '</span></div>' +
+            '<div class="opts">';
+          ["A","B","C","D"].forEach((L, j) => {
+            const isCorrect = L === q.ans;
+            html += '<button class="opt' + (isCorrect ? ' correct' : '') + '" type="button" data-correct="' + (isCorrect ? '1' : '0') + '"><span class="lt">' + L + '</span>' + esc(q.opts[j]) + '</button>';
+          });
+          html += '</div>';
+          if (q.ex) html += '<div class="quiz-exp">' + esc(q.ex) + '</div>';
+          html += '</div>';
+        });
+        html += '</div>';
+        quizEl.innerHTML = html;
+        quizEl.querySelectorAll(".opt").forEach(o => {
+          o.addEventListener("click", () => {
+            const wrap = o.parentElement;
+            wrap.querySelectorAll(".opt").forEach(x => x.classList.remove("wrong"));
+            o.parentElement.parentElement.classList.add("revealed");
+            if (o.dataset.correct !== "1") o.classList.add("wrong");
+          });
+        });
+      } else {
+        quizEl.innerHTML = emptyPanel("🎯", "No quiz", "Ask Zyro for a study kit and it'll generate MCQs with answers.");
+      }
+    }
+
+    // Exam
+    const examEl = panel.querySelector('[data-pcontent="exam"]');
+    if (examEl){
+      if (kit.exam){
+        examEl.innerHTML =
+          '<p class="p-eyebrow">Exam answer</p>' +
+          '<h2 class="p-title">Marks-ready <em>answer</em></h2>' +
+          '<p class="p-sub">Write it down like this. You\'re sorted.</p>' +
+          '<span class="exam-marks"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l2 7h7l-5.5 4 2 7L12 16l-5.5 4 2-7L3 9h7z"/></svg>Marks-ready</span>' +
+          '<div class="notes">' + txt(kit.exam) + '</div>' +
+          (kit.examKeyTerms ? '<div class="key-terms" style="margin-top:16px"><div class="ktl">Key terms</div><div class="key-terms-row">' + kit.examKeyTerms.split(/[,;]/).map(s => '<span class="term">' + esc(s.trim()) + '</span>').join("") + '</div></div>' : "");
+      } else {
+        examEl.innerHTML = emptyPanel("✍️", "No exam answer", "Ask Zyro for a study kit or click the Exam answer chip.");
+      }
+    }
+
+    // Mock
+    const mockEl = panel.querySelector('[data-pcontent="mock"]');
+    if (mockEl){
+      mockEl.innerHTML = pro
+        ? emptyPanel("📄", "Generate a mock paper", "Full exam with marking scheme. Tap below to generate one.", "Generate mock paper", () => {
+            closePanel();
+            t.value = "Generate a full mock paper with marking scheme for: ";
+            t.dispatchEvent(new Event("input")); t.focus();
+          })
+        : emptyPanel("⭐", "Mock paper is a Pro feature", "Upgrade to generate full mock papers with marking schemes.", "Go Pro · ₹349/mo", () => { closePanel(); openRazorpayCheckout("monthly"); });
+    }
+
+    // Viva
+    const vivaEl = panel.querySelector('[data-pcontent="viva"]');
+    if (vivaEl){
+      vivaEl.innerHTML = pro
+        ? emptyPanel("🎤", "Start viva practice", "One question at a time, graded out of 5. Great for oral exams.", "Start viva practice", () => {
+            closePanel();
+            setStudy("Socratic");
+            t.value = "Start viva practice on this topic. Ask one question at a time, grade each answer out of 5, and give short feedback: ";
+            t.dispatchEvent(new Event("input")); t.focus();
+          })
+        : emptyPanel("⭐", "Viva practice is a Pro feature", "Upgrade to practice viva with voice Q&A and get scored.", "Go Pro · ₹349/mo", () => { closePanel(); openRazorpayCheckout("monthly"); });
+    }
+
+    // Auto-select the best tab
+    let targetTab = "notes";
+    if (!kit.notes && kit.cards.length) targetTab = "cards";
+    if (!kit.notes && !kit.cards.length && kit.quiz.length) targetTab = "quiz";
+    if (!kit.notes && !kit.cards.length && !kit.quiz.length && kit.exam) targetTab = "exam";
+    panel.querySelectorAll(".ptab").forEach(x => x.classList.toggle("active", x.dataset.ptab === targetTab));
+    panel.querySelectorAll(".pcontent").forEach(x => x.classList.toggle("on", x.dataset.pcontent === targetTab));
+
+    panel.classList.add("on");
+    const body = panel.querySelector(".panel-body"); if (body) body.scrollTop = 0;
+  }
+
+  function closePanel(){
+    const p = $("studyPanel"); if (p) p.classList.remove("on");
+  }
+
+  function emptyPanel(emoji, title, sub, btnLabel, onClick){
+    let h = '<div class="empty-panel">' +
+      '<div class="ep-ic" style="font-size:24px">' + emoji + '</div>' +
+      '<h3>' + esc(title) + '</h3>' +
+      '<p>' + esc(sub) + '</p>';
+    if (btnLabel){
+      h += '<button type="button" data-empty-action>' + esc(btnLabel) + '</button>';
+    }
+    h += '</div>';
+    // Wire button after insert
+    setTimeout(() => {
+      const b = document.querySelector('.empty-panel [data-empty-action]');
+      if (b && onClick) b.addEventListener("click", onClick);
+    }, 0);
+    return h;
+  }
+
+  // Panel tabs
+  const studyPanel = $("studyPanel");
+  if (studyPanel){
+    studyPanel.querySelectorAll(".ptab").forEach(tab => {
+      tab.addEventListener("click", () => {
+        const target = tab.dataset.ptab;
+        studyPanel.querySelectorAll(".ptab").forEach(x => x.classList.toggle("active", x === tab));
+        studyPanel.querySelectorAll(".pcontent").forEach(p => p.classList.toggle("on", p.dataset.pcontent === target));
+        const body = studyPanel.querySelector(".panel-body"); if (body) body.scrollTop = 0;
+      });
+    });
+  }
+  { const cp = $("closePanel"); if (cp) cp.addEventListener("click", closePanel); }
 
   /* ---------- WORKER STREAM ---------- */
   async function workerStream(messages, onText, signal, fast, onThought, search, meta, allowContinue){
@@ -1334,63 +1365,16 @@ function boot(){
                 }
               }
             }
-            if (cd && cd.groundingMetadata && meta){
-              const g = cd.groundingMetadata;
-              (g.groundingChunks || []).forEach(c => {
-                const w = c && c.web;
-                if (w && w.uri && !meta.src.some(x => x.uri === w.uri)) meta.src.push({ uri: w.uri, title: w.title || "" });
-              });
-              if (g.searchEntryPoint && g.searchEntryPoint.renderedContent) meta.sep = g.searchEntryPoint.renderedContent;
-            }
             if (j.usageMetadata){ used = j.usageMetadata.totalTokenCount || used; }
           } catch(_) {}
         }
       }
     } catch(e){
       if (e && e.name === "AbortError") aborted = true;
-      else if (gotFirst) { /* partial */ }
+      else if (gotFirst) {}
       else throw e;
     } finally {
       clearTimeout(firstTokenTimer);
-    }
-
-    const fenceCount = (full.match(/```/g) || []).length;
-    const hasOpenFence = fenceCount % 2 === 1;
-
-    if (allowContinue && hasOpenFence && full.length > 100 && !aborted){
-      try {
-        const contMsgs = [
-          ...messages,
-          { role: "assistant", content: full },
-          { role: "user", content: "Continue the code block exactly from where it stopped. Do NOT repeat any line. Do NOT start with ``` again. Just output the remaining code, then close with ```." }
-        ];
-        const r2 = await fetch(WORKER_URL, { method: "POST", signal, headers: { "Content-Type": "application/json" }, body: JSON.stringify({ messages: contMsgs, mode: $("mode").value, fast, search: false }) });
-        if (r2.ok && r2.body){
-          const rd2 = r2.body.getReader(); let buf2 = "";
-          let extra = "";
-          for (;;){
-            const { done, value } = await rd2.read();
-            if (done) break;
-            buf2 += dec.decode(value, { stream: true });
-            const lines2 = buf2.split("\n"); buf2 = lines2.pop();
-            for (const ln of lines2){
-              if (!ln.startsWith("data:")) continue;
-              const dd = ln.slice(5).trim();
-              if (!dd || dd === "[DONE]") continue;
-              try {
-                const j = JSON.parse(dd);
-                const cd = j.candidates && j.candidates[0];
-                if (cd && cd.content && cd.content.parts){
-                  for (const p of cd.content.parts){
-                    if (p.text){ extra += p.text; onText(full + extra); }
-                  }
-                }
-              } catch(_) {}
-            }
-          }
-          full += extra;
-        }
-      } catch(_) {}
     }
 
     if (used > 0) addTokens(used);
@@ -1402,7 +1386,7 @@ function boot(){
     return full;
   }
 
-  const api = (h, keep) => {
+  const api = (h) => {
     if (!h.length) return [];
     const N = 15, MAX = 30000;
     const keepIdx = new Set();
@@ -1414,14 +1398,9 @@ function boot(){
     let total = 0;
     idxs.forEach(i => total += (h[i].content || "").length);
     if (total > MAX){
-      const essential = new Set();
-      if (firstUser >= 0) essential.add(firstUser);
-      h.forEach((m, i) => { if (m.imgs && m.imgs.length) essential.add(i); });
       const kept = []; let sz = 0;
-      idxs.forEach(i => { if (essential.has(i)){ kept.push(i); sz += (h[i].content || "").length; } });
       for (let k = idxs.length - 1; k >= 0; k--){
         const i = idxs[k];
-        if (essential.has(i)) continue;
         const len = (h[i].content || "").length;
         if (sz + len > MAX) continue;
         kept.push(i); sz += len;
@@ -1429,7 +1408,7 @@ function boot(){
       idxs = kept.sort((a, b) => a - b);
     }
     while (idxs.length && h[idxs[0]].role !== "user") idxs.shift();
-    let imgBudget = keep === false ? 0 : 15;
+    let imgBudget = 15;
     const out = [];
     for (let k = idxs.length - 1; k >= 0; k--){
       const m = h[idxs[k]];
@@ -1447,16 +1426,16 @@ function boot(){
     const imgs = items.filter(f => f.img).map(f => f.img);
 
     if (pendingKind === "notes" && (files.length || imgs.length)){
-      const base = "I uploaded a file. Follow the NOTES PIPELINE format exactly: ## 📖 Notes, ## 🎴 Flashcards (F:/B: format), ## 📝 Quiz (Q:/A)/B)/C)/D)/Ans:/Ex: format). Keep notes short and exam-relevant.";
+      const base = "I uploaded a file. Follow the NOTES PIPELINE format exactly: ## 📖 Notes, ## 🎴 Flashcards (F:/B: format), ## 📝 Quiz (Q:/A)/B)/C)/D)/Ans:/Ex: format). Make it exam-relevant.";
       const full = base + files.map(f => "\n\n--- " + f.name + " ---\n" + f.text).join("");
       pending = []; pendingKind = null; renderAtts();
-      return run("Notes → Flashcards → Quiz from " + files[0].name, full, files.map(f => f.name), imgs);
+      return run("Notes → Flashcards → Quiz", full, files.map(f => f.name), imgs);
     }
 
     if (pendingKind === "snap" && imgs.length){
       const prompt = "Read this exam question from the photo. Give a proper exam answer in under 400 words. Format: **Marks:** [best guess], **Answer:** (numbered points), **Key terms:** (4-6 terms).";
       pending = []; pendingKind = null; renderAtts();
-      return run(prompt, prompt, [], imgs);
+      return run("📸 Snap a question", prompt, [], imgs);
     }
 
     applyLimits();
@@ -1464,14 +1443,6 @@ function boot(){
     const full = show + files.map(f => "\n\n--- " + f.name + " ---\n" + f.text).join("");
     pending = []; pendingKind = null; renderAtts();
     return run(show, full, files.map(f => f.name), imgs);
-  }
-
-  function actsHTML(noRegen, allowContinue){
-    return '<button type="button" data-like title="Helpful">' + SVG_LIKE + '</button>' +
-      '<button type="button" data-dislike title="Not helpful">' + SVG_DISLIKE + '</button>' +
-      '<button type="button" data-copywhole title="Copy reply">' + SVG_COPY + '</button>' +
-      (allowContinue ? '<button type="button" data-cont title="Continue">' + SVG_CONT + ' Continue</button>' : '') +
-      (noRegen ? '' : '<button type="button" data-regen>' + SVG_REGEN + ' Regenerate</button>');
   }
 
   const ERR = {
@@ -1484,33 +1455,50 @@ function boot(){
     net: "Can't reach the server. Check your connection and retry."
   };
 
-  async function autoTitle(chatId, firstUser, firstAI){
-    if (!firstUser || !firstAI) return;
-    try {
-      const prompt = "Give a 3-4 word title for a chat that starts with this message. Return ONLY the title, no quotes, no period.\n\nMessage: " + firstUser.slice(0, 300);
-      const msgs = [{ role: "user", content: prompt }];
-      const chunks = [];
-      await workerStream(msgs, x => chunks.push(x), null, true, null, false, { src: [], sep: "" }, false);
-      const title = (chunks[chunks.length - 1] || "").split("\n")[0].replace(/^["']|["']$/g, "").trim().slice(0, 40);
-      if (!title || title.length < 2) return;
-      const c = chats.find(x => x.id === chatId);
-      if (c && c.title.length >= 20){
-        c.title = title;
-        save(); renderList();
-      }
-    } catch(_) {}
-  }
+  const SYS = () => {
+    const d = getTokens();
+    const pct = Math.min(100, Math.round((d.used / TOTAL) * 100));
+    const planLine = pro ? "Pro" : "Free";
+    const limitLine = pro ? "1,000,000 (1M)" : "100,000 (100k)";
+    return (
+      "You are Zyro — the AI study companion for Indian students, built by a 17-year-old in Assam. Think of yourself as a smart older sibling who happens to be great at studies. Warm, casual, direct. Never preachy, never lecturing, never robotic.\n\n" +
 
-  async function continueReply(aEl){
-    if (busy) return;
-    const body = aEl.querySelector(".body");
-    if (!body) return;
-    const prev = body.innerText || "";
-    if (!prev.trim()) return;
-    toast("Continuing…");
-    hist.push({ role: "assistant", content: prev });
-    t.value = "Continue from where you stopped. Do not repeat anything. Just keep going.";
-    $("f").requestSubmit();
+      "USER ACCOUNT (use only if asked):\n" +
+      "- Plan: " + planLine + "\n" +
+      "- Token limit: " + limitLine + " per 5-hour window\n" +
+      "- Used: " + d.used + " (" + pct + "%)\n\n" +
+
+      "GREETING RULE: if the user's message is only a greeting, reply with ONE short friendly sentence. Never list features.\n\n" +
+
+      "STYLE:\n" +
+      "- Talk like a helpful friend, not a teacher. Contractions, casual tone. Zero corporate fluff.\n" +
+      "- Short by default. Under 300 words unless asked for more.\n" +
+      "- Code in fenced blocks with language tags. Close the fence.\n" +
+      "- Math in LaTeX: $inline$ or $$display$$.\n" +
+      "- If they seem stressed (exams, deadlines), be extra reassuring. Short, calm, no drama.\n\n" +
+
+      "DEFAULT LENGTH: most answers under 300 words. Exam answers under 400. Only go longer if asked.\n\n" +
+
+      "If a topic is vague (like 'science'), don't dump everything. Ask them to pick a specific question.\n\n" +
+
+      "BUILD WEBSITES: when asked to build/create a website, output ONE complete self-contained HTML file in a single ```html code block. All CSS inside <style>, JS inside <script>. Realistic content only. Photos: https://picsum.photos/seed/UNIQUEWORD/600/800. Responsive. At least 150 lines. Always close the ```html fence.\n\n" +
+
+      "NOTES PIPELINE: when the user says 'notes pipeline', 'notes flashcards', 'study kit', or similar, produce EXACTLY these three sections in order:\n" +
+      "## 📖 Notes\n[Short revision notes. 5-8 paragraphs. Bold key terms.]\n\n" +
+      "## 🎴 Flashcards\nOutput 12 flashcards. Each EXACTLY:\nF: [front]\nB: [back]\n\n" +
+      "## 📝 Quiz\nOutput 5 MCQs. Each EXACTLY:\nQ: [question]\nA) [option]\nB) [option]\nC) [option]\nD) [option]\nAns: [A/B/C/D]\nEx: [one-line explanation]\n\n" +
+
+      (STUDY[$("study").value] || "") +
+      (getCI() ? "\n\nUser's custom instructions: " + getCI().slice(0, 800) : "") +
+      "\n\nToday is " + new Date().toLocaleDateString("en", { weekday: "long", year: "numeric", month: "long", day: "numeric" }) + "."
+    );
+  };
+
+  const ARROW = go.innerHTML;
+  const STOPI = '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><rect x="5" y="5" width="14" height="14" rx="3"/></svg>';
+  function setGo(on){
+    if (on){ go.innerHTML = STOPI; go.classList.add("on"); go.setAttribute("aria-label", "Stop"); }
+    else { go.innerHTML = ARROW; go.classList.remove("on"); go.setAttribute("aria-label", "Send"); }
   }
 
   async function run(show, full, names, imgs){
@@ -1520,14 +1508,11 @@ function boot(){
     armBusyWatchdog();
     ctrl = new AbortController();
     setGo(true);
-    log.querySelectorAll("[data-regen]").forEach(x => x.remove());
-    $("hero").classList.add("hide");
+    const hero = $("hero"); if (hero) hero.classList.add("hide");
     log.classList.add("on");
-    log.querySelectorAll(".ed").forEach(x => x.remove());
     const ub = addU(show, names, imgs);
     const t0 = Date.now();
     const cheap = full.trim().length < 60 || tokensOut();
-    const baseUsed = getTokens().used;
 
     const d = addA();
     const body = d.querySelector(".body");
@@ -1538,9 +1523,6 @@ function boot(){
     let hadThought = false;
     const onThought = th => { hadThought = true; thinkUpdate(d, th); };
 
-    const search = needsSearch(show) && !tokensOut();
-    const meta = { src: [], sep: "" };
-
     let lastRender = 0;
     const emit = x => {
       c.write();
@@ -1550,7 +1532,6 @@ function boot(){
         setH(body, withCaret(liteMd(x)));
         down();
       }
-      paintBar(baseUsed + Math.round(x.length / 4), 0);
     };
 
     const runTimeout = setTimeout(() => {
@@ -1560,175 +1541,105 @@ function boot(){
     try {
       let out;
       if (!WORKER_URL) throw { code: "nowork" };
-      const msgs = [{ role: "system", content: SYS() }, ...api(hist, imgs.length === 0), imgs.length ? { role: "user", content: full, images: imgs } : { role: "user", content: full }];
+      const msgs = [{ role: "system", content: SYS() }, ...api(hist), imgs.length ? { role: "user", content: full, images: imgs } : { role: "user", content: full }];
 
       try {
-        out = await workerStream(msgs, emit, ctrl.signal, cheap || $("mode").value === "Fast", onThought, search, meta, true);
+        out = await workerStream(msgs, emit, ctrl.signal, cheap || $("mode").value === "Fast", onThought, false, null, true);
       } catch(e1){
         if (e1 && e1.code === "empty" && !ctrl.signal.aborted){
           toast("Retrying…");
-          out = await workerStream(msgs, emit, ctrl.signal, cheap || $("mode").value === "Fast", onThought, search, meta, true);
+          out = await workerStream(msgs, emit, ctrl.signal, cheap || $("mode").value === "Fast", onThought, false, null, true);
         } else throw e1;
       }
       clearTimeout(runTimeout);
       out = out || "(empty response)";
       streaming = false;
       setH(body, md(out));
-      addGround(d, meta.src, meta.sep.length <= 6000 ? meta.sep : "");
       const secs = ((Date.now() - t0) / 1000).toFixed(1);
       thinkFinish(d, secs, hadThought);
 
-      const trimmed = out.trim();
-      const looksCut = trimmed.length > 200 && !/[.!?)\]}"'`]\s*$/.test(trimmed) && !/```\s*$/.test(trimmed);
+      // Launcher if study kit
+      const kit = parseStudyKit(out);
+      if (kit.notes || kit.cards.length || kit.quiz.length){
+        const ln = document.createElement("div");
+        ln.innerHTML = launcherHTML(kit);
+        const lc = ln.firstElementChild;
+        d.appendChild(lc);
+        wireLauncher(lc, kit);
+      }
 
       const acts = document.createElement("div");
       acts.className = "acts";
-      acts.innerHTML = actsHTML(false, looksCut);
+      acts.innerHTML =
+        '<button type="button" data-like>Helpful</button>' +
+        '<button type="button" data-copywhole>Copy</button>' +
+        '<button type="button" data-regen>Again</button>';
       d.appendChild(acts);
 
-      const rt = document.createElement("div");
-      rt.className = "rt"; rt.textContent = "responded in " + secs + "s";
-      d.appendChild(rt);
-
-      addEdit(ub);
-
-      if (!cur){ cur = { id: Date.now().toString(36), title: (show || names[0]).replace(/\s+/g, " ").slice(0, 40), msgs: hist, ts: Date.now() }; chats.unshift(cur); }
+      if (!cur){ cur = { id: Date.now().toString(36), title: (show || names[0] || "Chat").replace(/\s+/g, " ").slice(0, 40), msgs: hist, ts: Date.now() }; chats.unshift(cur); }
       cur.ts = Date.now();
       hist.push(
         { role: "user", content: full, show, att: names, imgs: imgs.length ? imgs : undefined },
-        { role: "assistant", content: out, src: meta.src, sep: meta.sep.length <= 6000 ? meta.sep : "" }
+        { role: "assistant", content: out }
       );
       if (hist.length > 60) hist.splice(0, hist.length - 60);
       chats = [cur, ...chats.filter(x => x !== cur)];
       save();
       c.done();
-
-      if (hist.length === 2){ autoTitle(cur.id, show, out); }
     } catch(e){
       clearTimeout(runTimeout);
       streaming = false; c.stop();
       if (e && e.name === "AbortError"){
-        const wasTimeout = (Date.now() - t0) >= STREAM_TIMEOUT_MS - 500;
-        if (wasTimeout){ body.innerHTML = '<span style="color:#e5484d">(timed out — try again or rephrase)</span>'; }
-        else { body.innerHTML = '<span style="color:#e5484d">(stopped)</span>'; }
+        body.innerHTML = '<span style="color:var(--bad)">(stopped)</span>';
       } else {
         if (e && e.code !== "na"){ t.value = show; t.dispatchEvent(new Event("input")); }
-        const msg = (e && ERR[e.code]) || ("Failed: " + (e && e.info || e && e.message || "network problem") + ". Your message is back in the box.");
-        body.innerHTML = '<span style="color:#e5484d"></span>';
-        body.firstChild.textContent = msg;
+        const msg = (e && ERR[e.code]) || ("Failed: " + (e && e.info || e && e.message || "network problem"));
+        body.innerHTML = '<span style="color:var(--bad)">' + esc(msg) + '</span>';
       }
       thinkFinish(d, "0", hadThought);
     }
     busy = false; ctrl = null; clearBusyWatchdog(); setGo(false); syncPill(); down();
   }
 
-  $("f").onsubmit = e => {
-    e.preventDefault();
-    if (busy){ if (ctrl) ctrl.abort(); return; }
-    const v = t.value;
-    t.value = ""; t.style.height = "auto"; updateSendState();
-    send(v);
-  };
-
-  /* ---------- CHATS ---------- */
-  try { chats = JSON.parse(localStorage.getItem(CK) || "[]"); } catch(_) { chats = []; }
-  function save(){
-    chats = [...chats.filter(c => c.pin), ...chats.filter(c => !c.pin)].slice(0, 40);
-    chats.forEach(c => {
-      let seen = false;
-      for (let i = c.msgs.length - 1; i >= 0; i--){
-        const m = c.msgs[i];
-        if (m.imgs && m.imgs.length){
-          if (seen){ m.nimg = m.imgs.length; delete m.imgs; } else seen = true;
-        }
-      }
-    });
-    for (;;){
-      try { localStorage.setItem(CK, JSON.stringify(chats)); break; }
-      catch(_) { if (chats.length <= 1) break; chats.pop(); }
+  /* ---------- LOG CLICK ACTIONS ---------- */
+  log.addEventListener("click", e => {
+    const vw = e.target.closest("[data-v]");
+    if (vw){
+      const box = vw.closest(".cb");
+      if (box.classList.contains("expanded")){ box.classList.remove("expanded"); vw.textContent = "⤢ Expand"; }
+      else { box.classList.add("expanded"); vw.textContent = "⤡ Collapse"; }
+      return;
     }
-    cloudSave();
-  }
-  function fmtDate(ts){
-    if (!ts) return "";
-    const d = new Date(ts), now = new Date();
-    const hms = String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0");
-    if (d.toDateString() === now.toDateString()) return "Today " + hms;
-    if (d.toDateString() === new Date(now - 86400000).toDateString()) return "Yesterday " + hms;
-    return d.getDate() + " " + d.toLocaleString("en", { month: "short" }) + " " + hms;
-  }
-  function renChat(id){
-    const c = chats.find(x => x.id === id); if (!c) return;
-    const n = prompt("Rename chat:", c.title);
-    if (n && n.trim()){ c.title = n.trim().slice(0, 40); save(); renderList(); }
-  }
-  const openD = () => { renderList(); markTh(); updateTokenUI(); $("drawer").classList.add("on"); $("scrim").classList.add("on"); };
-  const closeD = () => { $("drawer").classList.remove("on"); $("scrim").classList.remove("on"); };
-  function newChat(){
-    try { if (ctrl) ctrl.abort(); } catch(_) {}
-    busy = false; streaming = false; setGo(false); clearBusyWatchdog();
-    cur = null; hist = []; log.innerHTML = ""; log.classList.remove("on");
-    $("hero").classList.remove("hide");
-    closeD();
-    try { t.focus(); } catch(_) {}
-  }
-  function openChat(id){
-    try { if (ctrl) ctrl.abort(); } catch(_) {}
-    busy = false; streaming = false; setGo(false); clearBusyWatchdog();
-    const c = chats.find(x => x.id === id); if (!c) return;
-    cur = c; hist = c.msgs; log.innerHTML = "";
-    $("hero").classList.add("hide"); log.classList.add("on");
-    c.msgs.forEach((m, i) => {
-      if (m.role === "user"){ addU(m.show ?? m.content, m.att, m.imgs, m.nimg); }
-      else {
-        const d = addA();
-        const sc = d.querySelector(".status-chip"); if (sc) sc.remove();
-        const tl = d.querySelector(".think-live"); if (tl) tl.remove();
-        setH(d.querySelector(".body"), md(m.content));
-        addGround(d, m.src, m.sep);
-        const acts = document.createElement("div");
-        acts.className = "acts";
-        acts.innerHTML = actsHTML(i !== c.msgs.length - 1, false);
-        d.appendChild(acts);
+    const rb = e.target.closest("[data-run]"); if (rb){ runCode(rb.closest(".cb"), rb.dataset.run, rb); return; }
+    const cb = e.target.closest("[data-c]");
+    if (cb){ copy(cb.closest(".cb").querySelector("pre").textContent, cb); return; }
+    const pv = e.target.closest("[data-p]");
+    if (pv){
+      let html = pv.closest(".cb").querySelector("pre").textContent || "";
+      if (!/<!doctype|<html/i.test(html)){
+        html = '<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><style>body{font-family:system-ui,sans-serif;margin:0;padding:16px;color:#111;background:#fff}</style></head><body>' + html + '</body></html>';
       }
-    });
-    const us = log.querySelectorAll(".u");
-    if (c.msgs.length >= 2 && c.msgs[c.msgs.length - 1].role === "assistant" && us.length) addEdit(us[us.length - 1]);
-    closeD(); down(1);
-  }
-  function delChat(id){
-    try { if (ctrl) ctrl.abort(); } catch(_) {}
-    busy = false; streaming = false; setGo(false); clearBusyWatchdog();
-    if (!confirm("Delete this chat?")) return;
-    const c = chats.find(x => x.id === id);
-    chats = chats.filter(x => x.id !== id);
-    save(); cloudDelete(id);
-    if (c === cur){ cur = null; hist = []; log.innerHTML = ""; log.classList.remove("on"); $("hero").classList.remove("hide"); }
-    renderList();
-  }
-  function renderList(){
-    const l = $("list"); if (!l) return;
-    l.innerHTML = "";
-    const arr = [...chats.filter(c => c.pin), ...chats.filter(c => !c.pin)];
-    if (!arr.length){ l.innerHTML = '<div class="empty-l">No chats yet</div>'; return; }
-    arr.forEach(c => {
-      const d = document.createElement("div");
-      d.className = "it" + (c === cur ? " on" : "");
-      const meta = document.createElement("div"); meta.className = "meta";
-      const sp = document.createElement("span"); sp.textContent = c.title;
-      const sm = document.createElement("small"); sm.textContent = fmtDate(c.ts);
-      meta.append(sp, sm);
-      meta.onclick = () => openChat(c.id);
-      const pn = document.createElement("button"); pn.type = "button"; pn.className = "icon pin" + (c.pin ? " on" : ""); pn.textContent = c.pin ? "★" : "☆";
-      pn.onclick = () => { c.pin = !c.pin; save(); renderList(); };
-      const rn = document.createElement("button"); rn.type = "button"; rn.className = "icon"; rn.textContent = "✎";
-      rn.onclick = () => renChat(c.id);
-      const x = document.createElement("button"); x.type = "button"; x.className = "icon"; x.textContent = "✕";
-      x.onclick = () => delChat(c.id);
-      d.append(meta, pn, rn, x);
-      l.appendChild(d);
-    });
-  }
+      $("pvf").srcdoc = html;
+      $("pv").classList.add("on");
+      return;
+    }
+    const cp = e.target.closest("[data-copywhole]");
+    if (cp){
+      const a = cp.closest(".a");
+      const body = a && a.querySelector(".body");
+      if (body) copy(body.innerText, cp);
+      return;
+    }
+    const rg = e.target.closest("[data-regen]");
+    if (rg){
+      if (rg.closest(".a") === log.lastElementChild) regen();
+      else toast("Only the last reply can be regenerated");
+      return;
+    }
+    const lk = e.target.closest("[data-like]");
+    if (lk){ lk.classList.add("active"); toast("Thanks!"); return; }
+  });
+
   function regen(){
     if (busy || hist.length < 2) return;
     const m = hist[hist.length - 2], k = log.children;
@@ -1737,13 +1648,14 @@ function boot(){
     run(m.show ?? m.content, m.content, m.att || [], m.imgs || []);
   }
 
-  /* ---------- OVERLAYS ---------- */
-  const closePV = () => { $("pv").classList.remove("on"); $("pvf").srcdoc = ""; };
-  { const pvx = $("pvx"); if (pvx) pvx.onclick = closePV; }
-  { const cvx = $("cvx"); if (cvx) cvx.onclick = () => $("cv").classList.remove("on"); }
-  { const cvc = $("cvc"); if (cvc) cvc.onclick = () => copy($("cvp").textContent, cvc); }
-  { const ciSave = $("ciSave"); if (ciSave) ciSave.onclick = () => { try { localStorage.setItem(CI, $("ci").value.trim()); } catch(_) {} $("modal").classList.remove("on"); toast("Instructions saved"); }; }
-  { const ciCancel = $("ciCancel"); if (ciCancel) ciCancel.onclick = () => $("modal").classList.remove("on"); }
+  /* ---------- FORM SUBMIT ---------- */
+  $("f").addEventListener("submit", e => {
+    e.preventDefault();
+    if (busy){ if (ctrl) ctrl.abort(); return; }
+    const v = t.value;
+    t.value = ""; t.style.height = "auto"; updateSendState();
+    send(v);
+  });
 
   /* ---------- ATTACHMENTS ---------- */
   function renderAtts(){
@@ -1755,7 +1667,7 @@ function boot(){
       if (f.img){ const im = document.createElement("img"); im.alt = ""; im.src = "data:" + f.img.mime + ";base64," + f.img.data; c.appendChild(im); }
       const n = document.createElement("span"); n.textContent = f.name; c.appendChild(n);
       const x = document.createElement("button"); x.type = "button"; x.textContent = "✕";
-      x.onclick = () => { pending.splice(i, 1); renderAtts(); updateSendState(); };
+      x.addEventListener("click", () => { pending.splice(i, 1); renderAtts(); updateSendState(); });
       c.appendChild(x);
       a.appendChild(c);
     });
@@ -1776,15 +1688,14 @@ function boot(){
     }
     return await f.text();
   }
-  $("file").onchange = async e => {
+  $("file").addEventListener("change", async e => {
     const fs = [...e.target.files]; e.target.value = "";
-    const maxFiles = L().files;
-    const maxSize = L().fileSize;
+    const maxFiles = L().files, maxSize = L().fileSize;
     for (const f of fs){
       if (tokensOut()){ toast("Uploads paused — refills at " + nextRefillTime()); break; }
       const fileCount = pending.filter(x => !x.img).length;
       if (fileCount >= maxFiles){ toast("Max " + maxFiles + " file" + (maxFiles > 1 ? "s" : "") + (pro ? "" : " — Pro allows 3")); break; }
-      if (f.size > maxSize){ toast(f.name + " is too big (max " + Math.round(maxSize / 1e6) + " MB)" + (pro ? "" : " — Pro: 20 MB")); continue; }
+      if (f.size > maxSize){ toast(f.name + " is too big (max " + Math.round(maxSize / 1e6) + " MB)"); continue; }
       try {
         let x = (await readAny(f)).replace(/\r/g, "");
         if (x.includes("\u0000")){ toast("Can't read " + f.name); continue; }
@@ -1794,8 +1705,7 @@ function boot(){
       } catch(_) { toast("Couldn't read " + f.name); }
     }
     renderAtts(); updateSendState();
-    if (pendingKind === "notes" && pending.length){ setTimeout(() => send(""), 100); }
-  };
+  });
   function readImg(f){
     return new Promise((ok, no) => {
       if (!/^image\//i.test(f.type)){ no(new Error("not an image")); return; }
@@ -1816,72 +1726,33 @@ function boot(){
       im.src = url;
     });
   }
-  $("img").onchange = async e => {
+  $("img").addEventListener("change", async e => {
     const fs = [...e.target.files]; e.target.value = "";
-    const maxImgs = L().images;
-    const maxSize = L().fileSize;
+    const maxImgs = L().images, maxSize = L().fileSize;
     for (const f of fs){
       if (tokensOut()){ toast("Uploads paused — refills at " + nextRefillTime()); break; }
       const imgCount = pending.filter(x => x.img).length;
       if (imgCount >= maxImgs){ toast("Max " + maxImgs + " images" + (pro ? "" : " — Pro allows 15")); break; }
       if (!/^image\//.test(f.type)){ toast("Not an image"); continue; }
-      if (f.size > maxSize){ toast(f.name + " is too big (max " + Math.round(maxSize / 1e6) + " MB)"); continue; }
+      if (f.size > maxSize){ toast(f.name + " is too big"); continue; }
       try {
         const im = await readImg(f);
         if (im.data.length > 1100000){ toast("Image too large"); continue; }
         pending.push({ name: f.name || "image", img: im });
       } catch(_) {
-        const ext = (f.name || "").split(".").pop().toLowerCase();
-        if (ext === "heic" || ext === "heif") toast("HEIC not supported — try a JPG/PNG");
-        else toast("Couldn't read " + (f.name || "image"));
+        toast("Couldn't read " + (f.name || "image"));
       }
     }
     renderAtts(); updateSendState();
-  };
-
-  /* ---------- THEME ---------- */
-  function curTheme(){ return document.documentElement.getAttribute("data-theme") || (matchMedia("(prefers-color-scheme:light)").matches ? "light" : "dark"); }
-  function markTh(){ document.querySelectorAll("[data-th]").forEach(b => b.classList.toggle("on", b.dataset.th === curTheme())); }
-  document.querySelectorAll("[data-th]").forEach(b => b.onclick = () => { document.documentElement.setAttribute("data-theme", b.dataset.th); try { localStorage.setItem("zyro_theme", b.dataset.th); } catch(_) {} markTh(); });
-  markTh();
-
-  /* ---------- EDIT ---------- */
-  function addEdit(u){
-    if (!u || u.querySelector(".ed")) return;
-    const e = document.createElement("button");
-    e.type = "button"; e.className = "ed"; e.setAttribute("data-edit", ""); e.textContent = "✎";
-    u.insertBefore(e, u.firstChild);
-  }
-  function startEdit(u){
-    if (busy){ toast("Wait for the reply"); return; }
-    const m = hist[hist.length - 2];
-    if (!m || m.role !== "user") return;
-    const b = u.querySelector(":scope>div"), old = m.show ?? m.content;
-    u.classList.add("editing"); b.textContent = "";
-    const ta = document.createElement("textarea"); ta.className = "ei"; ta.value = old; ta.rows = 3;
-    const bar = document.createElement("div"); bar.className = "eb";
-    const cn = document.createElement("button"); cn.type = "button"; cn.textContent = "Cancel";
-    cn.onclick = () => { u.classList.remove("editing"); fillBubble(b, old, m.att, m.imgs, m.nimg); };
-    const sv = document.createElement("button"); sv.type = "button"; sv.className = "go2"; sv.textContent = "Send";
-    sv.onclick = () => { const v = ta.value.trim(); if (v) editLast(v); };
-    bar.append(cn, sv); b.append(ta, bar); ta.focus();
-  }
-  function editLast(v){
-    if (busy || hist.length < 2) return;
-    const m = hist[hist.length - 2], k = log.children;
-    k[k.length - 1].remove(); k[k.length - 1].remove();
-    hist.splice(-2);
-    const tail = m.content.slice((m.show || "").length);
-    run(v, v + tail, m.att || [], m.imgs || []);
-  }
+    // Auto-send if this was a snap action
+    if (pendingKind === "snap" && pending.some(x => x.img)){
+      setTimeout(() => send(""), 100);
+    }
+  });
 
   /* ---------- CODE TOOLS ---------- */
-  function toggleCode(box){
-    if (box.classList.contains("expanded")){ box.classList.remove("expanded"); box.querySelector(".more").textContent = "⤢ Expand"; }
-    else { box.classList.add("expanded"); box.querySelector(".more").textContent = "⤡ Collapse"; }
-  }
   const RUN_JS = "const AF=Object.getPrototypeOf(async function(){}).constructor;\nconst fmt=a=>a.map(x=>typeof x===\"string\"?x:(()=>{try{return JSON.stringify(x,null,1)}catch(_){return String(x)}})()).join(\" \");\nonmessage=async e=>{console.log=(...a)=>postMessage({t:\"o\",s:fmt(a)});console.info=console.log;console.warn=(...a)=>postMessage({t:\"e\",s:fmt(a)});console.error=console.warn;\n for(const k of [\"fetch\",\"XMLHttpRequest\",\"WebSocket\",\"EventSource\",\"importScripts\",\"indexedDB\"]){try{self[k]=undefined}catch(_){}}\n try{const r=await new AF(e.data.code)();if(r!==undefined)postMessage({t:\"o\",s:\"\\u2192 \"+fmt([r])})}catch(err){postMessage({t:\"e\",s:String(err&&err.stack||err)})}\n postMessage({t:\"d\"})}";
-  const RUN_PY = "let py=null;\nonmessage=async e=>{try{\n if(!py){postMessage({t:\"s\",s:\"Loading Python (one-time download, about 10 MB)...\"});\n  importScripts(\"https://cdn.jsdelivr.net/pyodide/v0.29.4/full/pyodide.js\");\n  py=await loadPyodide({indexURL:\"https://cdn.jsdelivr.net/pyodide/v0.29.4/full/\"})}\n py.setStdout({batched:s=>postMessage({t:\"o\",s})});py.setStderr({batched:s=>postMessage({t:\"e\",s})});\n postMessage({t:\"r\"});\n try{await py.loadPackagesFromImports(e.data.code)}catch(_){}\n const r=await py.runPythonAsync(e.data.code);if(r!==undefined&&r!==null)postMessage({t:\"o\",s:\"\\u2192 \"+String(r)})\n }catch(err){postMessage({t:\"e\",s:String(err&&err.message||err)})}\n postMessage({t:\"d\"})}";
+  const RUN_PY = "let py=null;\nonmessage=async e=>{try{\n if(!py){postMessage({t:\"s\",s:\"Loading Python (one-time, ~10 MB)...\"});\n  importScripts(\"https://cdn.jsdelivr.net/pyodide/v0.29.4/full/pyodide.js\");\n  py=await loadPyodide({indexURL:\"https://cdn.jsdelivr.net/pyodide/v0.29.4/full/\"})}\n py.setStdout({batched:s=>postMessage({t:\"o\",s})});py.setStderr({batched:s=>postMessage({t:\"e\",s})});\n postMessage({t:\"r\"});\n try{await py.loadPackagesFromImports(e.data.code)}catch(_){}\n const r=await py.runPythonAsync(e.data.code);if(r!==undefined&&r!==null)postMessage({t:\"o\",s:\"\\u2192 \"+String(r)})\n }catch(err){postMessage({t:\"e\",s:String(err&&err.message||err)})}\n postMessage({t:\"d\"})}";
   let pyW = null;
   const mkW = src => new Worker(URL.createObjectURL(new Blob([src], { type: "text/javascript" })));
   function runCode(box, kind, btn){
@@ -1901,13 +1772,13 @@ function boot(){
       if (kind === "js" && w){ try { w.terminate(); } catch(_) {} }
       if (hadErr){
         const fx = document.createElement("button");
-        fx.type = "button"; fx.className = "fix-btn"; fx.setAttribute("data-fix", "");
+        fx.type = "button"; fx.className = "fix-btn";
         fx.innerHTML = "🔧 Fix with Zyro";
-        if (!box.querySelector("[data-fix]")) out.appendChild(fx);
+        if (!box.querySelector(".fix-btn")) out.appendChild(fx);
       }
     };
     const kill = note => { try { w && w.terminate(); } catch(_) {} if (kind === "py") pyW = null; end(note); };
-    const arm = ms => { clearTimeout(tm); tm = setTimeout(() => kill("Stopped after " + Math.round(ms / 1000) + " s." + (pro ? "" : " Pro allows longer.")), ms); };
+    const arm = ms => { clearTimeout(tm); tm = setTimeout(() => kill("Stopped after " + Math.round(ms / 1000) + " s."), ms); };
     btn.textContent = "Stop"; box._stop = () => kill("Stopped.");
     if (kind === "py"){ if (!pyW) pyW = mkW(RUN_PY); w = pyW; } else w = mkW(RUN_JS);
     arm(timeout);
@@ -1923,22 +1794,26 @@ function boot(){
     w.onerror = () => { hadErr = true; kill("Couldn't start the runner."); };
     w.postMessage({ code });
   }
+  // Fix-with-Zyro
+  log.addEventListener("click", e => {
+    const fx = e.target.closest(".fix-btn");
+    if (!fx) return;
+    const cb2 = fx.closest(".cb");
+    const code = cb2.querySelector("pre").textContent;
+    const err = cb2.querySelector(".out") ? cb2.querySelector(".out").textContent : "";
+    t.value = "Fix this code. It failed.\n\nCode:\n```\n" + code + "\n```\n\nError:\n```\n" + err + "\n```\n\nExplain what caused the error and give the corrected code.";
+    t.dispatchEvent(new Event("input"));
+    $("f").requestSubmit();
+  });
 
   /* ---------- SEND STATE ---------- */
   function updateSendState(){
     const has = t.value.trim().length > 0 || pending.length > 0;
     go.classList.toggle("on", has);
+    go.classList.toggle("muted", !has);
   }
 
-  /* ---------- WIRING ---------- */
-  { const b = $("burger"); if (b) b.onclick = openD; }
-  { const s = $("scrim"); if (s) s.onclick = closeD; }
-  { const c = $("closeD"); if (c) c.onclick = closeD; }
-  { const n1 = $("newc"); if (n1) n1.onclick = newChat; }
-
-  document.addEventListener("keydown", e => {
-    if (e.key === "Escape"){ closeD(); closePV(); $("cv").classList.remove("on"); $("modal").classList.remove("on"); closeAuth(); const d = $("acctDrop"); if (d) d.classList.remove("open"); const pp = document.getElementById("ppModal"); if (pp) pp.remove(); }
-  });
+  /* ---------- TEXTAREA ---------- */
   t.addEventListener("input", () => {
     t.style.height = "auto";
     t.style.height = Math.min(t.scrollHeight, 160) + "px";
@@ -1951,8 +1826,18 @@ function boot(){
     }
   });
 
+  /* ---------- OVERLAYS ---------- */
+  const closePV = () => { const pv = $("pv"); if (pv) pv.classList.remove("on"); if ($("pvf")) $("pvf").srcdoc = ""; };
+  { const pvx = $("pvx"); if (pvx) pvx.addEventListener("click", closePV); }
+  { const cvx = $("cvx"); if (cvx) cvx.addEventListener("click", () => $("cv").classList.remove("on")); }
+  { const cvc = $("cvc"); if (cvc) cvc.addEventListener("click", () => copy($("cvp").textContent, cvc)); }
+  { const ciSave = $("ciSave"); if (ciSave) ciSave.addEventListener("click", () => { try { localStorage.setItem(CI, $("ci").value.trim()); } catch(_) {} $("modal").classList.remove("on"); toast("Instructions saved"); }); }
+  { const ciCancel = $("ciCancel"); if (ciCancel) ciCancel.addEventListener("click", () => $("modal").classList.remove("on")); }
+
+  /* ---------- INIT ---------- */
   updateSendState();
   updateTokenUI();
+  renderList();
 
   if (new URLSearchParams(location.search).get("auth")){
     openAuth("signin");
@@ -1963,6 +1848,7 @@ function boot(){
   window.openAuth = openAuth;
   window.openProPaywall = openProPaywall;
   window.openRazorpayCheckout = openRazorpayCheckout;
+  window.zyroOpenStudyPanel = openStudyPanel;
 }
 
 if (document.readyState === "loading"){ document.addEventListener("DOMContentLoaded", boot); }
