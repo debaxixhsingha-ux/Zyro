@@ -703,7 +703,7 @@ function closeAuth(){ const am = $("authModal"); if (am) am.classList.remove("on
     }
     closeAuth();
     toast(authMode === "signup" ? "Account created" : "Signed in");
-  };
+  });
 }
 
 async function loadProfile(){
