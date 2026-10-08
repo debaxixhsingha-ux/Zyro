@@ -94,9 +94,7 @@ function openProPaywall(reason, feature){
   if (existing) existing.remove();
   const limits = DAILY_LIMITS[pro ? "pro" : "free"];
   const featNames = { studykit:"study kits", flashcard:"flashcards", quiz:"quizzes" };
-  const title = reason === "limit"
-    ? "You've hit today's limit"
-    : "This one's a Pro feature";
+  const title = reason === "limit" ? "You've hit today's limit" : "This one's a Pro feature";
   const sub = reason === "limit"
     ? "You've used all " + (limits[feature]||limits.studykit) + " free " + (featNames[feature]||"study kits") + " today. Upgrade for way more."
     : "Unlock it with Zyro Pro · ₹349/month";
@@ -213,6 +211,7 @@ async function openRazorpayCheckout(plan){
   })
   .catch(() => toast("Could not reach payment server"));
 }
+
 /* =========================================================
    BOOT
    ========================================================= */
@@ -362,134 +361,134 @@ function boot(){
       if (c){ c.style.opacity = "0"; c.style.transform = "translateY(8px)"; setTimeout(() => c.remove(), 300); }
     });
   }
+   /* ---------- DAILY COUNTERS ---------- */
+function getGen(){
+  try {
+    const d = JSON.parse(localStorage.getItem(GEN_KEY) || "null");
+    const now = Date.now();
+    if (!d || !d.reset || now - d.reset > GEN_RESET_MS){
+      const fresh = { studykit:0, flashcard:0, quiz:0, reset:now };
+      try { localStorage.setItem(GEN_KEY, JSON.stringify(fresh)); } catch(_) {}
+      return fresh;
+    }
+    d.studykit = d.studykit || 0;
+    d.flashcard = d.flashcard || 0;
+    d.quiz = d.quiz || 0;
+    return d;
+  } catch(_) { return { studykit:0, flashcard:0, quiz:0, reset:Date.now() }; }
+}
+function saveGen(d){ try { localStorage.setItem(GEN_KEY, JSON.stringify(d)); } catch(_) {} }
+function bumpGen(kind){
+  const d = getGen();
+  d[kind] = (d[kind] || 0) + 1;
+  saveGen(d);
+}
+function genAllowed(kind){
+  const cap = DAILY_LIMITS[pro ? "pro" : "free"][kind] || 0;
+  const d = getGen();
+  return (d[kind] || 0) < cap;
+}
+function nextGenResetLabel(){
+  const d = getGen();
+  const remain = d.reset + GEN_RESET_MS - Date.now();
+  if (remain <= 0) return "now";
+  const hrs = Math.floor(remain / 3600000);
+  const mins = Math.floor((remain % 3600000) / 60000);
+  if (hrs > 0) return "in " + hrs + "h " + mins + "m";
+  return "in " + mins + "m";
+}
 
-  /* ---------- DAILY COUNTERS ---------- */
-  function getGen(){
-    try {
-      const d = JSON.parse(localStorage.getItem(GEN_KEY) || "null");
-      const now = Date.now();
-      if (!d || !d.reset || now - d.reset > GEN_RESET_MS){
-        const fresh = { studykit:0, flashcard:0, quiz:0, reset:now };
-        try { localStorage.setItem(GEN_KEY, JSON.stringify(fresh)); } catch(_) {}
-        return fresh;
-      }
-      d.studykit = d.studykit || 0;
-      d.flashcard = d.flashcard || 0;
-      d.quiz = d.quiz || 0;
-      return d;
-    } catch(_) { return { studykit:0, flashcard:0, quiz:0, reset:Date.now() }; }
-  }
-  function saveGen(d){ try { localStorage.setItem(GEN_KEY, JSON.stringify(d)); } catch(_) {} }
-  function bumpGen(kind){
-    const d = getGen();
-    d[kind] = (d[kind] || 0) + 1;
-    saveGen(d);
-  }
-  function genAllowed(kind){
-    const cap = DAILY_LIMITS[pro ? "pro" : "free"][kind] || 0;
-    const d = getGen();
-    return (d[kind] || 0) < cap;
-  }
-  function nextGenResetLabel(){
-    const d = getGen();
-    const remain = d.reset + GEN_RESET_MS - Date.now();
-    if (remain <= 0) return "now";
-    const hrs = Math.floor(remain / 3600000);
-    const mins = Math.floor((remain % 3600000) / 60000);
-    if (hrs > 0) return "in " + hrs + "h " + mins + "m";
-    return "in " + mins + "m";
-  }
+function detectGenIntent(text){
+  if (!text) return null;
+  const s = String(text).toLowerCase();
+  if (/\b(f+la+s+h?\s*cards?|flash\s*cards?|flashcards?e?|cards?\s+for|make\s+(me\s+)?(a\s+)?(some\s+)?flash\s*cards?)\b/.test(s)) return "flashcard";
+  if (/\b(mock\s*paper|full\s*mock|mock\s*test)\b/.test(s)) return "mock";
+  if (/\b(viva\s*practice|oral\s*exam)\b/.test(s)) return "viva";
+  if (/\b(study\s*kit|make\s+(me\s+)?(a\s+)?study|create\s+(me\s+)?(a\s+)?study)\b/.test(s)) return "studykit";
+  if (/\b(quiz\s*me|make\s+(a\s+)?quiz|test\s+me\s+on|mcqs?|test\s+me)\b/.test(s)) return "quiz";
+  if (/\bnotes?\s*(to|→|->)\s*(flashcards?|quiz|cards)\b/.test(s)) return "studykit";
+  return null;
+}
+function checkGenAllowed(kind){
+  if (pro) return true;
+  if (genAllowed(kind)) return true;
+  openProPaywall("limit", kind);
+  return false;
+}
 
-  function detectGenIntent(text){
-    if (!text) return null;
-    const s = String(text).toLowerCase();
-    if (/\b(f+la+s+h?\s*cards?|flash\s*cards?|flashcards?e?|cards?\s+for|make\s+(me\s+)?(a\s+)?(some\s+)?flash\s*cards?)\b/.test(s)) return "flashcard";
-    if (/\b(mock\s*paper|full\s*mock|mock\s*test)\b/.test(s)) return "mock";
-    if (/\b(viva\s*practice|oral\s*exam)\b/.test(s)) return "viva";
-    if (/\b(study\s*kit|make\s+(me\s+)?(a\s+)?study|create\s+(me\s+)?(a\s+)?study)\b/.test(s)) return "studykit";
-    if (/\b(quiz\s*me|make\s+(a\s+)?quiz|test\s+me\s+on|mcqs?|test\s+me)\b/.test(s)) return "quiz";
-    if (/\bnotes?\s*(to|→|->)\s*(flashcards?|quiz|cards)\b/.test(s)) return "studykit";
-    return null;
-  }
-  function checkGenAllowed(kind){
-    if (pro) return true;
-    if (genAllowed(kind)) return true;
-    openProPaywall("limit", kind);
-    return false;
-  }
+/* ---------- BUSY WATCHDOG ---------- */
+function armBusyWatchdog(){
+  clearTimeout(busyWatchdog);
+  busyWatchdog = setTimeout(function(){
+    if (busy){
+      try { if (ctrl) ctrl.abort(); } catch(_) {}
+      busy = false; streaming = false;
+      setGo(false);
+      toast("Request timed out — try again");
+    }
+  }, STREAM_TIMEOUT_MS + 20000);
+}
+function clearBusyWatchdog(){ clearTimeout(busyWatchdog); }
 
-  /* ---------- BUSY WATCHDOG ---------- */
-  function armBusyWatchdog(){
-    clearTimeout(busyWatchdog);
-    busyWatchdog = setTimeout(function(){
-      if (busy){
-        try { if (ctrl) ctrl.abort(); } catch(_) {}
-        busy = false; streaming = false;
-        setGo(false);
-        toast("Request timed out — try again");
-      }
-    }, STREAM_TIMEOUT_MS + 20000);
-  }
-  function clearBusyWatchdog(){ clearTimeout(busyWatchdog); }
+/* ---------- TOKENS ---------- */
+function getTokens(){
+  try {
+    const d = JSON.parse(localStorage.getItem(TOKEN_KEY) || "null");
+    const now = Date.now();
+    if (!d || !d.reset || now - d.reset > TOKEN_RESET_MS){
+      const fresh = { used:0, last:0, reset:now };
+      try { localStorage.setItem(TOKEN_KEY, JSON.stringify(fresh)); } catch(_) {}
+      return fresh;
+    }
+    return d;
+  } catch(_) { return { used:0, last:0, reset:Date.now() }; }
+}
+function saveTokens(d){ try { localStorage.setItem(TOKEN_KEY, JSON.stringify(d)); } catch(_) {} }
+function addTokens(n){ const d = getTokens(); d.used += n; d.last = n; saveTokens(d); updateTokenUI(); cloudUsage(n); }
+const tokensOut = () => getTokens().used >= TOTAL;
 
-  /* ---------- TOKENS ---------- */
-  function getTokens(){
-    try {
-      const d = JSON.parse(localStorage.getItem(TOKEN_KEY) || "null");
-      const now = Date.now();
-      if (!d || !d.reset || now - d.reset > TOKEN_RESET_MS){
-        const fresh = { used:0, last:0, reset:now };
-        try { localStorage.setItem(TOKEN_KEY, JSON.stringify(fresh)); } catch(_) {}
-        return fresh;
-      }
-      return d;
-    } catch(_) { return { used:0, last:0, reset:Date.now() }; }
-  }
-  function saveTokens(d){ try { localStorage.setItem(TOKEN_KEY, JSON.stringify(d)); } catch(_) {} }
-  function addTokens(n){ const d = getTokens(); d.used += n; d.last = n; saveTokens(d); updateTokenUI(); cloudUsage(n); }
-  const tokensOut = () => getTokens().used >= TOTAL;
+function nextResetLabel(){
+  const d = getTokens();
+  const remain = d.reset + TOKEN_RESET_MS - Date.now();
+  if (remain <= 0) return "now";
+  const days = Math.floor(remain / 86400000);
+  const hrs  = Math.floor((remain % 86400000) / 3600000);
+  if (days > 0) return "in " + days + "d " + hrs + "h";
+  const mins = Math.floor((remain % 3600000) / 60000);
+  if (hrs > 0) return "in " + hrs + "h " + mins + "m";
+  return "in " + mins + "m";
+}
 
-  function nextResetLabel(){
-    const d = getTokens();
-    const remain = d.reset + TOKEN_RESET_MS - Date.now();
-    if (remain <= 0) return "now";
-    const days = Math.floor(remain / 86400000);
-    const hrs  = Math.floor((remain % 86400000) / 3600000);
-    if (days > 0) return "in " + days + "d " + hrs + "h";
-    const mins = Math.floor((remain % 3600000) / 60000);
-    if (hrs > 0) return "in " + hrs + "h " + mins + "m";
-    return "in " + mins + "m";
-  }
+function paintBar(){
+  const d = getTokens();
+  const pct = Math.min(100, (d.used/TOTAL) * 100);
+  const p = d.used > 0 && pct < 0.1 ? "<0.1" : pct < 10 ? pct.toFixed(1) : Math.floor(pct);
+  const tp = $("tPct"); if (tp) tp.textContent = p + "% used";
+  const f = $("fTotal");
+  if (f){ f.style.width = pct + "%"; f.className = "token-fill" + (pct >= 95 ? " danger" : pct >= 80 ? " warn" : ""); }
+  const tl = $("tLast");
+  if (tl){ tl.textContent = "resets " + nextResetLabel(); }
+  const tp2 = $("tPlan");
+  if (tp2) tp2.textContent = pro ? "PRO · 750k / month" : "Free · 100k / month";
+  const pp = $("profileTokenPct"); if (pp) pp.textContent = p + "%";
+  const pr = $("profileTokenRefill"); if (pr) pr.textContent = "resets " + nextResetLabel();
+  const pf = $("profileTokenFill"); if (pf) pf.style.width = pct + "%";
+}
 
-  function paintBar(){
-    const d = getTokens();
-    const pct = Math.min(100, (d.used/TOTAL) * 100);
-    const p = d.used > 0 && pct < 0.1 ? "<0.1" : pct < 10 ? pct.toFixed(1) : Math.floor(pct);
-    const tp = $("tPct"); if (tp) tp.textContent = p + "% used";
-    const f = $("fTotal");
-    if (f){ f.style.width = pct + "%"; f.className = "token-fill" + (pct >= 95 ? " danger" : pct >= 80 ? " warn" : ""); }
-    const tl = $("tLast");
-    if (tl){ tl.textContent = "resets " + nextResetLabel(); }
-    const tp2 = $("tPlan");
-    if (tp2) tp2.textContent = pro ? "PRO · 750k / month" : "Free · 100k / month";
-    const pp = $("profileTokenPct"); if (pp) pp.textContent = p + "%";
-    const pr = $("profileTokenRefill"); if (pr) pr.textContent = "resets " + nextResetLabel();
-    const pf = $("profileTokenFill"); if (pf) pf.style.width = pct + "%";
-  }
+function updateTokenUI(){ paintBar(); applyLimits(); }
+function applyLimits(){
+  const out = tokensOut();
+  ["imgBtn","fileBtn"].forEach(id => { const el = $(id); if (el) el.disabled = out; });
+}
+setInterval(updateTokenUI, 30000);
 
-  function updateTokenUI(){ paintBar(); applyLimits(); }
-  function applyLimits(){
-    const out = tokensOut();
-    ["imgBtn","fileBtn"].forEach(id => { const el = $(id); if (el) el.disabled = out; });
-  }
-  setInterval(updateTokenUI, 30000);
+function toast(m){
+  const e = $("toast"); if (!e) return;
+  e.textContent = m; e.classList.add("on");
+  setTimeout(() => e.classList.remove("on"), 1800);
+}
 
-  function toast(m){
-    const e = $("toast"); if (!e) return;
-    e.textContent = m; e.classList.add("on");
-    setTimeout(() => e.classList.remove("on"), 1800);
-       }
-   const STAGES = ["Thinking","Analyzing","Planning steps"];
+const STAGES = ["Thinking","Analyzing","Planning steps"];
 const STUDY = {
   Chat: "",
   Solver:
@@ -753,8 +752,9 @@ function sbClient(){
     return sb;
   });
   return sbP;
-   }
-   function renderAcct(){
+}
+
+function renderAcct(){
   const ava = $("acctAva"), em = $("acctEmail");
   if (ava) ava.textContent = user ? (user.email || "Z").toUpperCase()[0] : "?";
   if (em) em.textContent = user ? (user.email || "").split("@")[0].slice(0, 12) : "Sign in";
@@ -803,8 +803,7 @@ if (acctUpgrade){
     openRazorpayCheckout("monthly");
   });
 }
-
-const profilePanel = $("profilePanel");
+   const profilePanel = $("profilePanel");
 function openProfile(){ renderProfile(); if (profilePanel) profilePanel.classList.add("on"); }
 function closeProfile(){ if (profilePanel) profilePanel.classList.remove("on"); }
 { const cp = $("closeProfile"); if (cp) cp.addEventListener("click", closeProfile); }
@@ -860,7 +859,6 @@ function closeAuth(){ const am = $("authModal"); if (am) am.classList.remove("on
     }
     closeAuth();
     toast(authMode === "signup" ? "Account created" : "Signed in");
-    // If we had onboarding data pending, save it now
     setTimeout(() => { if (window.__zyroSavePendingOnboarding) window.__zyroSavePendingOnboarding(); }, 800);
   });
 }
@@ -939,10 +937,7 @@ async function afterSignIn(){
   await pullCloud();
   await syncUsageFromCloud();
   renderAcct(); renderProfile();
-  // If not onboarded → trigger onboarding
-  if (!userProfile || !userProfile.onboarded){
-    openOnboarding();
-  }
+  if (!userProfile || !userProfile.onboarded){ openOnboarding(); }
 }
 
 (async () => {
@@ -961,13 +956,13 @@ async function afterSignIn(){
   if (user) await afterSignIn();
   else {
     renderAcct(); renderProfile();
-    // If no session but we have an unsaved draft → start onboarding so user can complete and sign up
     let draft = null;
     try { draft = JSON.parse(localStorage.getItem(OB_DRAFT) || "null"); } catch(_) {}
     if (!draft || !draft.name) openOnboarding();
   }
 })();
-   /* ---------- CHAT LIST ---------- */
+
+/* ---------- CHAT LIST ---------- */
 try { chats = JSON.parse(localStorage.getItem(CK) || "[]"); } catch(_) { chats = []; }
 
 function save(){
@@ -1040,7 +1035,6 @@ function newChat(){
   closeMenu();
   try { t.focus(); } catch(_) {}
 }
-
 function openChat(id){
   try { if (ctrl) ctrl.abort(); } catch(_) {}
   busy = false; streaming = false; setGo(false); clearBusyWatchdog();
@@ -1138,8 +1132,7 @@ function txt(p){
   fp(); fl();
   return h;
 }
-
-const KW = new Set("abstract and as assert async await break case catch class const continue def default del do elif else enum except export extends final finally for from fn func function if implements import in interface is lambda let loop match mod mut namespace new not null None nil of or package pass private protected pub public raise return self static struct super switch this throw throws trait true True false False try type typeof union unsafe use using var void while with yield select insert update delete create table where join group order by limit values".split(" "));
+   const KW = new Set("abstract and as assert async await break case catch class const continue def default del do elif else enum except export extends final finally for from fn func function if implements import in interface is lambda let loop match mod mut namespace new not null None nil of or package pass private protected pub public raise return self static struct super switch this throw throws trait true True false False try type typeof union unsafe use using var void while with yield select insert update delete create table where join group order by limit values".split(" "));
 const HASH = /^(py|python|bash|sh|shell|zsh|ruby|rb|yaml|yml|toml|r|perl|dockerfile|makefile|ini|conf|powershell|ps1)$/i;
 const CM = { h: /#[^\n]*/, q: /--[^\n]*|\/\*[\s\S]*?\*\//, s: /\/\/[^\n]*|\/\*[\s\S]*?\*\/|<!--[\s\S]*?-->/ };
 const REST = /("(?:\\.|[^"\\\n])*"|'(?:\\.|[^'\\\n])*'|`(?:\\.|[^`\\])*`)|(\b0x[0-9a-f]+\b|\b\d[\d_]*(?:\.\d+)?(?:e[+-]?\d+)?\b)|(\b[A-Za-z_]\w*\b)/;
@@ -1315,7 +1308,8 @@ function copy(txt2, btn){
   };
   navigator.clipboard ? navigator.clipboard.writeText(txt2).then(ok).catch(fb) : fb();
 }
-   /* ---------- STUDY KIT PARSER ---------- */
+
+/* ---------- STUDY KIT PARSER ---------- */
 function parseStudyKit(text){
   const kit = { notes:"", cards:[], quiz:[] };
   if (!text) return kit;
@@ -1368,8 +1362,7 @@ function emptyPanelHTML(emoji, title, sub){
     '<h3>' + esc(title) + '</h3>' +
     '<p>' + esc(sub) + '</p>';
 }
-
-/* ---------- FLIP CARDS ---------- */
+   /* ---------- FLIP CARDS ---------- */
 function renderFlipCards(container, cards){
   container.innerHTML = "";
   const stage = document.createElement("div");
@@ -1709,8 +1702,9 @@ async function workerStream(messages, onText, signal, fast, onThought, isGen){
     throw { code: "empty" };
   }
   return full;
-    }
-   const api = (h) => {
+}
+
+const api = (h) => {
   if (!h.length) return [];
   const N = 12, MAX = 60000;
   const keepIdx = new Set();
@@ -1742,8 +1736,7 @@ async function workerStream(messages, onText, signal, fast, onThought, isGen){
   }
   return out;
 };
-
-function buildNotesHint(files){
+   function buildNotesHint(files){
   if (!files.length) return "";
   const totalChars = files.reduce((s, f) => s + (f.text ? f.text.length : 0), 0);
   const biggestSize = files.reduce((s, f) => Math.max(s, f.origSize || 0), 0);
@@ -2270,8 +2263,7 @@ $("img").addEventListener("change", async e => {
   renderAtts(); updateSendState();
   if (pendingKind === "snap" && pending.some(x => x.img)) setTimeout(() => send(""), 100);
 });
-
-/* ---------- CODE RUN ---------- */
+   /* ---------- CODE RUN ---------- */
 const RUN_JS = "const AF=Object.getPrototypeOf(async function(){}).constructor;\nconst fmt=a=>a.map(x=>typeof x===\"string\"?x:(()=>{try{return JSON.stringify(x,null,1)}catch(_){return String(x)}})()).join(\" \");\nonmessage=async e=>{console.log=(...a)=>postMessage({t:\"o\",s:fmt(a)});console.info=console.log;console.warn=(...a)=>postMessage({t:\"e\",s:fmt(a)});console.error=console.warn;\n for(const k of [\"fetch\",\"XMLHttpRequest\",\"WebSocket\",\"EventSource\",\"importScripts\",\"indexedDB\"]){try{self[k]=undefined}catch(_){}}\n try{const r=await new AF(e.data.code)();if(r!==undefined)postMessage({t:\"o\",s:\"\\u2192 \"+fmt([r])})}catch(err){postMessage({t:\"e\",s:String(err&&err.stack||err)})}\n postMessage({t:\"d\"})}";
 const RUN_PY = "let py=null;\nonmessage=async e=>{try{\n if(!py){postMessage({t:\"s\",s:\"Loading Python (one-time, ~10 MB)...\"});\n  importScripts(\"https://cdn.jsdelivr.net/pyodide/v0.29.4/full/pyodide.js\");\n  py=await loadPyodide({indexURL:\"https://cdn.jsdelivr.net/pyodide/v0.29.4/full/\"})}\n py.setStdout({batched:s=>postMessage({t:\"o\",s})});py.setStderr({batched:s=>postMessage({t:\"e\",s})});\n postMessage({t:\"r\"});\n try{await py.loadPackagesFromImports(e.data.code)}catch(_){}\n const r=await py.runPythonAsync(e.data.code);if(r!==undefined&&r!==null)postMessage({t:\"o\",s:\"\\u2192 \"+String(r)})\n }catch(err){postMessage({t:\"e\",s:String(err&&err.message||err)})}\n postMessage({t:\"d\"})}";
 let pyW = null;
@@ -2333,7 +2325,8 @@ t.addEventListener("keydown", e => {
     if (!busy) $("f").requestSubmit();
   }
 });
-   /* ---------- OVERLAYS ---------- */
+
+/* ---------- OVERLAYS ---------- */
 const closePV = () => { const pv = $("pv"); if (pv) pv.classList.remove("on"); if ($("pvf")) $("pvf").srcdoc = ""; };
 { const pvx = $("pvx"); if (pvx) pvx.addEventListener("click", closePV); }
 { const cvx = $("cvx"); if (cvx) cvx.addEventListener("click", () => $("cv").classList.remove("on")); }
@@ -2356,7 +2349,8 @@ document.addEventListener("keydown", e => {
     const pp = document.getElementById("ppModal"); if (pp) pp.remove();
   }
 });
-   /* ---------- ONBOARDING ---------- */
+
+/* ---------- ONBOARDING ---------- */
 const OB_STEPS = 8;
 let obStep = 0;
 let obData = {};
@@ -2387,7 +2381,7 @@ function renderStep(){
 function canAdvance(){
   if (obStep === 0) return !!obData.name && obData.name.trim().length >= 1;
   if (obStep === 1) return !!obData.dob;
-  if (obStep === 2) return !!obData.state;
+  if (obStep === 2) return true;
   if (obStep === 3) return !!obData.class_level;
   if (obStep === 4) return !!obData.board;
   if (obStep === 5) return !!obData.preparing_for;
@@ -2395,7 +2389,6 @@ function canAdvance(){
   if (obStep === 7) return true;
   return true;
 }
-
 function updateNextBtn(){
   const btn = $("obNext");
   if (btn) btn.disabled = !canAdvance();
@@ -2417,7 +2410,6 @@ function obBack(){
 function openOnboarding(){
   const ob = $("ob");
   if (!ob) return;
-  // Restore draft
   const d = getDraft();
   obData = {
     name: d.name || "",
@@ -2429,12 +2421,10 @@ function openOnboarding(){
     target_score: d.target_score || "",
     exam_date: d.exam_date || ""
   };
-  // Fill inputs
   if ($("obName")) $("obName").value = obData.name;
   if ($("obDob")) $("obDob").value = obData.dob;
   if ($("obState")) $("obState").value = obData.state;
   if ($("obExamDate")) $("obExamDate").value = obData.exam_date;
-  // Restore chip selections
   ["obClass","obBoard","obPrep","obTarget"].forEach(groupId => {
     const g = $(groupId);
     if (!g) return;
@@ -2453,11 +2443,9 @@ function closeOnboarding(){
   const ob = $("ob");
   if (ob) ob.classList.remove("on");
 }
-   async function finishOnboarding(){
-  // Save the data locally so we can push it after signup
-  saveDraft(obData);
 
-  // If already signed in → save to Supabase now, close onboarding
+async function finishOnboarding(){
+  saveDraft(obData);
   if (user){
     const saved = await saveOnboardingToCloud();
     if (saved){
@@ -2469,8 +2457,6 @@ function closeOnboarding(){
       return;
     }
   }
-
-  // Not signed in → prompt sign up, then save after
   closeOnboarding();
   openAuth("signup");
 }
@@ -2498,7 +2484,6 @@ async function saveOnboardingToCloud(){
   } catch(e){ console.log("Onboarding save error:", e && e.message); return false; }
 }
 
-// Called from the sign-in handler after successful signup/signin
 window.__zyroSavePendingOnboarding = async function(){
   const d = getDraft();
   if (!d || !d.name) return;
@@ -2511,13 +2496,12 @@ window.__zyroSavePendingOnboarding = async function(){
     toast("Welcome, " + (obData.name || "friend") + "!");
   }
 };
-   function renderPersonalizedHero(){
-  // Personalize the hero greeting when user data exists
+
+function renderPersonalizedHero(){
   const heroH1 = document.querySelector(".hero h1");
   const heroP = document.querySelector(".hero p");
   const kicker = document.querySelector(".hero .kicker");
   if (!heroH1) return;
-
   if (userProfile && userProfile.name){
     const name = userProfile.name;
     const hour = new Date().getHours();
@@ -2542,55 +2526,85 @@ window.__zyroSavePendingOnboarding = async function(){
     if (heroP) heroP.textContent = "Snap a question, drop your notes, or just start typing. We'll figure it out together.";
     if (kicker) kicker.innerHTML = '<span class="dot"></span>Ready when you are';
   }
-   }
-   { const obNameEl = $("obName");
-  if (obNameEl) obNameEl.addEventListener("input", () => {
-    obData.name = obNameEl.value.trim();
-    saveDraft(obData); updateNextBtn();
-  });
 }
-{ const obDobEl = $("obDob");
-  if (obDobEl) obDobEl.addEventListener("change", () => {
-    obData.dob = obDobEl.value;
-    saveDraft(obData); updateNextBtn();
-  });
-}
-{ const obExamEl = $("obExamDate");
-  if (obExamEl) obExamEl.addEventListener("change", () => {
-    obData.exam_date = obExamEl.value;
-    saveDraft(obData);
-  });
-}
-{ const obStateEl = $("obState");
-  if (obStateEl) obStateEl.addEventListener("change", () => {
-    obData.state = obStateEl.value;
-    saveDraft(obData); updateNextBtn();
-  });
-}
-["obClass","obBoard","obPrep","obTarget"].forEach(groupId => {
-  const g = $(groupId);
-  if (!g) return;
-  g.querySelectorAll(".ob-chip").forEach(c => {
-    c.addEventListener("click", () => {
-      g.querySelectorAll(".ob-chip").forEach(x => x.classList.remove("on"));
-      c.classList.add("on");
-      const v = c.dataset.v;
-      const key = groupId === "obClass" ? "class_level" : groupId === "obBoard" ? "board" : groupId === "obPrep" ? "preparing_for" : "target_score";
-      obData[key] = v;
+     /* ---------- ONBOARDING EVENT WIRING ---------- */
+  { const b = $("obNext"); if (b) b.addEventListener("click", obNext); }
+  { const b = $("obBack"); if (b) b.addEventListener("click", obBack); }
+
+  { const el = $("obName");
+    if (el) el.addEventListener("input", () => {
+      obData.name = el.value.trim();
+      saveDraft(obData); updateNextBtn();
+    });
+  }
+  { const el = $("obDob");
+    if (el) el.addEventListener("change", () => {
+      obData.dob = el.value;
+      saveDraft(obData); updateNextBtn();
+    });
+  }
+  { const el = $("obExamDate");
+    if (el) el.addEventListener("change", () => {
+      obData.exam_date = el.value;
       saveDraft(obData);
-      updateNextBtn();
+    });
+  }
+  { const el = $("obState");
+    if (el) el.addEventListener("change", () => {
+      obData.state = el.value;
+      saveDraft(obData); updateNextBtn();
+    });
+  }
+
+  ["obClass","obBoard","obPrep","obTarget"].forEach(groupId => {
+    const g = $(groupId);
+    if (!g) return;
+    g.querySelectorAll(".ob-chip").forEach(c => {
+      c.addEventListener("click", () => {
+        g.querySelectorAll(".ob-chip").forEach(x => x.classList.remove("on"));
+        c.classList.add("on");
+        const v = c.dataset.v;
+        const key = groupId === "obClass" ? "class_level"
+                  : groupId === "obBoard" ? "board"
+                  : groupId === "obPrep" ? "preparing_for"
+                  : "target_score";
+        obData[key] = v;
+        saveDraft(obData);
+        updateNextBtn();
+      });
     });
   });
-});
-{ const skipDate = $("obSkipDate");
-  if (skipDate) skipDate.addEventListener("click", () => {
-    obData.exam_date = "";
-    saveDraft(obData);
-    obNext();
-  });
-}
-{ const obNextEl = $("obNext"); if (obNextEl) obNextEl.addEventListener("click", obNext); }
-{ const obBackEl = $("obBack"); if (obBackEl) obBackEl.addEventListener("click", obBack); }
+
+  { const s = $("obSkipDate");
+    if (s) s.addEventListener("click", () => {
+      obData.exam_date = "";
+      saveDraft(obData);
+      obNext();
+    });
+  }
+
+  /* ---------- INIT ---------- */
+  updateSendState();
+  updateTokenUI();
+  renderList();
+  renderAcct();
+  renderProfile();
+  bumpStreak();
+  renderStreak();
+  renderGoal();
+  renderWelcome();
+
+  if (new URLSearchParams(location.search).get("auth")){
+    openAuth("signin");
+    history.replaceState(null, "", location.pathname);
+  }
+
+  window.toast = toast;
+  window.openAuth = openAuth;
+  window.openProPaywall = openProPaywall;
+  window.openRazorpayCheckout = openRazorpayCheckout;
+  window.zyroOpenStudyPanel = openStudyPanel;
+  window.zyroShowProPopup = showProPopup;
 }
 
 if (document.readyState === "loading"){ document.addEventListener("DOMContentLoaded", boot); }
