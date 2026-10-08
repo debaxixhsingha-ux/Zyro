@@ -2544,3 +2544,7 @@ window.__zyroSavePendingOnboarding = async function(){
   }
    }
    
+}
+
+if (document.readyState === "loading"){ document.addEventListener("DOMContentLoaded", boot); }
+else { boot(); }
