@@ -937,7 +937,24 @@ async function afterSignIn(){
   await pullCloud();
   await syncUsageFromCloud();
   renderAcct(); renderProfile();
-  if (!userProfile || !userProfile.onboarded){ openOnboarding(); }
+
+  // If there's a pending draft, save it now
+  const d = getDraft();
+  if (d && d.name){
+    obData = d;
+    await saveOnboardingToCloud();
+    clearDraft();
+    try { localStorage.setItem("zyro_onboarded", "1"); } catch(_){}
+    renderPersonalizedHero();
+  }
+
+  // Check cloud first, then local flag
+  const cloudDone = userProfile && userProfile.onboarded;
+  let localDone = false;
+  try { localDone = localStorage.getItem("zyro_onboarded") === "1"; } catch(_){}
+  if (!cloudDone && !localDone){
+    openOnboarding();
+  }
 }
 
 (async () => {
@@ -2448,6 +2465,7 @@ async function finishOnboarding(){
     const saved = await saveOnboardingToCloud();
     if (saved){
       clearDraft();
+      try { localStorage.setItem("zyro_onboarded", "1"); } catch(_){}   // ← ADD THIS
       closeOnboarding();
       if (userProfile) userProfile.onboarded = true;
       renderPersonalizedHero();
