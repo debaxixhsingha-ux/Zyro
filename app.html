@@ -103,7 +103,6 @@ img{max-width:100%}
 .menu-label{font-size:10px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--dim-2);padding:6px 12px 6px}
 .mi{display:flex;align-items:flex-start;gap:11px;width:100%;padding:9px 11px;border-radius:11px;text-align:left;transition:all .25s cubic-bezier(.34,1.56,.64,1);position:relative;overflow:hidden}
 .mi::after{content:"";position:absolute;inset:0;background:radial-gradient(circle at var(--rx,50%) var(--ry,50%), var(--lime-soft), transparent 40%);opacity:0;transition:opacity .4s;pointer-events:none}
-.mi.ripple::after{opacity:1;transition:opacity .1s}
 .mi:hover{background:var(--hover);transform:translateX(2px)}
 .mi.active{background:var(--lime-soft)}
 .mi.active .mi-ic{background:var(--lime);color:#111;border-color:var(--lime-deep)}
@@ -308,7 +307,6 @@ textarea::placeholder{color:var(--dim-2);font-weight:500}
 .pill-btn{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 11px;border-radius:999px;border:1px solid var(--line-2);background:var(--bg);color:var(--ink-2);font-size:12.5px;font-weight:700;transition:all .15s;letter-spacing:-.005em;white-space:nowrap}
 .pill-btn:hover{color:var(--ink);border-color:var(--line-2);background:var(--bg-3)}
 .pill-btn svg{width:12px;height:12px;display:block;flex:none}
-.pill-btn .mode-dot{width:6px;height:6px;border-radius:50%;background:var(--lime);border:1px solid var(--lime-deep);flex:none}
 .spacer{flex:1}
 .send-btn{width:36px;height:36px;border-radius:50%;background:var(--lime);color:#111;display:grid;place-items:center;transition:all .15s cubic-bezier(.34,1.56,.64,1);border:1px solid var(--lime-deep);box-shadow:0 2px 0 var(--lime-deep);flex:none}
 .send-btn:hover{transform:translateY(-1px);box-shadow:0 3px 0 var(--lime-deep)}
@@ -569,6 +567,96 @@ textarea::placeholder{color:var(--dim-2);font-weight:500}
 .toast{position:fixed;left:50%;bottom:180px;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:9px 16px;border-radius:20px;font-size:13px;font-weight:700;opacity:0;pointer-events:none;transition:opacity .25s;z-index:400;max-width:90vw;text-align:center}
 .toast.on{opacity:1}
 #jsErr{position:fixed;top:0;left:0;right:0;background:var(--bad);color:#fff;padding:10px 14px;font:12px/1.5 monospace;z-index:99999;white-space:pre-wrap;word-break:break-word;max-height:45vh;overflow:auto;display:none}
+
+/* ============================================================
+   ONBOARDING — full-screen flow before auth
+   ============================================================ */
+.ob{
+  position:fixed;inset:0;z-index:10000;
+  background:var(--bg);color:var(--ink);
+  display:none;flex-direction:column;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+.ob.on{display:flex}
+.ob::before{content:"";position:fixed;top:-200px;left:-140px;width:520px;height:520px;border-radius:50%;background:radial-gradient(circle,var(--lime-soft),transparent 62%);filter:blur(50px);pointer-events:none;z-index:0}
+.ob::after{content:"";position:fixed;bottom:-220px;right:-160px;width:520px;height:520px;border-radius:50%;background:radial-gradient(circle,var(--coral-soft),transparent 62%);filter:blur(60px);pointer-events:none;z-index:0}
+.ob-inner{position:relative;z-index:2;flex:1;display:flex;flex-direction:column;max-width:520px;margin:0 auto;width:100%;padding:0 22px}
+.ob-top{display:flex;align-items:center;gap:12px;padding:18px 0 10px;flex:none}
+.ob-back{width:36px;height:36px;border-radius:11px;border:1px solid var(--line-2);background:var(--bg-2);display:grid;place-items:center;color:var(--ink-2);transition:all .2s}
+.ob-back:hover{color:var(--ink);border-color:var(--line-2)}
+.ob-back:disabled{opacity:.3;cursor:not-allowed}
+.ob-back svg{width:15px;height:15px;display:block}
+.ob-progress{flex:1;height:5px;background:var(--bg-3);border-radius:3px;overflow:hidden}
+.ob-progress-fill{height:100%;border-radius:3px;width:0%;background:linear-gradient(90deg,var(--lime),var(--coral));transition:width .4s cubic-bezier(.4,0,.2,1)}
+.ob-step-count{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--dim);font-weight:700;flex:none;min-width:36px;text-align:right}
+.ob-body{flex:1;display:flex;flex-direction:column;justify-content:center;padding:24px 0}
+.ob-step{display:none}
+.ob-step.on{display:flex;flex-direction:column;gap:20px;animation:obIn .45s cubic-bezier(.22,.68,.32,1) both}
+@keyframes obIn{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
+.ob-eyebrow{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.14em;color:var(--coral)}
+.ob-q{font-size:clamp(24px,6vw,34px);font-weight:800;letter-spacing:-.035em;line-height:1.1;color:var(--ink)}
+.ob-q em{font-style:normal;background:linear-gradient(120deg,var(--coral),var(--violet));-webkit-background-clip:text;background-clip:text;color:transparent}
+.ob-hint{font-size:13.5px;color:var(--dim);font-weight:500;line-height:1.5}
+.ob-input{
+  width:100%;padding:16px 18px;border-radius:14px;
+  border:1.5px solid var(--line-2);background:var(--bg-2);
+  color:var(--ink);font:16px 'Plus Jakarta Sans',sans-serif;font-weight:600;
+  outline:0;transition:all .2s;
+}
+.ob-input:focus{border-color:var(--lime-deep);box-shadow:0 0 0 4px var(--lime-soft)}
+.ob-input::placeholder{color:var(--dim-2);font-weight:500}
+.ob-chips{display:flex;flex-wrap:wrap;gap:8px}
+.ob-chip{
+  padding:12px 18px;border-radius:13px;
+  border:1.5px solid var(--line-2);background:var(--bg-2);
+  font-size:14px;font-weight:700;color:var(--ink-2);
+  transition:all .2s cubic-bezier(.34,1.56,.64,1);
+  cursor:pointer;
+}
+.ob-chip:hover{border-color:var(--coral-line);color:var(--coral);transform:translateY(-2px)}
+.ob-chip.on{background:var(--lime);color:#111;border-color:var(--lime-deep);box-shadow:0 3px 0 var(--lime-deep)}
+.ob-select{
+  width:100%;padding:16px 18px;border-radius:14px;
+  border:1.5px solid var(--line-2);background:var(--bg-2);
+  color:var(--ink);font:16px 'Plus Jakarta Sans',sans-serif;font-weight:600;
+  outline:0;appearance:none;-webkit-appearance:none;
+  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%237a7671' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'><path d='m6 9 6 6 6-6'/></svg>");
+  background-repeat:no-repeat;background-position:right 18px center;
+  cursor:pointer;
+}
+.ob-select:focus{border-color:var(--lime-deep);box-shadow:0 0 0 4px var(--lime-soft)}
+.ob-skip{
+  background:none;border:0;color:var(--dim);font-size:13px;font-weight:700;
+  padding:8px 4px;cursor:pointer;text-decoration:underline;
+  align-self:flex-start;
+}
+.ob-skip:hover{color:var(--coral)}
+.ob-foot{padding:16px 0 calc(24px + env(safe-area-inset-bottom,0px));flex:none}
+.ob-next{
+  width:100%;padding:16px;border-radius:14px;
+  background:var(--lime);color:#111;font-size:15px;font-weight:800;
+  letter-spacing:-.01em;border:1px solid var(--lime-deep);
+  box-shadow:0 3px 0 var(--lime-deep);cursor:pointer;
+  transition:all .15s cubic-bezier(.34,1.56,.64,1);
+  display:flex;align-items:center;justify-content:center;gap:8px;
+}
+.ob-next:hover:not(:disabled){transform:translateY(-2px);box-shadow:0 5px 0 var(--lime-deep)}
+.ob-next:active:not(:disabled){transform:translateY(1px);box-shadow:0 0 0 var(--lime-deep)}
+.ob-next:disabled{opacity:.4;cursor:not-allowed}
+.ob-next svg{width:16px;height:16px;display:block}
+.ob-final-card{
+  padding:20px;border-radius:16px;
+  background:linear-gradient(150deg,var(--bg-2),var(--bg-3));
+  border:1px solid var(--line-2);box-shadow:var(--shadow-card);
+}
+.ob-final-row{display:flex;align-items:center;gap:10px;padding:8px 0;font-size:13.5px;border-bottom:1px dashed var(--line);font-weight:600}
+.ob-final-row:last-child{border-bottom:0}
+.ob-final-row .em{font-size:16px;flex:none;width:22px}
+.ob-final-row .k{color:var(--dim);min-width:80px;font-weight:500}
+.ob-final-row .v{color:var(--ink);font-weight:700;flex:1;text-align:right;word-break:break-word}
+.ob-hero-em{font-size:56px;line-height:1;margin-bottom:6px}
+
 @media(max-width:520px){
   .wrap{padding:0 14px}
   .topbar{padding:10px 14px}
@@ -588,6 +676,7 @@ textarea::placeholder{color:var(--dim-2);font-weight:500}
   .flip-back-c .flip-body-c p{font-size:15px}
   .flip-stack{height:300px}
   .welcome-card{padding:16px 16px}
+  .ob-inner{padding:0 18px}
 }
 @media(prefers-reduced-motion:reduce){
   *{animation:none!important;transition:none!important;scroll-behavior:auto!important}
@@ -597,6 +686,125 @@ textarea::placeholder{color:var(--dim-2);font-weight:500}
 <body>
 <div id="jsErr"></div>
 <div class="scrim" id="scrim"></div>
+
+<!-- ============================================================
+     ONBOARDING FLOW (fullscreen before app)
+     ============================================================ -->
+<div class="ob" id="ob">
+  <div class="ob-inner">
+    <div class="ob-top">
+      <button class="ob-back" id="obBack" aria-label="Back">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+      </button>
+      <div class="ob-progress"><div class="ob-progress-fill" id="obProgress"></div></div>
+      <span class="ob-step-count" id="obCount">1/8</span>
+    </div>
+
+    <div class="ob-body">
+
+      <!-- Step 1: name -->
+      <div class="ob-step on" data-step="0">
+        <span class="ob-eyebrow">Let's get to know you</span>
+        <div class="ob-q">What should I <em>call you?</em></div>
+        <p class="ob-hint">Your first name is fine.</p>
+        <input class="ob-input" id="obName" type="text" placeholder="e.g. Arjun" autocomplete="given-name" maxlength="40">
+      </div>
+
+      <!-- Step 2: dob -->
+      <div class="ob-step" data-step="1">
+        <span class="ob-eyebrow">About you</span>
+        <div class="ob-q">When's your <em>birthday?</em></div>
+        <p class="ob-hint">Helps me talk at the right level.</p>
+        <input class="ob-input" id="obDob" type="date">
+      </div>
+
+      <!-- Step 3: state -->
+      <div class="ob-step" data-step="2">
+        <span class="ob-eyebrow">Where from</span>
+        <div class="ob-q">Which <em>state</em> are you in?</div>
+        <p class="ob-hint">Board-specific tips, if any.</p>
+        <select class="ob-select" id="obState">
+          <option value="">Pick your state</option>
+        </select>
+      </div>
+
+      <!-- Step 4: class -->
+      <div class="ob-step" data-step="3">
+        <span class="ob-eyebrow">Study level</span>
+        <div class="ob-q">Which <em>class</em> are you in?</div>
+        <p class="ob-hint">Tap one.</p>
+        <div class="ob-chips" id="obClass">
+          <button class="ob-chip" data-v="Class 9">Class 9</button>
+          <button class="ob-chip" data-v="Class 10">Class 10</button>
+          <button class="ob-chip" data-v="Class 11">Class 11</button>
+          <button class="ob-chip" data-v="Class 12">Class 12</button>
+          <button class="ob-chip" data-v="Dropper">Dropper</button>
+          <button class="ob-chip" data-v="College">College</button>
+        </div>
+      </div>
+
+      <!-- Step 5: board -->
+      <div class="ob-step" data-step="4">
+        <span class="ob-eyebrow">Syllabus</span>
+        <div class="ob-q">Which <em>board</em>?</div>
+        <p class="ob-hint">So I match your pattern.</p>
+        <div class="ob-chips" id="obBoard">
+          <button class="ob-chip" data-v="CBSE">CBSE</button>
+          <button class="ob-chip" data-v="ICSE">ICSE</button>
+          <button class="ob-chip" data-v="State Board">State Board</button>
+          <button class="ob-chip" data-v="IB">IB</button>
+          <button class="ob-chip" data-v="Other">Other</button>
+        </div>
+      </div>
+
+      <!-- Step 6: preparing for -->
+      <div class="ob-step" data-step="5">
+        <span class="ob-eyebrow">The target</span>
+        <div class="ob-q">What are you <em>preparing for?</em></div>
+        <p class="ob-hint">Big one — I'll tailor answers to it.</p>
+        <div class="ob-chips" id="obPrep">
+          <button class="ob-chip" data-v="JEE">JEE</button>
+          <button class="ob-chip" data-v="NEET">NEET</button>
+          <button class="ob-chip" data-v="Boards">Boards</button>
+          <button class="ob-chip" data-v="CUET">CUET</button>
+          <button class="ob-chip" data-v="College">College exams</button>
+          <button class="ob-chip" data-v="Other">Other</button>
+        </div>
+      </div>
+
+      <!-- Step 7: target score -->
+      <div class="ob-step" data-step="6">
+        <span class="ob-eyebrow">Ambitious, I like it</span>
+        <div class="ob-q">What's your <em>target score?</em></div>
+        <p class="ob-hint">I'll push you toward it. Honest numbers only.</p>
+        <div class="ob-chips" id="obTarget">
+          <button class="ob-chip" data-v="Top 1%">Top 1%</button>
+          <button class="ob-chip" data-v="90%+">90%+</button>
+          <button class="ob-chip" data-v="80%+">80%+</button>
+          <button class="ob-chip" data-v="Pass">Just pass 😅</button>
+          <button class="ob-chip" data-v="Not sure">Not sure yet</button>
+        </div>
+      </div>
+
+      <!-- Step 8: exam date -->
+      <div class="ob-step" data-step="7">
+        <span class="ob-eyebrow">Last one</span>
+        <div class="ob-q">When's your <em>exam?</em></div>
+        <p class="ob-hint">I'll count down the days and plan around it.</p>
+        <input class="ob-input" id="obExamDate" type="date">
+        <button class="ob-skip" id="obSkipDate" type="button">Skip — I'll add it later</button>
+      </div>
+
+    </div>
+
+    <div class="ob-foot">
+      <button class="ob-next" id="obNext" type="button">
+        <span id="obNextLabel">Continue</span>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+      </button>
+    </div>
+  </div>
+</div>
 
 <div class="topbar">
   <div class="tb-left">
@@ -725,7 +933,7 @@ textarea::placeholder{color:var(--dim-2);font-weight:500}
 
   <div class="menu-foot" style="flex-direction:column;align-items:stretch;gap:8px">
     <div style="display:flex;align-items:center;justify-content:space-between;width:100%">
-      <span>v53 · india</span>
+      <span>v55 · india</span>
       <button class="theme-tog" id="themeToggle">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
         <span id="themeLabel">Dark mode</span>
@@ -981,6 +1189,6 @@ textarea::placeholder{color:var(--dim-2);font-weight:500}
   </div>
 </div>
 
-<script defer src="app.js?v=53"></script>
+<script defer src="app.js?v=55"></script>
 </body>
-  </html>
+</html>
