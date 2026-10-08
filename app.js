@@ -1,5 +1,5 @@
 /* =========================================================
-   ZYRO app.js — v53 (streak, weekly goal, welcome card)
+   ZYRO app.js — v54 (PDF scan fix)
    ========================================================= */
 
 /* ---------- TOP HELPERS ---------- */
@@ -2079,44 +2079,114 @@ function boot(){
       a.appendChild(c);
     });
   }
+
+  /* ---------- PDF / FILE READER ---------- */
   async function readAny(f){
-    if (/\.pdf$/i.test(f.name) || f.type === "application/pdf"){
+    const isPdf = /\.pdf$/i.test(f.name) || f.type === "application/pdf";
+
+    if (isPdf){
       if (!window.pdfjsLib){
         await loadJS("https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js");
         pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
       }
       const pdf = await pdfjsLib.getDocument({ data: await f.arrayBuffer(), isEvalSupported: false }).promise;
-      let o = "";
+
+      // Step 1: try to extract text
+      let text = "";
       const maxPages = Math.min(pdf.numPages, 80);
-      for (let i = 1; i <= maxPages && o.length < FILE_CHAR_LIMIT; i++){
-        const tc = await (await pdf.getPage(i)).getTextContent();
-        o += tc.items.map(x => x.str).join(" ") + "\n";
+      for (let i = 1; i <= maxPages && text.length < FILE_CHAR_LIMIT; i++){
+        try {
+          const tc = await (await pdf.getPage(i)).getTextContent();
+          text += tc.items.map(x => x.str).join(" ") + "\n";
+        } catch(_){ /* skip bad page */ }
       }
-      if (pdf.numPages > maxPages){
-        o += "\n[..." + (pdf.numPages - maxPages) + " more pages not shown...]";
+      const cleanText = text.replace(/\s+/g, " ").trim();
+      const pagesRead = Math.min(pdf.numPages, maxPages) || 1;
+      const avgChars = cleanText.length / pagesRead;
+
+      // Step 2: if it's a proper text PDF → return the text
+      if (cleanText.length >= 200 && avgChars >= 60){
+        if (pdf.numPages > maxPages){
+          text += "\n[..." + (pdf.numPages - maxPages) + " more pages not shown...]";
+        }
+        return { kind: "text", text: text };
       }
-      return o;
+
+      // Step 3: scanned PDF → render page 1 as image for AI vision
+      try {
+        const page = await pdf.getPage(1);
+        const baseViewport = page.getViewport({ scale: 1 });
+        const maxDim = 1200;
+        const scale = Math.min(1.4, maxDim / Math.max(baseViewport.width, baseViewport.height));
+        const viewport = page.getViewport({ scale: scale });
+
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.round(viewport.width);
+        canvas.height = Math.round(viewport.height);
+        const ctx = canvas.getContext("2d");
+        ctx.fillStyle = "#fff";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        await page.render({ canvasContext: ctx, viewport: viewport }).promise;
+
+        let data = canvas.toDataURL("image/jpeg", 0.75).split(",")[1];
+        if (data.length > 1100000){
+          data = canvas.toDataURL("image/jpeg", 0.5).split(",")[1];
+        }
+        if (data.length > 1100000){
+          return { kind: "error", error: f.name + " — page too large to process" };
+        }
+        const note = pdf.numPages > 1
+          ? "Scanned PDF · sent page 1 of " + pdf.numPages + " as image"
+          : "Scanned PDF · sent as image";
+        return { kind: "img", img: { mime: "image/jpeg", data: data }, note: note };
+      } catch(e){
+        return { kind: "error", error: f.name + " — couldn't render scan" };
+      }
     }
-    return await f.text();
+
+    // Regular text file
+    return { kind: "text", text: await f.text() };
   }
+
   $("file").addEventListener("change", async e => {
     const fs = [...e.target.files]; e.target.value = "";
     const maxFiles = L().files, maxSize = L().fileSize;
     for (const f of fs){
       if (tokensOut()){ toast("Uploads paused — resets " + nextResetLabel()); break; }
-      const fileCount = pending.filter(x => !x.img).length;
-      if (fileCount >= maxFiles){ toast("Max " + maxFiles + " file" + (maxFiles > 1 ? "s" : "") + (pro ? "" : " — Pro allows 10")); break; }
       if (f.size > maxSize){ toast(f.name + " is too big (max " + Math.round(maxSize / 1e6) + " MB)"); continue; }
+
+      const fileCount = pending.filter(x => !x.img).length;
+      const imgCount  = pending.filter(x => x.img).length;
+
       try {
-        let x = (await readAny(f)).replace(/\r/g, "");
-        if (x.includes("\u0000")){ toast("Can't read " + f.name); continue; }
-        if (!x.trim()){ toast("No text found in " + f.name); continue; }
-        if (x.length > FILE_CHAR_LIMIT){ x = x.slice(0, FILE_CHAR_LIMIT) + "\n[...trimmed]"; toast(f.name + " trimmed"); }
-        pending.push({ name: f.name, text: x, origSize: f.size });
-      } catch(_) { toast("Couldn't read " + f.name); }
+        const r = await readAny(f);
+
+        if (r.kind === "text"){
+          if (fileCount >= maxFiles){
+            toast("Max " + maxFiles + " file" + (maxFiles > 1 ? "s" : "") + (pro ? "" : " — Pro allows 10"));
+            break;
+          }
+          let x = r.text.replace(/\r/g, "");
+          if (x.includes("\u0000")){ toast("Can't read " + f.name); continue; }
+          if (!x.trim()){ toast("No text found in " + f.name); continue; }
+          if (x.length > FILE_CHAR_LIMIT){ x = x.slice(0, FILE_CHAR_LIMIT) + "\n[...trimmed]"; toast(f.name + " trimmed"); }
+          pending.push({ name: f.name, text: x, origSize: f.size });
+
+        } else if (r.kind === "img"){
+          if (imgCount >= L().images){ toast("Max " + L().images + " images per message"); break; }
+          pending.push({ name: f.name, img: r.img });
+          if (r.note) toast(r.note);
+
+        } else if (r.kind === "error"){
+          toast(r.error || "Couldn't read " + f.name);
+        }
+      } catch(_) {
+        toast("Couldn't read " + f.name);
+      }
     }
     renderAtts(); updateSendState();
   });
+
   function readImg(f){
     return new Promise((ok, no) => {
       if (!/^image\//i.test(f.type)){ no(new Error("not an image")); return; }
