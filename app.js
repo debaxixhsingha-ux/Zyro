@@ -2543,7 +2543,54 @@ window.__zyroSavePendingOnboarding = async function(){
     if (kicker) kicker.innerHTML = '<span class="dot"></span>Ready when you are';
   }
    }
-   
+   { const obNameEl = $("obName");
+  if (obNameEl) obNameEl.addEventListener("input", () => {
+    obData.name = obNameEl.value.trim();
+    saveDraft(obData); updateNextBtn();
+  });
+}
+{ const obDobEl = $("obDob");
+  if (obDobEl) obDobEl.addEventListener("change", () => {
+    obData.dob = obDobEl.value;
+    saveDraft(obData); updateNextBtn();
+  });
+}
+{ const obExamEl = $("obExamDate");
+  if (obExamEl) obExamEl.addEventListener("change", () => {
+    obData.exam_date = obExamEl.value;
+    saveDraft(obData);
+  });
+}
+{ const obStateEl = $("obState");
+  if (obStateEl) obStateEl.addEventListener("change", () => {
+    obData.state = obStateEl.value;
+    saveDraft(obData); updateNextBtn();
+  });
+}
+["obClass","obBoard","obPrep","obTarget"].forEach(groupId => {
+  const g = $(groupId);
+  if (!g) return;
+  g.querySelectorAll(".ob-chip").forEach(c => {
+    c.addEventListener("click", () => {
+      g.querySelectorAll(".ob-chip").forEach(x => x.classList.remove("on"));
+      c.classList.add("on");
+      const v = c.dataset.v;
+      const key = groupId === "obClass" ? "class_level" : groupId === "obBoard" ? "board" : groupId === "obPrep" ? "preparing_for" : "target_score";
+      obData[key] = v;
+      saveDraft(obData);
+      updateNextBtn();
+    });
+  });
+});
+{ const skipDate = $("obSkipDate");
+  if (skipDate) skipDate.addEventListener("click", () => {
+    obData.exam_date = "";
+    saveDraft(obData);
+    obNext();
+  });
+}
+{ const obNextEl = $("obNext"); if (obNextEl) obNextEl.addEventListener("click", obNext); }
+{ const obBackEl = $("obBack"); if (obBackEl) obBackEl.addEventListener("click", obBack); }
 }
 
 if (document.readyState === "loading"){ document.addEventListener("DOMContentLoaded", boot); }
