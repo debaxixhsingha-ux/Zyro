@@ -50,7 +50,9 @@ let ctrl=null,hist=[],busy=false,streaming=false;
 let pending=[],pendingKind=null;
 let sid=0,follow=true,uAcc=0,uT=null,syncT=null;
 let busyWatchdog=null;
-let lastKit=null;
+let lastKit = null;
+let stickyIntent = null;
+let stickyIntentAt = 0;
 
 const RZP_WORKER_URL = WORKER_URL.replace(/\/$/, "");
 
@@ -266,16 +268,29 @@ function boot(){
   }
 
   function detectGenIntent(text){
-    if (!text) return null;
-    const s = String(text).toLowerCase();
-    if (/\b(mock\s*paper|full\s*mock|mock\s*test)\b/.test(s)) return "mock";
-    if (/\b(viva\s*practice|oral\s*exam)\b/.test(s)) return "viva";
-    if (/\b(study\s*kit|make\s+(me\s+)?(a\s+)?study)\b/.test(s)) return "studykit";
-    if (/\b(flash\s*cards?|flashcards?|cards?\s+for)\b/.test(s)) return "flashcard";
-    if (/\b(quiz\s*me|make\s+(a\s+)?quiz|test\s+me\s+on|mcqs?)\b/.test(s)) return "quiz";
-    if (/\bnotes?\s*(to|→|->)\s*(flashcards?|quiz|cards)\b/.test(s)) return "studykit";
-    return null;
-  }
+  if (!text) return null;
+  const s = String(text).toLowerCase();
+  // Looser flashcard match — handles flashcarde, flascard, flash cards, flascards, etc.
+  if (/\b(f+la+s+h?\s*cards?|flash\s*cards?|flashcards?e?|cards?\s+for|make\s+(me\s+)?(a\s+)?(some\s+)?flash\s*cards?)\b/.test(s)) return "flashcard";
+  if (/\b(mock\s*paper|full\s*mock|mock\s*test)\b/.test(s)) return "mock";
+  if (/\b(viva\s*practice|oral\s*exam)\b/.test(s)) return "viva";
+  if (/\b(study\s*kit|make\s+(me\s+)?(a\s+)?study)\b/.test(s)) return "studykit";
+  if (/\b(quiz\s*me|make\s+(a\s+)?quiz|test\s+me\s+on|mcqs?|test\s+me)\b/.test(s)) return "quiz";
+  if (/\bnotes?\s*(to|→|->)\s*(flashcards?|quiz|cards)\b/.test(s)) return "studykit";
+  return null;
+}
+
+// Intent that persists for a follow-up message (e.g. "make flashcards" → "Motion in a plane")
+const STICKY_MS = 5 * 60 * 1000; // 5 minutes
+function setStickyIntent(intent){
+  if (intent){ stickyIntent = intent; stickyIntentAt = Date.now(); }
+}
+function getStickyIntent(){
+  if (!stickyIntent) return null;
+  if (Date.now() - stickyIntentAt > STICKY_MS){ stickyIntent = null; return null; }
+  return stickyIntent;
+}
+function clearStickyIntent(){ stickyIntent = null; stickyIntentAt = 0; }
   function checkGenAllowed(kind){
     if (pro) return true;
     if (genAllowed(kind)) return true;
@@ -1621,15 +1636,28 @@ function boot(){
   }
 
   function send(text){
-    const items = pending.slice();
-    if (busy || (!text.trim() && !items.length)) return;
-    const files = items.filter(f => !f.img);
-    const imgs = items.filter(f => f.img).map(f => f.img);
+  const items = pending.slice();
+  if (busy || (!text.trim() && !items.length)) return;
+  const files = items.filter(f => !f.img);
+  const imgs = items.filter(f => f.img).map(f => f.img);
 
-    const isFileKit = (pendingKind === "studykit" || pendingKind === "notes") && files.length;
-    const isSnap = pendingKind === "snap" && imgs.length;
-    const intent = detectGenIntent(text);
-    const proIntent = (intent === "mock" || intent === "viva");
+  const isFileKit = (pendingKind === "studykit" || pendingKind === "notes") && files.length;
+  const isSnap = pendingKind === "snap" && imgs.length;
+
+  // Detect fresh intent first; if none and user just typed a topic, use the sticky intent
+  let intent = detectGenIntent(text);
+  if (!intent && !isFileKit && !isSnap && text.trim().length < 200){
+    const stuck = getStickyIntent();
+    if (stuck){ intent = stuck; clearStickyIntent(); }
+  }
+  // If we just detected a fresh intent from a short "set me up" style message, remember it
+  if (intent && text.trim().length < 60){
+    const topicGuess = text.replace(/.*\b(flashcards?e?|study\s*kit|quiz|notes?)\b.*/i, "").trim();
+    // If they typed just the intent word with no real topic, stick it for next message
+    if (topicGuess.length < 8) setStickyIntent(intent);
+  }
+
+  const proIntent = (intent === "mock" || intent === "viva");
 
     if (proIntent && !pro){
       pending = []; pendingKind = null; renderAtts();
