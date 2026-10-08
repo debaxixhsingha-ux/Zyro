@@ -1,5 +1,5 @@
 /* =========================================================
-   ZYRO app.js — v51 (bigger notes, 8-Q quiz w/ score, no modes)
+   ZYRO app.js — v52 (flip cards, notes highlight, stall fix)
    ========================================================= */
 
 /* ---------- TOP HELPERS ---------- */
@@ -113,10 +113,10 @@ function openProPaywall(reason, feature){
       '</ul>' +
       '<div style="display:flex;flex-direction:column;gap:8px">' +
         '<button id="ppUpgrade" style="padding:12px;border-radius:12px;font-weight:800;font-size:14.5px;cursor:pointer;border:0;background:var(--violet);color:#fff">Go Pro · ₹349/mo</button>' +
-            '<button id="ppClose" style="padding:12px;border-radius:12px;font-weight:700;font-size:14.5px;cursor:pointer;border:1px solid var(--line-2);background:none;color:var(--ink)">Maybe later</button>' +
-            '<a href="mailto:zyroaisupport@gmail.com?subject=Zyro%20Support" style="text-align:center;font-size:11.5px;color:var(--dim);text-decoration:none;padding:6px;font-weight:600">Questions? zyroaisupport@gmail.com</a>' +
-          '</div>' +
-         '</div>';
+        '<button id="ppClose" style="padding:12px;border-radius:12px;font-weight:700;font-size:14.5px;cursor:pointer;border:1px solid var(--line-2);background:none;color:var(--ink)">Maybe later</button>' +
+        '<a href="mailto:zyroaisupport@gmail.com?subject=Zyro%20Support" style="text-align:center;font-size:11.5px;color:var(--dim);text-decoration:none;padding:6px;font-weight:600">Questions? zyroaisupport@gmail.com</a>' +
+      '</div>' +
+    '</div>';
   document.body.appendChild(modal);
   modal.querySelector("#ppUpgrade").onclick = () => {
     modal.remove();
@@ -297,7 +297,7 @@ function boot(){
   }
   function clearBusyWatchdog(){ clearTimeout(busyWatchdog); }
 
-  /* ---------- TOKENS (MONTHLY) ---------- */
+  /* ---------- TOKENS ---------- */
   function getTokens(){
     try {
       const d = JSON.parse(localStorage.getItem(TOKEN_KEY) || "null");
@@ -343,12 +343,10 @@ function boot(){
   }
 
   function updateTokenUI(){ paintBar(); applyLimits(); }
-
   function applyLimits(){
     const out = tokensOut();
     ["imgBtn","fileBtn"].forEach(id => { const el = $(id); if (el) el.disabled = out; });
   }
-
   setInterval(updateTokenUI, 30000);
 
   function toast(m){
@@ -912,7 +910,10 @@ function boot(){
       if (d !== undefined && !/[\\^_=+\-*\/<>{}()]|^[A-Za-z]$|\d/.test(d)) return m;
       return tk('<span class="mx" data-d="' + (a !== undefined || b !== undefined ? 1 : 0) + '" data-tex="' + escA(a ?? b ?? c ?? d) + '">' + esc(m) + '</span>');
     });
-    return esc(x).replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>").replace(/\u0001(\d+)\u0002/g, (_, i) => st[i]);
+    x = esc(x);
+    x = x.replace(/==([^=\n]+)==/g, '<span class="hl">$1</span>');
+    x = x.replace(/\*\*([^*]+)\*\*/g, '<span class="term">$1</span>');
+    return x.replace(/\u0001(\d+)\u0002/g, (_, i) => st[i]);
   };
   function renderTable(rows){
     if (!rows.length) return "";
@@ -1209,6 +1210,163 @@ function boot(){
       '<p>' + esc(sub) + '</p>';
   }
 
+  /* ---------- FLIP CARDS (used inside study panel) ---------- */
+  function renderFlipCards(container, cards){
+    container.innerHTML = "";
+
+    const stage = document.createElement("div");
+    stage.className = "flip-stage";
+    stage.innerHTML =
+      '<div class="flip-header">' +
+        '<div class="flip-header-left">' +
+          '<span class="flip-eyebrow">Flashcards</span>' +
+          '<div class="flip-title">Tap to <em>reveal</em></div>' +
+        '</div>' +
+        '<div class="flip-counter"><b class="fnow">1</b> / ' + cards.length + '</div>' +
+      '</div>' +
+      '<div class="flip-stack"></div>' +
+      '<div class="flip-actions">' +
+        '<button class="flip-btn review" type="button">' +
+          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/></svg>' +
+          'Review again' +
+        '</button>' +
+        '<button class="flip-btn got" type="button">' +
+          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>' +
+          'Got it' +
+        '</button>' +
+      '</div>' +
+      '<div class="flip-dots"></div>' +
+      '<div class="flip-complete">' +
+        '<div class="em">🎉</div>' +
+        '<div class="ttl">Nice work, <em>done</em></div>' +
+        '<div class="sub">All cards reviewed</div>' +
+        '<div class="flip-stats">' +
+          '<div class="flip-stat"><span class="v fgot">0</span><span class="l">Got it</span></div>' +
+          '<div class="flip-stat"><span class="v frev">0</span><span class="l">Review</span></div>' +
+          '<div class="flip-stat"><span class="v fpct">0%</span><span class="l">Score</span></div>' +
+        '</div>' +
+        '<button class="flip-retry" type="button">' +
+          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>' +
+          'Try again' +
+        '</button>' +
+      '</div>';
+
+    container.appendChild(stage);
+
+    const stackEl = stage.querySelector(".flip-stack");
+    const dotsEl = stage.querySelector(".flip-dots");
+    const actionsEl = stage.querySelector(".flip-actions");
+    const completeEl = stage.querySelector(".flip-complete");
+    const headerEl = stage.querySelector(".flip-header");
+    const counterNowEl = stage.querySelector(".fnow");
+
+    let idx = 0, gotIt = 0, review = 0;
+    let results = [];
+
+    function buildDots(){
+      dotsEl.innerHTML = "";
+      cards.forEach((_, i) => {
+        const d = document.createElement("div");
+        d.className = "fdot";
+        if (results[i] === "got") d.classList.add("correct");
+        else if (results[i] === "review") d.classList.add("seen");
+        if (i === idx) d.classList.add("active");
+        dotsEl.appendChild(d);
+      });
+    }
+
+    function buildCard(c, i){
+      const el = document.createElement("div");
+      el.className = "flip-item";
+      const esc2 = s => String(s||"").replace(/[&<>]/g, ch => ({"&":"&amp;","<":"&lt;",">":"&gt;"}[ch]));
+      const frontText = esc2(c.a);
+      const backText = (typeof c.b === "string" && /[<>&]/.test(c.b) ? c.b : esc2(c.b));
+      el.innerHTML =
+        '<div class="flip-inner-c">' +
+          '<div class="flip-face-c flip-front-c">' +
+            '<div class="flip-top">' +
+              '<span class="flip-num">CARD ' + String(i+1).padStart(2,"0") + '</span>' +
+              '<span class="flip-tag">Question</span>' +
+            '</div>' +
+            '<div class="flip-body-c"><p>' + frontText + '</p></div>' +
+            '<div class="flip-hint">' +
+              '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v4M12 16h.01"/></svg>' +
+              'Tap to reveal answer' +
+            '</div>' +
+          '</div>' +
+          '<div class="flip-face-c flip-back-c">' +
+            '<div class="flip-top">' +
+              '<span class="flip-num">CARD ' + String(i+1).padStart(2,"0") + '</span>' +
+              '<span class="flip-tag">Answer</span>' +
+            '</div>' +
+            '<div class="flip-body-c"><p>' + backText + '</p></div>' +
+            '<div class="flip-hint">' +
+              '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>' +
+              'Got it? Tap below' +
+            '</div>' +
+          '</div>' +
+        '</div>';
+      el.addEventListener("click", () => {
+        el.classList.toggle("flipped");
+        if (navigator.vibrate) try { navigator.vibrate(10); } catch(_){}
+      });
+      return el;
+    }
+
+    function showCard(){
+      stackEl.innerHTML = "";
+      if (idx >= cards.length){ showComplete(); return; }
+      completeEl.classList.remove("show");
+      headerEl.style.display = "";
+      actionsEl.style.display = "flex";
+      dotsEl.style.display = "flex";
+      counterNowEl.textContent = idx + 1;
+
+      const el = buildCard(cards[idx], idx);
+      el.style.opacity = "0";
+      el.style.transform = "translateY(14px) scale(.96)";
+      stackEl.appendChild(el);
+      requestAnimationFrame(() => {
+        el.style.transition = "opacity .4s cubic-bezier(.22,.68,.32,1), transform .5s cubic-bezier(.34,1.56,.64,1)";
+        el.style.opacity = "1";
+        el.style.transform = "translateY(0) scale(1)";
+      });
+      buildDots();
+    }
+
+    function advance(kind){
+      const el = stackEl.querySelector(".flip-item");
+      if (!el) return;
+      results[idx] = kind;
+      if (kind === "got") gotIt++; else review++;
+      el.classList.add(kind === "got" ? "exit-right" : "exit-left");
+      if (navigator.vibrate) try { navigator.vibrate(kind === "got" ? [12,30,12] : 20); } catch(_){}
+      setTimeout(() => { idx++; showCard(); }, 380);
+    }
+
+    function showComplete(){
+      stackEl.innerHTML = "";
+      headerEl.style.display = "none";
+      actionsEl.style.display = "none";
+      dotsEl.style.display = "none";
+      completeEl.classList.add("show");
+      stage.querySelector(".fgot").textContent = gotIt;
+      stage.querySelector(".frev").textContent = review;
+      const pct = Math.round((gotIt / cards.length) * 100);
+      stage.querySelector(".fpct").textContent = pct + "%";
+    }
+
+    stage.querySelector(".flip-btn.got").addEventListener("click", () => advance("got"));
+    stage.querySelector(".flip-btn.review").addEventListener("click", () => advance("review"));
+    stage.querySelector(".flip-retry").addEventListener("click", () => {
+      idx = 0; gotIt = 0; review = 0; results = [];
+      completeEl.classList.remove("show");
+      showCard();
+    });
+
+    showCard();
+  }
+
   /* ---------- STUDY PANEL ---------- */
   function openStudyPanel(kit){
     lastKit = kit;
@@ -1240,21 +1398,7 @@ function boot(){
     if (cardsEl){
       if (kit.cards.length){
         cardsEl.classList.remove("empty-panel");
-        let html = '<p class="p-eyebrow">Flashcards</p><h2 class="p-title">Tap to <em>reveal</em></h2><p class="p-sub">' + kit.cards.length + ' cards. Try answering before you flip.</p><div class="cards">';
-        kit.cards.forEach((c, i) => {
-          const num = String(i+1).padStart(2, "0");
-          html += '<div class="card' + (i===0 ? ' open' : '') + '">' +
-            '<div class="card-head">' +
-              '<span class="card-num">' + num + '</span>' +
-              '<span class="card-q">' + esc(c.a) + '</span>' +
-              '<svg class="card-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>' +
-            '</div>' +
-            '<div class="card-body"><div class="card-body-inner">' + txt(c.b) + '</div></div>' +
-          '</div>';
-        });
-        html += '</div>';
-        cardsEl.innerHTML = html;
-        cardsEl.querySelectorAll(".card").forEach(c => c.addEventListener("click", () => c.classList.toggle("open")));
+        renderFlipCards(cardsEl, kit.cards);
       } else {
         cardsEl.classList.add("empty-panel");
         cardsEl.innerHTML = emptyPanelHTML("🃏", "No flashcards", "Ask Zyro for a study kit to generate flashcards from any topic.");
@@ -1376,6 +1520,7 @@ function boot(){
     let firstTokenTimer = setTimeout(() => { try { rd.cancel(); } catch(_) {} }, FIRST_TOKEN_MS);
     let lastChunkAt = Date.now();
     const stallTimer = setInterval(() => {
+      if (!gotFirst) return;
       if (Date.now() - lastChunkAt > 25000 && !aborted){
         try { rd.cancel(); } catch(_) {}
         clearInterval(stallTimer);
@@ -1556,7 +1701,8 @@ function boot(){
       if (intent === "studykit"){
         sys +=
           "OUTPUT EXACTLY THIS STRUCTURE:\n\n" +
-          "## 📖 Notes\n[Long, thorough revision notes. Cover EVERY key concept in order. Bold key terms with **term**. Use sub-headings where helpful.]\n\n" +
+          "## 📖 Notes\n" +
+          "[5-8 short paragraphs. Highlight key terms with **term**. Highlight critical exam points the student MUST remember with ==sentence==. Use ==sparingly== — only for the 2-4 most important sentences.]\n\n" +
           "## 🎴 Flashcards\n" +
           "Write 12 cards. Each card is EXACTLY two lines:\n" +
           "F: <question or term>\n" +
