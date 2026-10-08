@@ -349,6 +349,8 @@ textarea::placeholder{color:var(--dim-2);font-weight:500}
 .p-sub{color:var(--dim);font-size:13.5px;margin:0 0 24px;font-weight:500;animation:fadeUp .4s cubic-bezier(.22,.68,.32,1) .15s both}
 @keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
 @keyframes slideIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+
+/* ===== NOTES ===== */
 .notes p{margin:0 0 14px;font-size:14.5px;line-height:1.75;color:var(--ink-2);font-weight:500;animation:fadeUp .4s cubic-bezier(.22,.68,.32,1) both}
 .notes p:nth-child(1){animation-delay:.2s}
 .notes p:nth-child(2){animation-delay:.26s}
@@ -358,25 +360,232 @@ textarea::placeholder{color:var(--dim-2);font-weight:500}
 .notes p:nth-child(6){animation-delay:.5s}
 .notes p:last-child{margin:0}
 .notes b{color:var(--ink);font-weight:700}
-.cards{display:flex;flex-direction:column;gap:10px}
-.card{border:1px solid var(--line-2);border-radius:14px;background:var(--bg-2);overflow:hidden;cursor:pointer;box-shadow:var(--shadow-soft);transition:transform .25s cubic-bezier(.34,1.56,.64,1),border-color .2s,box-shadow .25s;animation:fadeUp .45s cubic-bezier(.22,.68,.32,1) both}
-.card:nth-child(1){animation-delay:.2s}
-.card:nth-child(2){animation-delay:.26s}
-.card:nth-child(3){animation-delay:.32s}
-.card:nth-child(4){animation-delay:.38s}
-.card:nth-child(5){animation-delay:.44s}
-.card:hover{transform:translateY(-2px);border-color:var(--coral-line)}
-.card:active{transform:scale(.985)}
-.card.open{border-color:var(--lime-deep);box-shadow:0 0 0 3px var(--lime-soft), var(--shadow-soft)}
-.card-head{display:flex;align-items:flex-start;gap:13px;padding:16px 18px}
-.card-num{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--ink-2);font-weight:600;padding:3px 8px;border-radius:6px;background:var(--lime-soft);border:1px solid var(--lime-line);flex:none;margin-top:2px}
-.card-q{flex:1;font-size:14.5px;line-height:1.5;color:var(--ink);font-weight:700;letter-spacing:-.01em}
-.card-chev{color:var(--dim);flex:none;transition:transform .35s cubic-bezier(.34,1.56,.64,1),color .2s;width:16px;height:16px}
-.card.open .card-chev{transform:rotate(180deg);color:var(--lime)}
-.card-body{max-height:0;overflow:hidden;transition:max-height .4s cubic-bezier(.22,.68,.32,1)}
-.card.open .card-body{max-height:600px}
-.card-body-inner{padding:14px 18px 18px;font-size:13.5px;line-height:1.65;color:var(--ink-2);font-weight:500;border-top:1px dashed var(--line-2)}
-.card-body-inner b{color:var(--ink);font-weight:700;background:var(--lime-soft);padding:1px 5px;border-radius:4px}
+/* Yellow underline highlight for critical sentences */
+.notes .hl{
+  background:linear-gradient(180deg,transparent 55%,rgba(255,181,71,.55) 55%);
+  color:var(--ink);font-weight:700;
+  padding:0 1px;border-radius:2px;
+}
+/* Lime term highlight for key terms */
+.notes .term{
+  background:var(--lime-soft);
+  color:var(--ink);font-weight:700;
+  padding:1px 5px;border-radius:4px;
+}
+
+/* ===== FLIP CARDS (study kit) ===== */
+.flip-stage{
+  display:flex;flex-direction:column;
+  min-height:0;
+}
+.flip-header{
+  display:flex;align-items:center;justify-content:space-between;
+  margin-bottom:14px;flex:none;
+}
+.flip-header-left{display:flex;flex-direction:column;gap:2px}
+.flip-eyebrow{
+  font-size:10px;font-weight:800;text-transform:uppercase;
+  letter-spacing:.14em;color:var(--coral);
+}
+.flip-title{font-size:20px;font-weight:800;letter-spacing:-.02em;color:var(--ink)}
+.flip-title em{
+  font-style:normal;
+  background:linear-gradient(120deg,var(--coral),var(--violet));
+  -webkit-background-clip:text;background-clip:text;color:transparent;
+}
+.flip-counter{
+  font-family:'JetBrains Mono',monospace;
+  font-size:11px;font-weight:700;
+  padding:6px 12px;border-radius:999px;
+  background:var(--bg-3);border:1px solid var(--line);
+  color:var(--dim);
+}
+.flip-counter b{color:var(--ink);font-weight:800}
+
+.flip-stack{
+  position:relative;
+  perspective:1400px;
+  height:340px;
+  flex:none;
+}
+.flip-item{
+  position:absolute;left:0;right:0;top:0;bottom:0;
+  cursor:pointer;
+  transform-style:preserve-3d;
+  transition:transform .5s cubic-bezier(.4,0,.2,1),opacity .4s;
+}
+.flip-item.exit-right{
+  transform:translateX(120%) rotateZ(8deg);
+  opacity:0;pointer-events:none;
+}
+.flip-item.exit-left{
+  transform:translateX(-120%) rotateZ(-8deg);
+  opacity:0;pointer-events:none;
+}
+.flip-inner-c{
+  position:relative;width:100%;height:100%;
+  transition:transform .75s cubic-bezier(.4,0,.2,1);
+  transform-style:preserve-3d;
+}
+.flip-item.flipped .flip-inner-c{transform:rotateY(180deg)}
+.flip-face-c{
+  position:absolute;inset:0;
+  border-radius:18px;
+  padding:24px 22px;
+  display:flex;flex-direction:column;
+  backface-visibility:hidden;-webkit-backface-visibility:hidden;
+  border:1px solid var(--line-2);
+  box-shadow:var(--shadow-card);
+  overflow:hidden;
+}
+.flip-front-c{
+  background:var(--bg-2);
+  justify-content:space-between;
+}
+.flip-front-c::before{
+  content:"";position:absolute;top:-40%;right:-30%;
+  width:80%;height:180%;
+  background:radial-gradient(circle,var(--lime-soft),transparent 60%);
+  pointer-events:none;
+}
+.flip-back-c{
+  background:linear-gradient(150deg,#1c1c22,#2a2a32);
+  border-color:rgba(255,255,255,.1);
+  transform:rotateY(180deg);
+  color:#f2f0eb;
+  justify-content:space-between;
+}
+.flip-back-c::before{
+  content:"";position:absolute;top:-40%;left:-30%;
+  width:80%;height:180%;
+  background:radial-gradient(circle,rgba(195,245,60,.15),transparent 60%);
+  pointer-events:none;
+}
+.flip-top{
+  display:flex;align-items:center;justify-content:space-between;
+  position:relative;z-index:1;
+}
+.flip-num{
+  font-family:'JetBrains Mono',monospace;
+  font-size:10px;font-weight:700;letter-spacing:.05em;
+  padding:4px 10px;border-radius:6px;
+  background:var(--lime-soft);border:1px solid var(--lime-line);
+  color:var(--ink);
+}
+.flip-back-c .flip-num{
+  background:rgba(195,245,60,.14);border-color:rgba(195,245,60,.3);
+  color:var(--lime);
+}
+.flip-tag{
+  font-size:10px;font-weight:800;text-transform:uppercase;
+  letter-spacing:.14em;color:var(--dim);
+  padding:4px 9px;border-radius:6px;
+  background:var(--bg-3);border:1px solid var(--line);
+}
+.flip-back-c .flip-tag{
+  background:rgba(255,255,255,.06);border-color:rgba(255,255,255,.1);
+  color:rgba(242,240,235,.7);
+}
+.flip-body-c{
+  flex:1;display:flex;align-items:center;
+  padding:14px 0;position:relative;z-index:1;
+}
+.flip-body-c p{
+  font-size:18px;line-height:1.4;font-weight:700;
+  letter-spacing:-.02em;color:var(--ink);
+  margin:0;
+}
+.flip-back-c .flip-body-c p{
+  font-size:15.5px;font-weight:600;line-height:1.55;
+  color:rgba(242,240,235,.92);
+}
+.flip-hint{
+  display:flex;align-items:center;justify-content:center;gap:6px;
+  font-size:11px;font-weight:700;color:var(--dim);
+  position:relative;z-index:1;
+}
+.flip-back-c .flip-hint{color:rgba(242,240,235,.6)}
+.flip-hint svg{width:12px;height:12px;animation:tapPulse 2s ease-in-out infinite}
+@keyframes tapPulse{
+  0%,100%{transform:scale(1);opacity:.7}
+  50%{transform:scale(1.15);opacity:1}
+}
+
+.flip-actions{display:flex;gap:10px;margin-top:14px;flex:none}
+.flip-btn{
+  flex:1;padding:13px;border-radius:13px;
+  font-size:13px;font-weight:800;
+  display:inline-flex;align-items:center;justify-content:center;gap:7px;
+  transition:all .2s cubic-bezier(.34,1.56,.64,1);
+  letter-spacing:-.01em;
+}
+.flip-btn svg{width:14px;height:14px}
+.flip-btn.review{
+  background:var(--bg-2);color:var(--ink);
+  border:1px solid var(--line-2);
+}
+.flip-btn.review:hover{background:var(--bg-3);transform:translateY(-1px)}
+.flip-btn.got{
+  background:linear-gradient(135deg,var(--lime),#a8e02a);
+  color:#111;border:1px solid var(--lime-deep);
+  box-shadow:0 2px 0 var(--lime-deep);
+}
+.flip-btn.got:hover{transform:translateY(-2px);box-shadow:0 4px 0 var(--lime-deep)}
+
+.flip-dots{display:flex;gap:5px;justify-content:center;margin-top:14px;flex:none}
+.fdot{
+  height:5px;border-radius:3px;width:16px;
+  background:var(--line-2);flex:none;
+  transition:all .35s cubic-bezier(.4,0,.2,1);
+}
+.fdot.seen{background:var(--dim-2)}
+.fdot.correct{background:var(--lime);box-shadow:0 0 8px rgba(195,245,60,.6)}
+.fdot.active{width:28px;background:var(--ink)}
+.fdot.active.correct{background:var(--lime)}
+
+.flip-complete{
+  display:none;flex-direction:column;
+  align-items:center;justify-content:center;gap:14px;
+  text-align:center;padding:20px 0;
+  opacity:0;transform:scale(.9);
+  transition:all .5s cubic-bezier(.34,1.56,.64,1);
+}
+.flip-complete.show{display:flex;opacity:1;transform:scale(1)}
+.flip-complete .em{
+  font-size:60px;line-height:1;
+  animation:emBounce 1.2s ease-in-out infinite;
+}
+@keyframes emBounce{
+  0%,100%{transform:translateY(0) rotate(0)}
+  50%{transform:translateY(-8px) rotate(4deg)}
+}
+.flip-complete .ttl{font-size:24px;font-weight:900;letter-spacing:-.03em;color:var(--ink)}
+.flip-complete .ttl em{
+  font-style:normal;
+  background:linear-gradient(120deg,var(--lime),var(--coral));
+  -webkit-background-clip:text;background-clip:text;color:transparent;
+}
+.flip-complete .sub{font-size:13px;color:var(--dim);font-weight:600;font-family:'JetBrains Mono',monospace}
+.flip-stats{
+  display:flex;gap:18px;padding:14px 18px;
+  background:var(--bg-2);border:1px solid var(--line-2);
+  border-radius:14px;box-shadow:var(--shadow-soft);
+}
+.flip-stat{display:flex;flex-direction:column;align-items:center;gap:4px}
+.flip-stat .v{font-family:'JetBrains Mono',monospace;font-size:20px;font-weight:800;color:var(--lime-deep)}
+.flip-stat .l{font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:var(--dim)}
+.flip-retry{
+  padding:11px 20px;border-radius:12px;
+  background:var(--ink);color:var(--bg);
+  font-size:13px;font-weight:800;
+  display:inline-flex;align-items:center;gap:8px;
+  box-shadow:0 2px 0 rgba(24,23,22,.35);
+  transition:all .15s;
+}
+.flip-retry:hover{transform:translateY(-1px)}
+.flip-retry svg{width:13px;height:13px}
+
+/* Quiz */
 .quiz{display:flex;flex-direction:column;gap:16px}
 .quiz-item{border:1px solid var(--line-2);border-radius:14px;background:var(--bg-2);padding:18px;box-shadow:var(--shadow-soft);animation:fadeUp .45s cubic-bezier(.22,.68,.32,1) both}
 .quiz-item:nth-child(1){animation-delay:.2s}
@@ -396,11 +605,25 @@ textarea::placeholder{color:var(--dim-2);font-weight:500}
 .opt.wrong .lt{background:var(--bad);color:#fff;border-color:var(--bad);transform:scale(.9)}
 .quiz-exp{margin-top:8px;font-size:12.5px;color:var(--dim);padding:10px 14px;border-left:2px solid var(--violet);background:var(--bg-3);border-radius:0 8px 8px 0;display:none}
 .quiz-item.revealed .quiz-exp{display:block}
-.quiz-score{position:sticky;bottom:-26px;display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:14px;padding:14px 18px;background:var(--bg-2);border:1px solid var(--line-2);border-radius:14px;box-shadow:var(--shadow-card);font-size:13.5px;font-weight:700;color:var(--ink-2);font-family:'JetBrains Mono',monospace;animation:fadeUp .5s cubic-bezier(.22,.68,.32,1) both}
+.quiz-score{
+  position:sticky;bottom:-26px;
+  display:flex;align-items:center;justify-content:space-between;gap:10px;
+  margin-top:14px;padding:14px 18px;
+  background:var(--bg-2);border:1px solid var(--line-2);
+  border-radius:14px;box-shadow:var(--shadow-card);
+  font-size:13.5px;font-weight:700;color:var(--ink-2);
+  font-family:'JetBrains Mono',monospace;
+  animation:fadeUp .5s cubic-bezier(.22,.68,.32,1) both;
+  flex-wrap:wrap;
+}
 .quiz-score b{color:var(--lime-deep);font-weight:800;font-size:15px}
 .quiz-score.done{background:linear-gradient(120deg,var(--lime-soft),var(--coral-soft));border-color:var(--lime-line);color:var(--ink)}
 .quiz-score.done b{color:var(--ink)}
-.quiz-score-msg{flex-basis:100%;text-align:center;font-family:'Plus Jakarta Sans',sans-serif;font-size:14px;font-weight:800;margin-top:6px;color:var(--ink)}
+.quiz-score-msg{
+  flex-basis:100%;text-align:center;
+  font-family:'Plus Jakarta Sans',sans-serif;font-size:14px;
+  font-weight:800;margin-top:6px;color:var(--ink);
+}
 
 /* ===== PRO SUCCESS POPUP ===== */
 .pro-popup{position:fixed;inset:0;background:rgba(24,23,22,.6);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);z-index:9000;display:none;align-items:center;justify-content:center;padding:20px;overflow-y:auto}
@@ -504,6 +727,9 @@ textarea::placeholder{color:var(--dim-2);font-weight:500}
   .pro-popup-head h2{font-size:20px}
   .pro-popup-row{padding:10px 12px}
   .pro-popup-row .em{font-size:20px}
+  .flip-body-c p{font-size:17px}
+  .flip-back-c .flip-body-c p{font-size:15px}
+  .flip-stack{height:300px}
 }
 @media(prefers-reduced-motion:reduce){
   *{animation:none!important;transition:none!important;scroll-behavior:auto!important}
@@ -620,20 +846,20 @@ textarea::placeholder{color:var(--dim-2);font-weight:500}
   </div>
 
   <div class="menu-foot" style="flex-direction:column;align-items:stretch;gap:8px">
-  <div style="display:flex;align-items:center;justify-content:space-between;width:100%">
-    <span>v51 · india</span>
-    <button class="theme-tog" id="themeToggle">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
-      <span id="themeLabel">Dark mode</span>
-    </button>
-  </div>
-  <a href="mailto:zyroaisupport@gmail.com?subject=Zyro%20Support" style="display:flex;align-items:center;gap:7px;padding:8px 11px;border-radius:10px;font-size:11.5px;font-weight:700;color:var(--ink-2);background:var(--bg-3);border:1px solid var(--line);text-decoration:none">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;flex:none">
-      <rect x="2" y="4" width="20" height="16" rx="2"/>
-      <path d="m2 7 10 6 10-6"/>
-    </svg>
-    Need help? Email support
-  </a>
+    <div style="display:flex;align-items:center;justify-content:space-between;width:100%">
+      <span>v52 · india</span>
+      <button class="theme-tog" id="themeToggle">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+        <span id="themeLabel">Dark mode</span>
+      </button>
+    </div>
+    <a href="mailto:zyroaisupport@gmail.com?subject=Zyro%20Support" style="display:flex;align-items:center;gap:7px;padding:8px 11px;border-radius:10px;font-size:11.5px;font-weight:700;color:var(--ink-2);background:var(--bg-3);border:1px solid var(--line);text-decoration:none">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;flex:none">
+        <rect x="2" y="4" width="20" height="16" rx="2"/>
+        <path d="m2 7 10 6 10-6"/>
+      </svg>
+      Need help? Email support
+    </a>
   </div>
 </nav>
 
@@ -794,13 +1020,13 @@ textarea::placeholder{color:var(--dim-2);font-weight:500}
         <button id="profileUpgradeBtn">Go Pro · ₹349/mo</button>
       </div>
       <button class="profile-signout" id="profileSignOut" style="margin-bottom:10px">Sign out</button>
-<a href="mailto:zyroaisupport@gmail.com?subject=Zyro%20Support" class="profile-signout" style="display:flex;align-items:center;justify-content:center;gap:8px;text-decoration:none;margin-top:0;background:var(--bg-3)">
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px">
-    <rect x="2" y="4" width="20" height="16" rx="2"/>
-    <path d="m2 7 10 6 10-6"/>
-  </svg>
-  Contact support
-</a>
+      <a href="mailto:zyroaisupport@gmail.com?subject=Zyro%20Support" class="profile-signout" style="display:flex;align-items:center;justify-content:center;gap:8px;text-decoration:none;margin-top:0;background:var(--bg-3)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px">
+          <rect x="2" y="4" width="20" height="16" rx="2"/>
+          <path d="m2 7 10 6 10-6"/>
+        </svg>
+        Contact support
+      </a>
     </div>
   </div>
 </div>
