@@ -195,7 +195,7 @@ async function openRazorpayCheckout(plan){
             toast("Verification failed — contact support");
           }
         })
-        .catch(() => toast("Verification error"));
+        .catch(() => toast("Verification error — email zyroaisupport@gmail.com"));
       }
     });
     rz.on("payment.failed", function(resp){
