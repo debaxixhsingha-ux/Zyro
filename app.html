@@ -681,6 +681,91 @@ textarea::placeholder{color:var(--dim-2);font-weight:500}
 @media(prefers-reduced-motion:reduce){
   *{animation:none!important;transition:none!important;scroll-behavior:auto!important}
 }
+  /* ===== SUBJECT CHIP + PICKER ===== */
+.subject-chip-row{
+  display:flex;
+  align-items:center;
+  gap:6px;
+  padding:0 4px 6px;
+  flex-wrap:wrap;
+}
+.subject-chip{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  padding:6px 12px;
+  border-radius:999px;
+  background:linear-gradient(135deg,var(--sun-soft),var(--coral-soft));
+  border:1px solid rgba(255,181,71,.4);
+  color:var(--ink);
+  font-size:12px;
+  font-weight:800;
+  cursor:pointer;
+  transition:all .15s cubic-bezier(.34,1.56,.64,1);
+}
+.subject-chip:hover{transform:translateY(-1px);box-shadow:0 4px 12px -4px rgba(255,107,74,.3)}
+.subject-chip .em{font-size:13px;line-height:1}
+.subject-chip svg{width:10px;height:10px;opacity:.6}
+.subject-chip.empty{
+  background:var(--bg-3);
+  border-color:var(--line-2);
+  color:var(--dim);
+}
+.subject-chip.empty:hover{color:var(--coral);border-color:var(--coral-line)}
+
+.subject-modal{
+  position:fixed;inset:0;z-index:9999;
+  background:rgba(24,23,22,.55);
+  backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
+  display:none;align-items:flex-end;
+}
+.subject-modal.on{display:flex}
+.subject-modal-box{
+  width:100%;background:var(--bg-2);
+  border-radius:22px 22px 0 0;
+  padding:22px 20px calc(24px + env(safe-area-inset-bottom,0px));
+  animation:subjUp .3s cubic-bezier(.22,.68,.32,1);
+  max-height:70vh;overflow-y:auto;
+}
+@keyframes subjUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
+.subject-modal-box h3{
+  margin:0 0 6px;font-size:18px;font-weight:800;
+  letter-spacing:-.02em;text-align:center;
+}
+.subject-modal-box p{
+  margin:0 0 16px;font-size:12.5px;color:var(--dim);
+  text-align:center;font-weight:500;
+}
+.subject-grid{
+  display:grid;grid-template-columns:repeat(2,1fr);gap:8px;
+}
+.subject-opt{
+  display:flex;align-items:center;gap:10px;
+  padding:14px 14px;border-radius:14px;
+  border:1.5px solid var(--line-2);
+  background:var(--bg-2);
+  font-size:13.5px;font-weight:700;
+  color:var(--ink);
+  cursor:pointer;text-align:left;
+  transition:all .15s cubic-bezier(.34,1.56,.64,1);
+}
+.subject-opt:hover{border-color:var(--coral-line);transform:translateY(-2px)}
+.subject-opt.on{
+  background:linear-gradient(135deg,var(--lime-soft),var(--coral-soft));
+  border-color:var(--lime-line);
+  box-shadow:0 3px 0 var(--lime-deep);
+}
+.subject-opt .em{font-size:20px;flex:none;line-height:1}
+.subject-opt .tx{flex:1;min-width:0}
+.subject-opt .tx b{display:block;font-size:13.5px;font-weight:800;letter-spacing:-.01em;margin-bottom:1px}
+.subject-opt .tx span{display:block;font-size:10.5px;color:var(--dim);font-weight:500}
+.subject-close{
+  width:100%;margin-top:12px;padding:12px;border-radius:12px;
+  background:var(--bg-3);border:1px solid var(--line-2);
+  font-size:13.5px;font-weight:700;color:var(--ink);
+}
+.subject-close:hover{background:var(--bg-4)}
+  
 </style>
 </head>
 <body>
@@ -1160,5 +1245,46 @@ textarea::placeholder{color:var(--dim-2);font-weight:500}
 </div>
 
 <script defer src="app.js?v=55"></script>
+  <div class="subject-modal" id="subjectModal">
+  <div class="subject-modal-box">
+    <h3>Pick a subject</h3>
+    <p>Lock this chat to one subject</p>
+    <div class="subject-grid" id="subjectGrid">
+      <button type="button" class="subject-opt" data-subj="General">
+        <span class="em">📖</span>
+        <span class="tx"><b>General</b><span>Anything goes</span></span>
+      </button>
+      <button type="button" class="subject-opt" data-subj="Maths">
+        <span class="em">📐</span>
+        <span class="tx"><b>Maths</b><span>Numbers, formulas</span></span>
+      </button>
+      <button type="button" class="subject-opt" data-subj="Physics">
+        <span class="em">⚛️</span>
+        <span class="tx"><b>Physics</b><span>Motion, forces</span></span>
+      </button>
+      <button type="button" class="subject-opt" data-subj="Chemistry">
+        <span class="em">⚗️</span>
+        <span class="tx"><b>Chemistry</b><span>Reactions, bonds</span></span>
+      </button>
+      <button type="button" class="subject-opt" data-subj="Biology">
+        <span class="em">🧬</span>
+        <span class="tx"><b>Biology</b><span>Life, cells</span></span>
+      </button>
+      <button type="button" class="subject-opt" data-subj="English">
+        <span class="em">📚</span>
+        <span class="tx"><b>English</b><span>Grammar, lit</span></span>
+      </button>
+      <button type="button" class="subject-opt" data-subj="Computer Science">
+        <span class="em">💻</span>
+        <span class="tx"><b>CS / Code</b><span>Programming</span></span>
+      </button>
+      <button type="button" class="subject-opt" data-subj="Social Science">
+        <span class="em">🌏</span>
+        <span class="tx"><b>Social</b><span>History, Geo</span></span>
+      </button>
+    </div>
+    <button type="button" class="subject-close" id="subjectClose">Close</button>
+  </div>
+  </div>
 </body>
 </html>
