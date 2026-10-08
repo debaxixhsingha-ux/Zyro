@@ -1,5 +1,5 @@
 /* =========================================================
-   ZYRO app.js — v52 (flip cards, notes highlight, stall fix)
+   ZYRO app.js — v53 (streak, weekly goal, welcome card)
    ========================================================= */
 
 /* ---------- TOP HELPERS ---------- */
@@ -32,6 +32,9 @@ const TOKEN_KEY="zyro_tokens_v2";
 const CI="zyro_ci";
 const CK="zyro_chats";
 const GEN_KEY="zyro_gen_count_v2";
+const STREAK_KEY="zyro_streak_v1";
+const GOAL_KEY="zyro_goal_v1";
+const VISIT_KEY="zyro_last_visit_v1";
 const TOKEN_RESET_MS = 30 * 24 * 60 * 60 * 1000;
 const GEN_RESET_MS = 24 * 60 * 60 * 1000;
 const STREAM_TIMEOUT_MS = 120000;
@@ -50,9 +53,7 @@ let ctrl=null,hist=[],busy=false,streaming=false;
 let pending=[],pendingKind=null;
 let sid=0,follow=true,uAcc=0,uT=null,syncT=null;
 let busyWatchdog=null;
-let lastKit = null;
-let stickyIntent = null;
-let stickyIntentAt = 0;
+let lastKit=null;
 
 const RZP_WORKER_URL = WORKER_URL.replace(/\/$/, "");
 
@@ -230,6 +231,140 @@ function boot(){
   };
   const L = () => LIMITS[pro ? "pro" : "free"];
 
+  /* ---------- STREAK ---------- */
+  function todayStr(){
+    const d = new Date();
+    return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0") + "-" + String(d.getDate()).padStart(2,"0");
+  }
+  function yesterdayStr(){
+    const d = new Date(); d.setDate(d.getDate() - 1);
+    return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0") + "-" + String(d.getDate()).padStart(2,"0");
+  }
+  function getStreak(){
+    try {
+      const d = JSON.parse(localStorage.getItem(STREAK_KEY) || "null");
+      if (!d || typeof d.days !== "number") return { days: 0, lastDay: "" };
+      return d;
+    } catch(_) { return { days: 0, lastDay: "" }; }
+  }
+  function saveStreak(d){ try { localStorage.setItem(STREAK_KEY, JSON.stringify(d)); } catch(_) {} }
+  function bumpStreak(){
+    const today = todayStr();
+    const s = getStreak();
+    if (s.lastDay === today) return s;
+    if (s.lastDay === yesterdayStr()){
+      s.days = (s.days || 0) + 1;
+    } else {
+      s.days = 1;
+    }
+    s.lastDay = today;
+    saveStreak(s);
+    return s;
+  }
+  function renderStreak(){
+    const badge = $("streakBadge");
+    if (!badge) return;
+    const s = getStreak();
+    if (!s.days || !s.lastDay){ badge.style.display = "none"; return; }
+    badge.style.display = "inline-flex";
+    const num = badge.querySelector(".streak-num");
+    if (num) num.textContent = s.days;
+    if (s.days >= 3) badge.classList.add("hot");
+    else badge.classList.remove("hot");
+  }
+
+  /* ---------- WEEKLY GOAL ---------- */
+  function weekKey(){
+    const d = new Date();
+    const onejan = new Date(d.getFullYear(), 0, 1);
+    const week = Math.ceil((((d - onejan) / 86400000) + onejan.getDay() + 1) / 7);
+    return d.getFullYear() + "-W" + week;
+  }
+  function getGoal(){
+    try {
+      const d = JSON.parse(localStorage.getItem(GOAL_KEY) || "null");
+      const wk = weekKey();
+      if (!d || d.week !== wk){
+        const fresh = { target: 10, done: 0, week: wk };
+        try { localStorage.setItem(GOAL_KEY, JSON.stringify(fresh)); } catch(_) {}
+        return fresh;
+      }
+      if (typeof d.target !== "number") d.target = 10;
+      if (typeof d.done !== "number") d.done = 0;
+      return d;
+    } catch(_) { return { target: 10, done: 0, week: weekKey() }; }
+  }
+  function saveGoal(d){ try { localStorage.setItem(GOAL_KEY, JSON.stringify(d)); } catch(_) {} }
+  function bumpGoal(){
+    const g = getGoal();
+    g.done = (g.done || 0) + 1;
+    saveGoal(g);
+    renderGoal();
+  }
+  function renderGoal(){
+    const card = $("goalCard");
+    if (!card) return;
+    const g = getGoal();
+    card.style.display = "";
+    const pct = Math.min(100, (g.done / g.target) * 100);
+    const cnt = $("goalCount"); if (cnt) cnt.textContent = g.done + " / " + g.target;
+    const fil = $("goalFill"); if (fil) fil.style.width = pct + "%";
+    const msg = $("goalMsg");
+    if (msg){
+      const remaining = Math.max(0, g.target - g.done);
+      if (remaining === 0) msg.textContent = "Goal hit 🎉";
+      else if (remaining === 1) msg.textContent = "1 more to go";
+      else msg.textContent = remaining + " more to go";
+    }
+  }
+
+  /* ---------- WELCOME CARD ---------- */
+  function renderWelcome(){
+    const mount = $("welcomeMount");
+    if (!mount) return;
+    const today = todayStr();
+    let lastVisit = "";
+    try { lastVisit = localStorage.getItem(VISIT_KEY) || ""; } catch(_) {}
+    try { localStorage.setItem(VISIT_KEY, today); } catch(_) {}
+    if (!lastVisit || lastVisit === today) return;
+    const s = getStreak();
+    if (!s.days) return;
+    const g = getGoal();
+    const pct = Math.min(100, (g.done / g.target) * 100);
+    const fireEmoji = s.days >= 3 ? "🔥" : "✨";
+    const headline = s.days === 1 ? "Welcome back" : s.days + " days in a row";
+    const sub = s.days === 1 ? "Let's pick up where you left off" : "Keep the streak alive";
+    mount.innerHTML =
+      '<div class="welcome-card" id="welcomeCard">' +
+        '<button class="welcome-close" id="welcomeClose" aria-label="Dismiss">' +
+          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>' +
+        '</button>' +
+        '<div class="welcome-row">' +
+          '<div class="welcome-fire">' + fireEmoji + '</div>' +
+          '<div class="welcome-tx">' +
+            '<b>' + headline + ' <em>nice</em></b>' +
+            '<span>' + sub + '</span>' +
+          '</div>' +
+        '</div>' +
+        '<div class="welcome-goal">' +
+          '<div class="welcome-goal-row">' +
+            '<span>Weekly goal</span>' +
+            '<span><b>' + g.done + '</b> / ' + g.target + '</span>' +
+          '</div>' +
+          '<div class="welcome-goal-bar"><div class="welcome-goal-fill" id="welcomeGoalFill" style="width:0%"></div></div>' +
+        '</div>' +
+      '</div>';
+    requestAnimationFrame(() => {
+      const fill = $("welcomeGoalFill");
+      if (fill) setTimeout(() => { fill.style.width = pct + "%"; }, 200);
+    });
+    const close = $("welcomeClose");
+    if (close) close.addEventListener("click", () => {
+      const c = $("welcomeCard");
+      if (c){ c.style.opacity = "0"; c.style.transform = "translateY(8px)"; setTimeout(() => c.remove(), 300); }
+    });
+  }
+
   /* ---------- DAILY COUNTERS ---------- */
   function getGen(){
     try {
@@ -268,29 +403,16 @@ function boot(){
   }
 
   function detectGenIntent(text){
-  if (!text) return null;
-  const s = String(text).toLowerCase();
-  // Looser flashcard match — handles flashcarde, flascard, flash cards, flascards, etc.
-  if (/\b(f+la+s+h?\s*cards?|flash\s*cards?|flashcards?e?|cards?\s+for|make\s+(me\s+)?(a\s+)?(some\s+)?flash\s*cards?)\b/.test(s)) return "flashcard";
-  if (/\b(mock\s*paper|full\s*mock|mock\s*test)\b/.test(s)) return "mock";
-  if (/\b(viva\s*practice|oral\s*exam)\b/.test(s)) return "viva";
-  if (/\b(study\s*kit|make\s+(me\s+)?(a\s+)?study)\b/.test(s)) return "studykit";
-  if (/\b(quiz\s*me|make\s+(a\s+)?quiz|test\s+me\s+on|mcqs?|test\s+me)\b/.test(s)) return "quiz";
-  if (/\bnotes?\s*(to|→|->)\s*(flashcards?|quiz|cards)\b/.test(s)) return "studykit";
-  return null;
-}
-
-// Intent that persists for a follow-up message (e.g. "make flashcards" → "Motion in a plane")
-const STICKY_MS = 5 * 60 * 1000; // 5 minutes
-function setStickyIntent(intent){
-  if (intent){ stickyIntent = intent; stickyIntentAt = Date.now(); }
-}
-function getStickyIntent(){
-  if (!stickyIntent) return null;
-  if (Date.now() - stickyIntentAt > STICKY_MS){ stickyIntent = null; return null; }
-  return stickyIntent;
-}
-function clearStickyIntent(){ stickyIntent = null; stickyIntentAt = 0; }
+    if (!text) return null;
+    const s = String(text).toLowerCase();
+    if (/\b(f+la+s+h?\s*cards?|flash\s*cards?|flashcards?e?|cards?\s+for|make\s+(me\s+)?(a\s+)?(some\s+)?flash\s*cards?)\b/.test(s)) return "flashcard";
+    if (/\b(mock\s*paper|full\s*mock|mock\s*test)\b/.test(s)) return "mock";
+    if (/\b(viva\s*practice|oral\s*exam)\b/.test(s)) return "viva";
+    if (/\b(study\s*kit|make\s+(me\s+)?(a\s+)?study)\b/.test(s)) return "studykit";
+    if (/\b(quiz\s*me|make\s+(a\s+)?quiz|test\s+me\s+on|mcqs?|test\s+me)\b/.test(s)) return "quiz";
+    if (/\bnotes?\s*(to|→|->)\s*(flashcards?|quiz|cards)\b/.test(s)) return "studykit";
+    return null;
+  }
   function checkGenAllowed(kind){
     if (pro) return true;
     if (genAllowed(kind)) return true;
@@ -517,6 +639,19 @@ function clearStickyIntent(){ stickyIntent = null; stickyIntentAt = 0; }
       });
     });
   }
+
+  /* ---------- GOAL EDIT ---------- */
+  { const ge = $("goalEdit"); if (ge) ge.addEventListener("click", e => {
+    e.stopPropagation();
+    const g = getGoal();
+    const v = prompt("Weekly goal (1-50 topics):", String(g.target));
+    if (v === null) return;
+    const n = parseInt(v, 10);
+    if (isNaN(n) || n < 1 || n > 50){ toast("Enter a number between 1 and 50"); return; }
+    g.target = n;
+    saveGoal(g);
+    renderGoal();
+  }); }
 
   /* ---------- THEME ---------- */
   const root = document.documentElement;
@@ -1168,17 +1303,14 @@ function clearStickyIntent(){ stickyIntent = null; stickyIntentAt = 0; }
   function parseStudyKit(text){
     const kit = { notes:"", cards:[], quiz:[] };
     if (!text) return kit;
-
     const notesM = text.match(/(?:^|\n)#{1,3}\s*(?:📖\s*)?Notes\s*\n([\s\S]*?)(?=\n#{1,3}\s*(?:🎴|📝|Flashcards|Quiz)|$)/i);
     if (notesM) kit.notes = notesM[1].trim();
-
     const fcM = text.match(/(?:^|\n)#{1,3}\s*(?:🎴\s*)?(?:Flash\s*cards?|Flashcards?)\s*\n([\s\S]*?)(?=\n#{1,3}\s*(?:📖|📝|Notes|Quiz)|$)/i);
     if (fcM){
       const re = /^\s*F:\s*(.+?)\s*\n\s*B:\s*(.+?)(?=\n\s*F:|\n\s*#{1,3}|\n\s*$)/gims;
       let m;
       while ((m = re.exec(fcM[1]))){ kit.cards.push({ a: m[1].trim(), b: m[2].trim() }); }
     }
-
     const qM = text.match(/(?:^|\n)#{1,3}\s*(?:📝\s*)?Quiz\s*\n([\s\S]*?)(?=\n#{1,3}\s*(?:📖|🎴|Notes|Flashcards)|$)/i);
     if (qM){
       const re = /^\s*Q:\s*(.+?)\s*\n\s*A\)\s*(.+?)\s*\n\s*B\)\s*(.+?)\s*\n\s*C\)\s*(.+?)\s*\n\s*D\)\s*(.+?)\s*\n\s*Ans:\s*([A-D])\s*(?:\n\s*Ex:\s*(.+?))?(?=\n\s*Q:|\n\s*#{1,3}|\n\s*$)/gims;
@@ -1187,7 +1319,6 @@ function clearStickyIntent(){ stickyIntent = null; stickyIntentAt = 0; }
         kit.quiz.push({ q: m[1].trim(), opts: [m[2].trim(), m[3].trim(), m[4].trim(), m[5].trim()], ans: m[6].toUpperCase(), ex: (m[7]||"").trim() });
       }
     }
-
     return kit;
   }
 
@@ -1196,12 +1327,10 @@ function clearStickyIntent(){ stickyIntent = null; stickyIntentAt = 0; }
     if (kit.notes) parts += '<span class="kpart">Notes</span>';
     if (kit.cards.length) parts += '<span class="kpart">' + kit.cards.length + ' cards</span>';
     if (kit.quiz.length) parts += '<span class="kpart">' + kit.quiz.length + ' quiz</span>';
-
     let title = "Study Kit";
     if (kit.notes && !kit.cards.length && !kit.quiz.length) title = "Notes Ready";
     else if (kit.cards.length && !kit.notes && !kit.quiz.length) title = "Flashcards Ready";
     else if (kit.quiz.length && !kit.notes && !kit.cards.length) title = "Quiz Ready";
-
     return '<div class="kit-launcher">' +
       '<div class="kit-launcher-top">' +
         '<span class="kit-launcher-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg></span>' +
@@ -1218,17 +1347,15 @@ function clearStickyIntent(){ stickyIntent = null; stickyIntentAt = 0; }
     const btn = el.querySelector(".open-kit");
     if (btn) btn.addEventListener("click", () => openStudyPanel(kit));
   }
-
   function emptyPanelHTML(emoji, title, sub){
     return '<div class="ep-ic">' + emoji + '</div>' +
       '<h3>' + esc(title) + '</h3>' +
       '<p>' + esc(sub) + '</p>';
   }
 
-  /* ---------- FLIP CARDS (used inside study panel) ---------- */
+  /* ---------- FLIP CARDS ---------- */
   function renderFlipCards(container, cards){
     container.innerHTML = "";
-
     const stage = document.createElement("div");
     stage.className = "flip-stage";
     stage.innerHTML =
@@ -1265,7 +1392,6 @@ function clearStickyIntent(){ stickyIntent = null; stickyIntentAt = 0; }
           'Try again' +
         '</button>' +
       '</div>';
-
     container.appendChild(stage);
 
     const stackEl = stage.querySelector(".flip-stack");
@@ -1274,7 +1400,6 @@ function clearStickyIntent(){ stickyIntent = null; stickyIntentAt = 0; }
     const completeEl = stage.querySelector(".flip-complete");
     const headerEl = stage.querySelector(".flip-header");
     const counterNowEl = stage.querySelector(".fnow");
-
     let idx = 0, gotIt = 0, review = 0;
     let results = [];
 
@@ -1289,7 +1414,6 @@ function clearStickyIntent(){ stickyIntent = null; stickyIntentAt = 0; }
         dotsEl.appendChild(d);
       });
     }
-
     function buildCard(c, i){
       const el = document.createElement("div");
       el.className = "flip-item";
@@ -1327,7 +1451,6 @@ function clearStickyIntent(){ stickyIntent = null; stickyIntentAt = 0; }
       });
       return el;
     }
-
     function showCard(){
       stackEl.innerHTML = "";
       if (idx >= cards.length){ showComplete(); return; }
@@ -1336,7 +1459,6 @@ function clearStickyIntent(){ stickyIntent = null; stickyIntentAt = 0; }
       actionsEl.style.display = "flex";
       dotsEl.style.display = "flex";
       counterNowEl.textContent = idx + 1;
-
       const el = buildCard(cards[idx], idx);
       el.style.opacity = "0";
       el.style.transform = "translateY(14px) scale(.96)";
@@ -1348,7 +1470,6 @@ function clearStickyIntent(){ stickyIntent = null; stickyIntentAt = 0; }
       });
       buildDots();
     }
-
     function advance(kind){
       const el = stackEl.querySelector(".flip-item");
       if (!el) return;
@@ -1358,7 +1479,6 @@ function clearStickyIntent(){ stickyIntent = null; stickyIntentAt = 0; }
       if (navigator.vibrate) try { navigator.vibrate(kind === "got" ? [12,30,12] : 20); } catch(_){}
       setTimeout(() => { idx++; showCard(); }, 380);
     }
-
     function showComplete(){
       stackEl.innerHTML = "";
       headerEl.style.display = "none";
@@ -1370,7 +1490,6 @@ function clearStickyIntent(){ stickyIntent = null; stickyIntentAt = 0; }
       const pct = Math.round((gotIt / cards.length) * 100);
       stage.querySelector(".fpct").textContent = pct + "%";
     }
-
     stage.querySelector(".flip-btn.got").addEventListener("click", () => advance("got"));
     stage.querySelector(".flip-btn.review").addEventListener("click", () => advance("review"));
     stage.querySelector(".flip-retry").addEventListener("click", () => {
@@ -1378,7 +1497,6 @@ function clearStickyIntent(){ stickyIntent = null; stickyIntentAt = 0; }
       completeEl.classList.remove("show");
       showCard();
     });
-
     showCard();
   }
 
@@ -1387,13 +1505,11 @@ function clearStickyIntent(){ stickyIntent = null; stickyIntentAt = 0; }
     lastKit = kit;
     const panel = $("studyPanel");
     if (!panel) return;
-
     const titleEl = $("panelTitle");
     if (titleEl){
       const topic = (cur && cur.title) || "Study Kit";
       titleEl.textContent = topic.slice(0, 40);
     }
-
     const notesEl = panel.querySelector('[data-pcontent="notes"]');
     if (notesEl){
       if (kit.notes){
@@ -1408,7 +1524,6 @@ function clearStickyIntent(){ stickyIntent = null; stickyIntentAt = 0; }
         notesEl.innerHTML = emptyPanelHTML("📝", "No notes in this kit", "Ask Zyro to 'make me a study kit' for notes + cards + quiz.");
       }
     }
-
     const cardsEl = panel.querySelector('[data-pcontent="cards"]');
     if (cardsEl){
       if (kit.cards.length){
@@ -1419,7 +1534,6 @@ function clearStickyIntent(){ stickyIntent = null; stickyIntentAt = 0; }
         cardsEl.innerHTML = emptyPanelHTML("🃏", "No flashcards", "Ask Zyro for a study kit to generate flashcards from any topic.");
       }
     }
-
     const quizEl = panel.querySelector('[data-pcontent="quiz"]');
     if (quizEl){
       if (kit.quiz.length){
@@ -1441,7 +1555,6 @@ function clearStickyIntent(){ stickyIntent = null; stickyIntentAt = 0; }
         html += '</div>';
         html += '<div class="quiz-score" id="quizScore"><span>Answered <b>0</b> / ' + kit.quiz.length + '</span><span>Score <b>0</b></span></div>';
         quizEl.innerHTML = html;
-
         const scoreEl = quizEl.querySelector("#quizScore");
         const qstate = { answered: 0, correct: 0, total: kit.quiz.length };
         function updateScore(){
@@ -1457,7 +1570,6 @@ function clearStickyIntent(){ stickyIntent = null; stickyIntentAt = 0; }
             scoreEl.innerHTML = '<span>Score</span><span><b>' + qstate.correct + '</b> / ' + qstate.total + ' &middot; ' + pct + '%</span><div class="quiz-score-msg">' + msg + '</div>';
           }
         }
-
         quizEl.querySelectorAll(".quiz-item").forEach(item => {
           const opts = item.querySelectorAll(".opt");
           opts.forEach(o => {
@@ -1480,13 +1592,11 @@ function clearStickyIntent(){ stickyIntent = null; stickyIntentAt = 0; }
         quizEl.innerHTML = emptyPanelHTML("🎯", "No quiz", "Ask Zyro for a study kit and it'll generate MCQs with answers.");
       }
     }
-
     let targetTab = "notes";
     if (!kit.notes && kit.cards.length) targetTab = "cards";
     if (!kit.notes && !kit.cards.length && kit.quiz.length) targetTab = "quiz";
     panel.querySelectorAll(".ptab").forEach(x => x.classList.toggle("active", x.dataset.ptab === targetTab));
     panel.querySelectorAll(".pcontent").forEach(x => x.classList.toggle("on", x.dataset.pcontent === targetTab));
-
     panel.classList.add("on");
     const body = panel.querySelector(".panel-body"); if (body) body.scrollTop = 0;
     try { typeset(panel); } catch(_) {}
@@ -1495,7 +1605,6 @@ function clearStickyIntent(){ stickyIntent = null; stickyIntentAt = 0; }
   function closePanel(){
     const p = $("studyPanel"); if (p) p.classList.remove("on");
   }
-
   const studyPanel = $("studyPanel");
   if (studyPanel){
     studyPanel.querySelectorAll(".ptab").forEach(tab => {
@@ -1528,7 +1637,6 @@ function clearStickyIntent(){ stickyIntent = null; stickyIntentAt = 0; }
       throw { code: r.status === 429 ? "rate" : r.status === 403 ? "origin" : r.status === 413 ? "big" : "http", info: r.status + (m ? " " + m.slice(0, 100) : "") };
     }
     if (!r.body) throw { code: "http", info: "empty response" };
-
     let full = "", th = "", used = 0, aborted = false, gotFirst = false;
     const rd = r.body.getReader(), dec = new TextDecoder();
     let buf = "";
@@ -1541,7 +1649,6 @@ function clearStickyIntent(){ stickyIntent = null; stickyIntentAt = 0; }
         clearInterval(stallTimer);
       }
     }, 5000);
-
     try {
       for (;;){
         const { done, value } = await rd.read();
@@ -1579,7 +1686,6 @@ function clearStickyIntent(){ stickyIntent = null; stickyIntentAt = 0; }
       clearTimeout(firstTokenTimer);
       clearInterval(stallTimer);
     }
-
     if (used > 0) addTokens(used);
     else if (full) addTokens(Math.ceil(full.length / 4));
     if (!full && !aborted){
@@ -1635,29 +1741,39 @@ function clearStickyIntent(){ stickyIntent = null; stickyIntentAt = 0; }
       "Use headings and sub-headings inside the Notes section when helpful.";
   }
 
+  let stickyIntent = null;
+  let stickyIntentAt = 0;
+  const STICKY_MS = 5 * 60 * 1000;
+  function setStickyIntent(intent){
+    if (intent){ stickyIntent = intent; stickyIntentAt = Date.now(); }
+  }
+  function getStickyIntent(){
+    if (!stickyIntent) return null;
+    if (Date.now() - stickyIntentAt > STICKY_MS){ stickyIntent = null; return null; }
+    return stickyIntent;
+  }
+  function clearStickyIntent(){ stickyIntent = null; stickyIntentAt = 0; }
+
   function send(text){
-  const items = pending.slice();
-  if (busy || (!text.trim() && !items.length)) return;
-  const files = items.filter(f => !f.img);
-  const imgs = items.filter(f => f.img).map(f => f.img);
+    const items = pending.slice();
+    if (busy || (!text.trim() && !items.length)) return;
+    const files = items.filter(f => !f.img);
+    const imgs = items.filter(f => f.img).map(f => f.img);
 
-  const isFileKit = (pendingKind === "studykit" || pendingKind === "notes") && files.length;
-  const isSnap = pendingKind === "snap" && imgs.length;
+    const isFileKit = (pendingKind === "studykit" || pendingKind === "notes") && files.length;
+    const isSnap = pendingKind === "snap" && imgs.length;
 
-  // Detect fresh intent first; if none and user just typed a topic, use the sticky intent
-  let intent = detectGenIntent(text);
-  if (!intent && !isFileKit && !isSnap && text.trim().length < 200){
-    const stuck = getStickyIntent();
-    if (stuck){ intent = stuck; clearStickyIntent(); }
-  }
-  // If we just detected a fresh intent from a short "set me up" style message, remember it
-  if (intent && text.trim().length < 60){
-    const topicGuess = text.replace(/.*\b(flashcards?e?|study\s*kit|quiz|notes?)\b.*/i, "").trim();
-    // If they typed just the intent word with no real topic, stick it for next message
-    if (topicGuess.length < 8) setStickyIntent(intent);
-  }
+    let intent = detectGenIntent(text);
+    if (!intent && !isFileKit && !isSnap && text.trim().length < 200){
+      const stuck = getStickyIntent();
+      if (stuck){ intent = stuck; clearStickyIntent(); }
+    }
+    if (intent && text.trim().length < 60){
+      const topicGuess = text.replace(/.*\b(flashcards?e?|study\s*kit|quiz|notes?)\b.*/i, "").trim();
+      if (topicGuess.length < 8) setStickyIntent(intent);
+    }
 
-  const proIntent = (intent === "mock" || intent === "viva");
+    const proIntent = (intent === "mock" || intent === "viva");
 
     if (proIntent && !pro){
       pending = []; pendingKind = null; renderAtts();
@@ -1684,6 +1800,7 @@ function clearStickyIntent(){ stickyIntent = null; stickyIntentAt = 0; }
       const full = base + files.map(f => "\n\n--- " + f.name + " ---\n" + f.text).join("");
       pending = []; pendingKind = null; renderAtts();
       if (!pro) bumpGen("studykit");
+      bumpStreak(); renderStreak(); bumpGoal();
       return run("Study kit from " + files[0].name, full, files.map(f => f.name), imgs, "studykit");
     }
 
@@ -1700,6 +1817,9 @@ function clearStickyIntent(){ stickyIntent = null; stickyIntentAt = 0; }
     const full = show + files.map(f => "\n\n--- " + f.name + " ---\n" + f.text).join("");
     pending = []; pendingKind = null; renderAtts();
     if (!pro && intent && intent !== "mock" && intent !== "viva") bumpGen(intent);
+    if (intent && (intent === "studykit" || intent === "flashcard" || intent === "quiz")){
+      bumpStreak(); renderStreak(); bumpGoal();
+    }
     return run(show, full, files.map(f => f.name), imgs, intent);
   }
 
@@ -1719,13 +1839,10 @@ function clearStickyIntent(){ stickyIntent = null; stickyIntentAt = 0; }
     const planLine = pro ? "Pro" : "Free";
     const limitLine = pro ? "750,000 (750k)" : "100,000 (100k)";
     const isGenRequest = !!intent;
-
     let sys = "";
-
     if (isGenRequest){
       sys += "⚡ STRUCTURED OUTPUT MODE ⚡\n";
       sys += "Output ONLY the sections below. NO preamble, NO 'here you go', NO closing, NO extra commentary, NO alternative headings.\n\n";
-
       if (intent === "studykit"){
         sys +=
           "OUTPUT EXACTLY THIS STRUCTURE:\n\n" +
@@ -1757,7 +1874,6 @@ function clearStickyIntent(){ stickyIntent = null; stickyIntentAt = 0; }
           "After last quiz, STOP.\n\n";
       }
     }
-
     sys +=
       "You are Zyro — a 17-year-old Indian student's AI study buddy. " +
       "Talk like a smart older brother: casual, warm, direct. Never a teacher. Never formal.\n\n" +
@@ -1781,7 +1897,6 @@ function clearStickyIntent(){ stickyIntent = null; stickyIntentAt = 0; }
       (STUDY[$("study").value] || "") +
       (getCI() ? "\n\nUser's custom instructions: " + getCI().slice(0, 800) : "") +
       "\n\nToday: " + new Date().toLocaleDateString("en", { weekday: "long", year: "numeric", month: "long", day: "numeric" }) + ".";
-
     return sys;
   };
 
@@ -1806,16 +1921,13 @@ function clearStickyIntent(){ stickyIntent = null; stickyIntentAt = 0; }
     const t0 = Date.now();
     const isGen = intent === "studykit" || intent === "flashcard" || intent === "quiz";
     const cheap = isGen || full.trim().length < 60 || tokensOut();
-
     const d = addA();
     const body = d.querySelector(".body");
     const chip = d.querySelector(".status-chip");
     const c = startChip(chip);
     down(1);
-
     let hadThought = false;
     const onThought = th => { hadThought = true; thinkUpdate(d, th); };
-
     let lastRender = 0, lastText = "";
     const emit = x => {
       c.write();
@@ -1828,16 +1940,13 @@ function clearStickyIntent(){ stickyIntent = null; stickyIntentAt = 0; }
         down();
       }
     };
-
     const runTimeout = setTimeout(() => {
       if (ctrl && !ctrl.signal.aborted){ try { ctrl.abort(); } catch(_) {} }
     }, STREAM_TIMEOUT_MS);
-
     try {
       let out;
       if (!WORKER_URL) throw { code: "nowork" };
       const msgs = [{ role: "system", content: SYS(intent) }, ...api(hist), imgs.length ? { role: "user", content: full, images: imgs } : { role: "user", content: full }];
-
       try {
         out = await workerStream(msgs, emit, ctrl.signal, cheap, onThought, isGen);
       } catch(e1){
@@ -1852,7 +1961,6 @@ function clearStickyIntent(){ stickyIntent = null; stickyIntentAt = 0; }
       setH(body, md(out));
       const secs = ((Date.now() - t0) / 1000).toFixed(1);
       thinkFinish(d, secs, hadThought);
-
       const kit = parseStudyKit(out);
       if (kit.notes || kit.cards.length || kit.quiz.length){
         const ln = document.createElement("div");
@@ -1861,7 +1969,6 @@ function clearStickyIntent(){ stickyIntent = null; stickyIntentAt = 0; }
         d.appendChild(lc);
         wireLauncher(lc, kit);
       }
-
       const acts = document.createElement("div");
       acts.className = "acts";
       acts.innerHTML =
@@ -1869,7 +1976,6 @@ function clearStickyIntent(){ stickyIntent = null; stickyIntentAt = 0; }
         '<button type="button" data-copywhole>Copy</button>' +
         '<button type="button" data-regen>Again</button>';
       d.appendChild(acts);
-
       if (!cur){ cur = { id: Date.now().toString(36), title: (show || names[0] || "Chat").replace(/\s+/g, " ").slice(0, 40), msgs: hist, ts: Date.now() }; chats.unshift(cur); }
       cur.ts = Date.now();
       hist.push(
@@ -2101,7 +2207,6 @@ function clearStickyIntent(){ stickyIntent = null; stickyIntentAt = 0; }
     go.classList.toggle("on", has);
     go.classList.toggle("muted", !has);
   }
-
   t.addEventListener("input", () => {
     t.style.height = "auto";
     t.style.height = Math.min(t.scrollHeight, 160) + "px";
@@ -2144,6 +2249,10 @@ function clearStickyIntent(){ stickyIntent = null; stickyIntentAt = 0; }
   renderList();
   renderAcct();
   renderProfile();
+  bumpStreak();
+  renderStreak();
+  renderGoal();
+  renderWelcome();
 
   if (new URLSearchParams(location.search).get("auth")){
     openAuth("signin");
