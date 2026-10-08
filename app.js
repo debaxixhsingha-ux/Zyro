@@ -1,5 +1,5 @@
 /* =========================================================
-   ZYRO app.js — v55 (onboarding + user context)
+   ZYRO app.js — v56 (subject chats)
    ========================================================= */
 
 /* ---------- TOP HELPERS ---------- */
@@ -47,17 +47,6 @@ const DAILY_LIMITS = {
   pro:  { studykit: 10, flashcard: 15, quiz: 50 }
 };
 
-let TOTAL=100000;
-let sb=null,sbP=null,user=null,pro=false;
-let userProfile=null;
-let chats=[],cur=null;
-let ctrl=null,hist=[],busy=false,streaming=false;
-let pending=[],pendingKind=null;
-let sid=0,follow=true,uAcc=0,uT=null,syncT=null;
-let busyWatchdog=null;
-let lastKit = null;
-let curSubject = "General";
-
 const SUBJECT_ICONS = {
   "General": "📖",
   "Maths": "📐",
@@ -78,24 +67,18 @@ const SUBJECT_KEYWORDS = {
   "Social Science": /\b(history|geography|civics|economics|society|polity|constitution|freedom|revolution|map)\b/i
 };
 
-function detectSubjectFromText(text){
-  if (!text) return null;
-  for (const subj of Object.keys(SUBJECT_KEYWORDS)){
-    if (SUBJECT_KEYWORDS[subj].test(text)) return subj;
-  }
-  return null;
-}
-
-function paintSubjectChip(){
-  const chip = $("subjectChip");
-  const label = $("subjectChipLabel");
-  const em = chip && chip.querySelector(".em");
-  if (!chip || !label || !em) return;
-  const subj = curSubject || "General";
-  label.textContent = subj;
-  em.textContent = SUBJECT_ICONS[subj] || "📖";
-  chip.classList.toggle("empty", subj === "General");
-}
+let TOTAL=100000;
+let sb=null,sbP=null,user=null,pro=false;
+let userProfile=null;
+let chats=[],cur=null;
+let curSubject="General";
+let ctrl=null,hist=[],busy=false,streaming=false;
+let pending=[],pendingKind=null;
+let sid=0,follow=true,uAcc=0,uT=null,syncT=null;
+let busyWatchdog=null;
+let lastKit=null;
+let stickyIntent=null, stickyIntentAt=0;
+const STICKY_MS = 5 * 60 * 1000;
 
 const RZP_WORKER_URL = WORKER_URL.replace(/\/$/, "");
 
@@ -271,6 +254,25 @@ function boot(){
   };
   const L = () => LIMITS[pro ? "pro" : "free"];
 
+  /* ---------- SUBJECT DETECTION + CHIP ---------- */
+  function detectSubjectFromText(text){
+    if (!text) return null;
+    for (const subj of Object.keys(SUBJECT_KEYWORDS)){
+      if (SUBJECT_KEYWORDS[subj].test(text)) return subj;
+    }
+    return null;
+  }
+  function paintSubjectChip(){
+    const chip = $("subjectChip");
+    const label = $("subjectChipLabel");
+    if (!chip || !label) return;
+    const em = chip.querySelector(".em");
+    const subj = curSubject || "General";
+    label.textContent = subj;
+    if (em) em.textContent = SUBJECT_ICONS[subj] || "📖";
+    chip.classList.toggle("empty", subj === "General");
+  }
+
   /* ---------- STREAK ---------- */
   function todayStr(){
     const d = new Date();
@@ -400,7 +402,7 @@ function boot(){
       const c = $("welcomeCard");
       if (c){ c.style.opacity = "0"; c.style.transform = "translateY(8px)"; setTimeout(() => c.remove(), 300); }
     });
-  }
+       }
    /* ---------- DAILY COUNTERS ---------- */
 function getGen(){
   try {
@@ -715,7 +717,7 @@ try {
   else setTheme("light");
 } catch(_) { setTheme("light"); }
 
-   /* ---------- SUBJECT CHIP + PICKER ---------- */
+/* ---------- SUBJECT CHIP + PICKER ---------- */
 function openSubjectPicker(){
   const m = $("subjectModal");
   if (!m) return;
@@ -743,14 +745,12 @@ function closeSubjectPicker(){
       curSubject = b.dataset.subj || "General";
       paintSubjectChip();
       closeSubjectPicker();
-      if (curSubject === "General"){
-        toast("Chat unlocked");
-      } else {
-        toast("Locked to " + curSubject);
-      }
+      if (curSubject === "General") toast("Chat unlocked");
+      else toast("Locked to " + curSubject);
     });
   });
 }
+
 ["newcBtn","newChatBtn"].forEach(id => {
   const b = $(id);
   if (b) b.addEventListener("click", newChat);
@@ -828,9 +828,8 @@ function sbClient(){
     return sb;
   });
   return sbP;
-}
-
-function renderAcct(){
+   }
+   function renderAcct(){
   const ava = $("acctAva"), em = $("acctEmail");
   if (ava) ava.textContent = user ? (user.email || "Z").toUpperCase()[0] : "?";
   if (em) em.textContent = user ? (user.email || "").split("@")[0].slice(0, 12) : "Sign in";
@@ -879,7 +878,8 @@ if (acctUpgrade){
     openRazorpayCheckout("monthly");
   });
 }
-   const profilePanel = $("profilePanel");
+
+const profilePanel = $("profilePanel");
 function openProfile(){ renderProfile(); if (profilePanel) profilePanel.classList.add("on"); }
 function closeProfile(){ if (profilePanel) profilePanel.classList.remove("on"); }
 { const cp = $("closeProfile"); if (cp) cp.addEventListener("click", closeProfile); }
@@ -975,7 +975,7 @@ function cloudSave(){
       if (!s) return;
       const msgs = JSON.parse(JSON.stringify(cur.msgs));
       msgs.forEach(m => { delete m.imgs; });
-      await s.from("chats").upsert({ id: cur.id, user_id: user.id, title: cur.title, pin: !!cur.pin, ts: cur.ts, msgs: msgs.slice(-40) }, { onConflict: "id" });
+      await s.from("chats").upsert({ id: cur.id, user_id: user.id, title: cur.title, pin: !!cur.pin, ts: cur.ts, subject: cur.subject || curSubject || "General", msgs: msgs.slice(-40) }, { onConflict: "id" });
     } catch(_) {}
   }, 1200);
 }
@@ -988,8 +988,8 @@ async function pullCloud(){
     let changed = false;
     for (const r of data){
       const ex = chats.find(c => c.id === r.id);
-      if (!ex){ chats.push({ id: r.id, title: r.title, pin: r.pin, ts: r.ts, msgs: r.msgs }); changed = true; }
-      else if ((r.ts || 0) > (ex.ts || 0)){ ex.title = r.title; ex.pin = r.pin; ex.ts = r.ts; ex.msgs = r.msgs; changed = true; }
+      if (!ex){ chats.push({ id: r.id, title: r.title, pin: r.pin, ts: r.ts, msgs: r.msgs, subject: r.subject || "General" }); changed = true; }
+      else if ((r.ts || 0) > (ex.ts || 0)){ ex.title = r.title; ex.pin = r.pin; ex.ts = r.ts; ex.msgs = r.msgs; ex.subject = r.subject || "General"; changed = true; }
     }
     if (changed){ save(); renderList(); toast("Chats synced"); }
   } catch(_) {}
@@ -1014,7 +1014,6 @@ async function afterSignIn(){
   await syncUsageFromCloud();
   renderAcct(); renderProfile();
 
-  // If there's a pending draft, save it now
   const d = getDraft();
   if (d && d.name){
     obData = d;
@@ -1024,7 +1023,6 @@ async function afterSignIn(){
     renderPersonalizedHero();
   }
 
-  // Check cloud first, then local flag
   const cloudDone = userProfile && userProfile.onboarded;
   let localDone = false;
   try { localDone = localStorage.getItem("zyro_onboarded") === "1"; } catch(_){}
@@ -1090,7 +1088,8 @@ function renderList(){
     const d = document.createElement("button");
     d.type = "button";
     d.className = "chat-item";
-    d.innerHTML = '<b>' + esc(c.title || "Untitled") + '</b><small>' + fmtDate(c.ts) + '</small>';
+    const subjEm = SUBJECT_ICONS[c.subject || "General"] || "";
+    d.innerHTML = '<b>' + (subjEm ? subjEm + " " : "") + esc(c.title || "Untitled") + '</b><small>' + fmtDate(c.ts) + '</small>';
     d.addEventListener("click", e => { e.stopPropagation(); openChat(c.id); closeMenu(); });
     l.appendChild(d);
   });
@@ -1125,6 +1124,8 @@ function newChat(){
   busy = false; streaming = false; setGo(false); clearBusyWatchdog();
   cur = null; hist = []; log.innerHTML = ""; log.classList.remove("on");
   const hero = $("hero"); if (hero) hero.classList.remove("hide");
+  curSubject = "General";
+  paintSubjectChip();
   closeMenu();
   try { t.focus(); } catch(_) {}
 }
@@ -1133,6 +1134,8 @@ function openChat(id){
   busy = false; streaming = false; setGo(false); clearBusyWatchdog();
   const c = chats.find(x => x.id === id); if (!c) return;
   cur = c; hist = c.msgs; log.innerHTML = "";
+  curSubject = c.subject || "General";
+  paintSubjectChip();
   const hero = $("hero"); if (hero) hero.classList.add("hide");
   log.classList.add("on");
   c.msgs.forEach((m) => {
@@ -1225,7 +1228,8 @@ function txt(p){
   fp(); fl();
   return h;
 }
-   const KW = new Set("abstract and as assert async await break case catch class const continue def default del do elif else enum except export extends final finally for from fn func function if implements import in interface is lambda let loop match mod mut namespace new not null None nil of or package pass private protected pub public raise return self static struct super switch this throw throws trait true True false False try type typeof union unsafe use using var void while with yield select insert update delete create table where join group order by limit values".split(" "));
+
+const KW = new Set("abstract and as assert async await break case catch class const continue def default del do elif else enum except export extends final finally for from fn func function if implements import in interface is lambda let loop match mod mut namespace new not null None nil of or package pass private protected pub public raise return self static struct super switch this throw throws trait true True false False try type typeof union unsafe use using var void while with yield select insert update delete create table where join group order by limit values".split(" "));
 const HASH = /^(py|python|bash|sh|shell|zsh|ruby|rb|yaml|yml|toml|r|perl|dockerfile|makefile|ini|conf|powershell|ps1)$/i;
 const CM = { h: /#[^\n]*/, q: /--[^\n]*|\/\*[\s\S]*?\*\//, s: /\/\/[^\n]*|\/\*[\s\S]*?\*\/|<!--[\s\S]*?-->/ };
 const REST = /("(?:\\.|[^"\\\n])*"|'(?:\\.|[^'\\\n])*'|`(?:\\.|[^`\\])*`)|(\b0x[0-9a-f]+\b|\b\d[\d_]*(?:\.\d+)?(?:e[+-]?\d+)?\b)|(\b[A-Za-z_]\w*\b)/;
@@ -1423,1207 +1427,1199 @@ function parseStudyKit(text){
     }
   }
   return kit;
-}
-
-function launcherHTML(kit){
-  let parts = "";
-  if (kit.notes) parts += '<span class="kpart">Notes</span>';
-  if (kit.cards.length) parts += '<span class="kpart">' + kit.cards.length + ' cards</span>';
-  if (kit.quiz.length) parts += '<span class="kpart">' + kit.quiz.length + ' quiz</span>';
-  let title = "Study Kit";
-  if (kit.notes && !kit.cards.length && !kit.quiz.length) title = "Notes Ready";
-  else if (kit.cards.length && !kit.notes && !kit.quiz.length) title = "Flashcards Ready";
-  else if (kit.quiz.length && !kit.notes && !kit.cards.length) title = "Quiz Ready";
-  return '<div class="kit-launcher">' +
-    '<div class="kit-launcher-top">' +
-      '<span class="kit-launcher-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg></span>' +
-      '<div class="kit-launcher-tx"><b>' + title + '</b><span>Open to study</span></div>' +
-    '</div>' +
-    '<div class="kit-launcher-parts">' + parts + '</div>' +
-    '<button class="open-kit" type="button">' +
-      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>' +
-      'Open study kit' +
-    '</button>' +
-  '</div>';
-}
-function wireLauncher(el, kit){
-  const btn = el.querySelector(".open-kit");
-  if (btn) btn.addEventListener("click", () => openStudyPanel(kit));
-}
-function emptyPanelHTML(emoji, title, sub){
-  return '<div class="ep-ic">' + emoji + '</div>' +
-    '<h3>' + esc(title) + '</h3>' +
-    '<p>' + esc(sub) + '</p>';
-}
-   /* ---------- FLIP CARDS ---------- */
-function renderFlipCards(container, cards){
-  container.innerHTML = "";
-  const stage = document.createElement("div");
-  stage.className = "flip-stage";
-  stage.innerHTML =
-    '<div class="flip-header">' +
-      '<div class="flip-header-left">' +
-        '<span class="flip-eyebrow">Flashcards</span>' +
-        '<div class="flip-title">Tap to <em>reveal</em></div>' +
+     }
+     function launcherHTML(kit){
+    let parts = "";
+    if (kit.notes) parts += '<span class="kpart">Notes</span>';
+    if (kit.cards.length) parts += '<span class="kpart">' + kit.cards.length + ' cards</span>';
+    if (kit.quiz.length) parts += '<span class="kpart">' + kit.quiz.length + ' quiz</span>';
+    let title = "Study Kit";
+    if (kit.notes && !kit.cards.length && !kit.quiz.length) title = "Notes Ready";
+    else if (kit.cards.length && !kit.notes && !kit.quiz.length) title = "Flashcards Ready";
+    else if (kit.quiz.length && !kit.notes && !kit.cards.length) title = "Quiz Ready";
+    return '<div class="kit-launcher">' +
+      '<div class="kit-launcher-top">' +
+        '<span class="kit-launcher-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg></span>' +
+        '<div class="kit-launcher-tx"><b>' + title + '</b><span>Open to study</span></div>' +
       '</div>' +
-      '<div class="flip-counter"><b class="fnow">1</b> / ' + cards.length + '</div>' +
-    '</div>' +
-    '<div class="flip-stack"></div>' +
-    '<div class="flip-actions">' +
-      '<button class="flip-btn review" type="button">' +
-        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/></svg>' +
-        'Review again' +
-      '</button>' +
-      '<button class="flip-btn got" type="button">' +
-        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>' +
-        'Got it' +
-      '</button>' +
-    '</div>' +
-    '<div class="flip-dots"></div>' +
-    '<div class="flip-complete">' +
-      '<div class="em">🎉</div>' +
-      '<div class="ttl">Nice work, <em>done</em></div>' +
-      '<div class="sub">All cards reviewed</div>' +
-      '<div class="flip-stats">' +
-        '<div class="flip-stat"><span class="v fgot">0</span><span class="l">Got it</span></div>' +
-        '<div class="flip-stat"><span class="v frev">0</span><span class="l">Review</span></div>' +
-        '<div class="flip-stat"><span class="v fpct">0%</span><span class="l">Score</span></div>' +
-      '</div>' +
-      '<button class="flip-retry" type="button">' +
-        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>' +
-        'Try again' +
+      '<div class="kit-launcher-parts">' + parts + '</div>' +
+      '<button class="open-kit" type="button">' +
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>' +
+        'Open study kit' +
       '</button>' +
     '</div>';
-  container.appendChild(stage);
-
-  const stackEl = stage.querySelector(".flip-stack");
-  const dotsEl = stage.querySelector(".flip-dots");
-  const actionsEl = stage.querySelector(".flip-actions");
-  const completeEl = stage.querySelector(".flip-complete");
-  const headerEl = stage.querySelector(".flip-header");
-  const counterNowEl = stage.querySelector(".fnow");
-  let idx = 0, gotIt = 0, review = 0;
-  let results = [];
-
-  function buildDots(){
-    dotsEl.innerHTML = "";
-    cards.forEach((_, i) => {
-      const d = document.createElement("div");
-      d.className = "fdot";
-      if (results[i] === "got") d.classList.add("correct");
-      else if (results[i] === "review") d.classList.add("seen");
-      if (i === idx) d.classList.add("active");
-      dotsEl.appendChild(d);
-    });
   }
-  function buildCard(c, i){
-    const el = document.createElement("div");
-    el.className = "flip-item";
-    const esc2 = s => String(s||"").replace(/[&<>]/g, ch => ({"&":"&amp;","<":"&lt;",">":"&gt;"}[ch]));
-    const frontText = esc2(c.a);
-    const backText = (typeof c.b === "string" && /[<>&]/.test(c.b) ? c.b : esc2(c.b));
-    el.innerHTML =
-      '<div class="flip-inner-c">' +
-        '<div class="flip-face-c flip-front-c">' +
-          '<div class="flip-top">' +
-            '<span class="flip-num">CARD ' + String(i+1).padStart(2,"0") + '</span>' +
-            '<span class="flip-tag">Question</span>' +
-          '</div>' +
-          '<div class="flip-body-c"><p>' + frontText + '</p></div>' +
-          '<div class="flip-hint">' +
-            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v4M12 16h.01"/></svg>' +
-            'Tap to reveal answer' +
-          '</div>' +
+  function wireLauncher(el, kit){
+    const btn = el.querySelector(".open-kit");
+    if (btn) btn.addEventListener("click", () => openStudyPanel(kit));
+  }
+  function emptyPanelHTML(emoji, title, sub){
+    return '<div class="ep-ic">' + emoji + '</div>' +
+      '<h3>' + esc(title) + '</h3>' +
+      '<p>' + esc(sub) + '</p>';
+  }
+
+  /* ---------- FLIP CARDS ---------- */
+  function renderFlipCards(container, cards){
+    container.innerHTML = "";
+    const stage = document.createElement("div");
+    stage.className = "flip-stage";
+    stage.innerHTML =
+      '<div class="flip-header">' +
+        '<div class="flip-header-left">' +
+          '<span class="flip-eyebrow">Flashcards</span>' +
+          '<div class="flip-title">Tap to <em>reveal</em></div>' +
         '</div>' +
-        '<div class="flip-face-c flip-back-c">' +
-          '<div class="flip-top">' +
-            '<span class="flip-num">CARD ' + String(i+1).padStart(2,"0") + '</span>' +
-            '<span class="flip-tag">Answer</span>' +
-          '</div>' +
-          '<div class="flip-body-c"><p>' + backText + '</p></div>' +
-          '<div class="flip-hint">' +
-            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>' +
-            'Got it? Tap below' +
-          '</div>' +
+        '<div class="flip-counter"><b class="fnow">1</b> / ' + cards.length + '</div>' +
+      '</div>' +
+      '<div class="flip-stack"></div>' +
+      '<div class="flip-actions">' +
+        '<button class="flip-btn review" type="button">' +
+          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/></svg>' +
+          'Review again' +
+        '</button>' +
+        '<button class="flip-btn got" type="button">' +
+          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>' +
+          'Got it' +
+        '</button>' +
+      '</div>' +
+      '<div class="flip-dots"></div>' +
+      '<div class="flip-complete">' +
+        '<div class="em">🎉</div>' +
+        '<div class="ttl">Nice work, <em>done</em></div>' +
+        '<div class="sub">All cards reviewed</div>' +
+        '<div class="flip-stats">' +
+          '<div class="flip-stat"><span class="v fgot">0</span><span class="l">Got it</span></div>' +
+          '<div class="flip-stat"><span class="v frev">0</span><span class="l">Review</span></div>' +
+          '<div class="flip-stat"><span class="v fpct">0%</span><span class="l">Score</span></div>' +
         '</div>' +
+        '<button class="flip-retry" type="button">' +
+          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>' +
+          'Try again' +
+        '</button>' +
       '</div>';
-    el.addEventListener("click", () => {
-      el.classList.toggle("flipped");
-      if (navigator.vibrate) try { navigator.vibrate(10); } catch(_){}
-    });
-    return el;
-  }
-  function showCard(){
-    stackEl.innerHTML = "";
-    if (idx >= cards.length){ showComplete(); return; }
-    completeEl.classList.remove("show");
-    headerEl.style.display = "";
-    actionsEl.style.display = "flex";
-    dotsEl.style.display = "flex";
-    counterNowEl.textContent = idx + 1;
-    const el = buildCard(cards[idx], idx);
-    el.style.opacity = "0";
-    el.style.transform = "translateY(14px) scale(.96)";
-    stackEl.appendChild(el);
-    requestAnimationFrame(() => {
-      el.style.transition = "opacity .4s cubic-bezier(.22,.68,.32,1), transform .5s cubic-bezier(.34,1.56,.64,1)";
-      el.style.opacity = "1";
-      el.style.transform = "translateY(0) scale(1)";
-    });
-    buildDots();
-  }
-  function advance(kind){
-    const el = stackEl.querySelector(".flip-item");
-    if (!el) return;
-    results[idx] = kind;
-    if (kind === "got") gotIt++; else review++;
-    el.classList.add(kind === "got" ? "exit-right" : "exit-left");
-    if (navigator.vibrate) try { navigator.vibrate(kind === "got" ? [12,30,12] : 20); } catch(_){}
-    setTimeout(() => { idx++; showCard(); }, 380);
-  }
-  function showComplete(){
-    stackEl.innerHTML = "";
-    headerEl.style.display = "none";
-    actionsEl.style.display = "none";
-    dotsEl.style.display = "none";
-    completeEl.classList.add("show");
-    stage.querySelector(".fgot").textContent = gotIt;
-    stage.querySelector(".frev").textContent = review;
-    const pct = Math.round((gotIt / cards.length) * 100);
-    stage.querySelector(".fpct").textContent = pct + "%";
-  }
-  stage.querySelector(".flip-btn.got").addEventListener("click", () => advance("got"));
-  stage.querySelector(".flip-btn.review").addEventListener("click", () => advance("review"));
-  stage.querySelector(".flip-retry").addEventListener("click", () => {
-    idx = 0; gotIt = 0; review = 0; results = [];
-    completeEl.classList.remove("show");
-    showCard();
-  });
-  showCard();
-}
+    container.appendChild(stage);
 
-/* ---------- STUDY PANEL ---------- */
-function openStudyPanel(kit){
-  lastKit = kit;
-  const panel = $("studyPanel");
-  if (!panel) return;
-  const titleEl = $("panelTitle");
-  if (titleEl){
-    const topic = (cur && cur.title) || "Study Kit";
-    titleEl.textContent = topic.slice(0, 40);
-  }
-  const notesEl = panel.querySelector('[data-pcontent="notes"]');
-  if (notesEl){
-    if (kit.notes){
-      notesEl.classList.remove("empty-panel");
-      notesEl.innerHTML =
-        '<p class="p-eyebrow">Revision notes</p>' +
-        '<h2 class="p-title">Quick <em>revision</em></h2>' +
-        '<p class="p-sub">Everything you actually need. No fluff.</p>' +
-        '<div class="notes">' + txt(kit.notes) + '</div>';
-    } else {
-      notesEl.classList.add("empty-panel");
-      notesEl.innerHTML = emptyPanelHTML("📝", "No notes in this kit", "Ask Zyro to 'make me a study kit' for notes + cards + quiz.");
+    const stackEl = stage.querySelector(".flip-stack");
+    const dotsEl = stage.querySelector(".flip-dots");
+    const actionsEl = stage.querySelector(".flip-actions");
+    const completeEl = stage.querySelector(".flip-complete");
+    const headerEl = stage.querySelector(".flip-header");
+    const counterNowEl = stage.querySelector(".fnow");
+    let idx = 0, gotIt = 0, review = 0;
+    let results = [];
+
+    function buildDots(){
+      dotsEl.innerHTML = "";
+      cards.forEach((_, i) => {
+        const d = document.createElement("div");
+        d.className = "fdot";
+        if (results[i] === "got") d.classList.add("correct");
+        else if (results[i] === "review") d.classList.add("seen");
+        if (i === idx) d.classList.add("active");
+        dotsEl.appendChild(d);
+      });
     }
-  }
-  const cardsEl = panel.querySelector('[data-pcontent="cards"]');
-  if (cardsEl){
-    if (kit.cards.length){
-      cardsEl.classList.remove("empty-panel");
-      renderFlipCards(cardsEl, kit.cards);
-    } else {
-      cardsEl.classList.add("empty-panel");
-      cardsEl.innerHTML = emptyPanelHTML("🃏", "No flashcards", "Ask Zyro for a study kit to generate flashcards from any topic.");
+    function buildCard(c, i){
+      const el = document.createElement("div");
+      el.className = "flip-item";
+      const esc2 = s => String(s||"").replace(/[&<>]/g, ch => ({"&":"&amp;","<":"&lt;",">":"&gt;"}[ch]));
+      const frontText = esc2(c.a);
+      const backText = (typeof c.b === "string" && /[<>&]/.test(c.b) ? c.b : esc2(c.b));
+      el.innerHTML =
+        '<div class="flip-inner-c">' +
+          '<div class="flip-face-c flip-front-c">' +
+            '<div class="flip-top">' +
+              '<span class="flip-num">CARD ' + String(i+1).padStart(2,"0") + '</span>' +
+              '<span class="flip-tag">Question</span>' +
+            '</div>' +
+            '<div class="flip-body-c"><p>' + frontText + '</p></div>' +
+            '<div class="flip-hint">' +
+              '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v4M12 16h.01"/></svg>' +
+              'Tap to reveal answer' +
+            '</div>' +
+          '</div>' +
+          '<div class="flip-face-c flip-back-c">' +
+            '<div class="flip-top">' +
+              '<span class="flip-num">CARD ' + String(i+1).padStart(2,"0") + '</span>' +
+              '<span class="flip-tag">Answer</span>' +
+            '</div>' +
+            '<div class="flip-body-c"><p>' + backText + '</p></div>' +
+            '<div class="flip-hint">' +
+              '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>' +
+              'Got it? Tap below' +
+            '</div>' +
+          '</div>' +
+        '</div>';
+      el.addEventListener("click", () => {
+        el.classList.toggle("flipped");
+        if (navigator.vibrate) try { navigator.vibrate(10); } catch(_){}
+      });
+      return el;
     }
+    function showCard(){
+      stackEl.innerHTML = "";
+      if (idx >= cards.length){ showComplete(); return; }
+      completeEl.classList.remove("show");
+      headerEl.style.display = "";
+      actionsEl.style.display = "flex";
+      dotsEl.style.display = "flex";
+      counterNowEl.textContent = idx + 1;
+      const el = buildCard(cards[idx], idx);
+      el.style.opacity = "0";
+      el.style.transform = "translateY(14px) scale(.96)";
+      stackEl.appendChild(el);
+      requestAnimationFrame(() => {
+        el.style.transition = "opacity .4s cubic-bezier(.22,.68,.32,1), transform .5s cubic-bezier(.34,1.56,.64,1)";
+        el.style.opacity = "1";
+        el.style.transform = "translateY(0) scale(1)";
+      });
+      buildDots();
+    }
+    function advance(kind){
+      const el = stackEl.querySelector(".flip-item");
+      if (!el) return;
+      results[idx] = kind;
+      if (kind === "got") gotIt++; else review++;
+      el.classList.add(kind === "got" ? "exit-right" : "exit-left");
+      if (navigator.vibrate) try { navigator.vibrate(kind === "got" ? [12,30,12] : 20); } catch(_){}
+      setTimeout(() => { idx++; showCard(); }, 380);
+    }
+    function showComplete(){
+      stackEl.innerHTML = "";
+      headerEl.style.display = "none";
+      actionsEl.style.display = "none";
+      dotsEl.style.display = "none";
+      completeEl.classList.add("show");
+      stage.querySelector(".fgot").textContent = gotIt;
+      stage.querySelector(".frev").textContent = review;
+      const pct = Math.round((gotIt / cards.length) * 100);
+      stage.querySelector(".fpct").textContent = pct + "%";
+    }
+    stage.querySelector(".flip-btn.got").addEventListener("click", () => advance("got"));
+    stage.querySelector(".flip-btn.review").addEventListener("click", () => advance("review"));
+    stage.querySelector(".flip-retry").addEventListener("click", () => {
+      idx = 0; gotIt = 0; review = 0; results = [];
+      completeEl.classList.remove("show");
+      showCard();
+    });
+    showCard();
   }
-  const quizEl = panel.querySelector('[data-pcontent="quiz"]');
-  if (quizEl){
-    if (kit.quiz.length){
-      quizEl.classList.remove("empty-panel");
-      let html = '<p class="p-eyebrow">Pop quiz</p><h2 class="p-title">Let\'s <em>test</em> it</h2><p class="p-sub">' + kit.quiz.length + ' questions. Tap an option to check — score at the bottom.</p><div class="quiz">';
-      kit.quiz.forEach((q, i) => {
-        const num = "Q" + (i+1);
-        html += '<div class="quiz-item">' +
-          '<div class="quiz-q"><span class="quiz-n">' + num + '</span><span class="quiz-q-text">' + esc(q.q) + '</span></div>' +
-          '<div class="opts">';
-        ["A","B","C","D"].forEach((Ltr, j) => {
-          const isCorrect = Ltr === q.ans;
-          html += '<button class="opt" type="button" data-correct="' + (isCorrect ? '1' : '0') + '"><span class="lt">' + Ltr + '</span>' + esc(q.opts[j]) + '</button>';
+
+  /* ---------- STUDY PANEL ---------- */
+  function openStudyPanel(kit){
+    lastKit = kit;
+    const panel = $("studyPanel");
+    if (!panel) return;
+    const titleEl = $("panelTitle");
+    if (titleEl){
+      const topic = (cur && cur.title) || "Study Kit";
+      titleEl.textContent = topic.slice(0, 40);
+    }
+    const notesEl = panel.querySelector('[data-pcontent="notes"]');
+    if (notesEl){
+      if (kit.notes){
+        notesEl.classList.remove("empty-panel");
+        notesEl.innerHTML =
+          '<p class="p-eyebrow">Revision notes</p>' +
+          '<h2 class="p-title">Quick <em>revision</em></h2>' +
+          '<p class="p-sub">Everything you actually need. No fluff.</p>' +
+          '<div class="notes">' + txt(kit.notes) + '</div>';
+      } else {
+        notesEl.classList.add("empty-panel");
+        notesEl.innerHTML = emptyPanelHTML("📝", "No notes in this kit", "Ask Zyro to 'make me a study kit' for notes + cards + quiz.");
+      }
+    }
+    const cardsEl = panel.querySelector('[data-pcontent="cards"]');
+    if (cardsEl){
+      if (kit.cards.length){
+        cardsEl.classList.remove("empty-panel");
+        renderFlipCards(cardsEl, kit.cards);
+      } else {
+        cardsEl.classList.add("empty-panel");
+        cardsEl.innerHTML = emptyPanelHTML("🃏", "No flashcards", "Ask Zyro for a study kit to generate flashcards from any topic.");
+      }
+    }
+    const quizEl = panel.querySelector('[data-pcontent="quiz"]');
+    if (quizEl){
+      if (kit.quiz.length){
+        quizEl.classList.remove("empty-panel");
+        let html = '<p class="p-eyebrow">Pop quiz</p><h2 class="p-title">Let\'s <em>test</em> it</h2><p class="p-sub">' + kit.quiz.length + ' questions. Tap an option to check — score at the bottom.</p><div class="quiz">';
+        kit.quiz.forEach((q, i) => {
+          const num = "Q" + (i+1);
+          html += '<div class="quiz-item">' +
+            '<div class="quiz-q"><span class="quiz-n">' + num + '</span><span class="quiz-q-text">' + esc(q.q) + '</span></div>' +
+            '<div class="opts">';
+          ["A","B","C","D"].forEach((Ltr, j) => {
+            const isCorrect = Ltr === q.ans;
+            html += '<button class="opt" type="button" data-correct="' + (isCorrect ? '1' : '0') + '"><span class="lt">' + Ltr + '</span>' + esc(q.opts[j]) + '</button>';
+          });
+          html += '</div>';
+          if (q.ex) html += '<div class="quiz-exp">' + esc(q.ex) + '</div>';
+          html += '</div>';
         });
         html += '</div>';
-        if (q.ex) html += '<div class="quiz-exp">' + esc(q.ex) + '</div>';
-        html += '</div>';
-      });
-      html += '</div>';
-      html += '<div class="quiz-score" id="quizScore"><span>Answered <b>0</b> / ' + kit.quiz.length + '</span><span>Score <b>0</b></span></div>';
-      quizEl.innerHTML = html;
-      const scoreEl = quizEl.querySelector("#quizScore");
-      const qstate = { answered: 0, correct: 0, total: kit.quiz.length };
-      function updateScore(){
-        scoreEl.innerHTML = '<span>Answered <b>' + qstate.answered + '</b> / ' + qstate.total + '</span><span>Score <b>' + qstate.correct + '</b></span>';
-        if (qstate.answered === qstate.total){
-          const pct = Math.round((qstate.correct / qstate.total) * 100);
-          let msg = "";
-          if (pct >= 85) msg = "🔥 Killing it";
-          else if (pct >= 65) msg = "👍 Solid work";
-          else if (pct >= 45) msg = "Getting there";
-          else msg = "Needs revision";
-          scoreEl.classList.add("done");
-          scoreEl.innerHTML = '<span>Score</span><span><b>' + qstate.correct + '</b> / ' + qstate.total + ' &middot; ' + pct + '%</span><div class="quiz-score-msg">' + msg + '</div>';
+        html += '<div class="quiz-score" id="quizScore"><span>Answered <b>0</b> / ' + kit.quiz.length + '</span><span>Score <b>0</b></span></div>';
+        quizEl.innerHTML = html;
+        const scoreEl = quizEl.querySelector("#quizScore");
+        const qstate = { answered: 0, correct: 0, total: kit.quiz.length };
+        function updateScore(){
+          scoreEl.innerHTML = '<span>Answered <b>' + qstate.answered + '</b> / ' + qstate.total + '</span><span>Score <b>' + qstate.correct + '</b></span>';
+          if (qstate.answered === qstate.total){
+            const pct = Math.round((qstate.correct / qstate.total) * 100);
+            let msg = "";
+            if (pct >= 85) msg = "🔥 Killing it";
+            else if (pct >= 65) msg = "👍 Solid work";
+            else if (pct >= 45) msg = "Getting there";
+            else msg = "Needs revision";
+            scoreEl.classList.add("done");
+            scoreEl.innerHTML = '<span>Score</span><span><b>' + qstate.correct + '</b> / ' + qstate.total + ' &middot; ' + pct + '%</span><div class="quiz-score-msg">' + msg + '</div>';
+          }
         }
-      }
-      quizEl.querySelectorAll(".quiz-item").forEach(item => {
-        const opts = item.querySelectorAll(".opt");
-        opts.forEach(o => {
-          o.addEventListener("click", () => {
-            if (item.classList.contains("revealed")) return;
-            item.classList.add("revealed");
-            const isRight = o.dataset.correct === "1";
-            opts.forEach(x => {
-              if (x.dataset.correct === "1") x.classList.add("correct");
-              else if (x === o) x.classList.add("wrong");
+        quizEl.querySelectorAll(".quiz-item").forEach(item => {
+          const opts = item.querySelectorAll(".opt");
+          opts.forEach(o => {
+            o.addEventListener("click", () => {
+              if (item.classList.contains("revealed")) return;
+              item.classList.add("revealed");
+              const isRight = o.dataset.correct === "1";
+              opts.forEach(x => {
+                if (x.dataset.correct === "1") x.classList.add("correct");
+                else if (x === o) x.classList.add("wrong");
+              });
+              qstate.answered++;
+              if (isRight) qstate.correct++;
+              updateScore();
             });
-            qstate.answered++;
-            if (isRight) qstate.correct++;
-            updateScore();
           });
         });
+      } else {
+        quizEl.classList.add("empty-panel");
+        quizEl.innerHTML = emptyPanelHTML("🎯", "No quiz", "Ask Zyro for a study kit and it'll generate MCQs with answers.");
+      }
+    }
+    let targetTab = "notes";
+    if (!kit.notes && kit.cards.length) targetTab = "cards";
+    if (!kit.notes && !kit.cards.length && kit.quiz.length) targetTab = "quiz";
+    panel.querySelectorAll(".ptab").forEach(x => x.classList.toggle("active", x.dataset.ptab === targetTab));
+    panel.querySelectorAll(".pcontent").forEach(x => x.classList.toggle("on", x.dataset.pcontent === targetTab));
+    panel.classList.add("on");
+    const body = panel.querySelector(".panel-body"); if (body) body.scrollTop = 0;
+    try { typeset(panel); } catch(_) {}
+  }
+
+  function closePanel(){
+    const p = $("studyPanel"); if (p) p.classList.remove("on");
+  }
+  const studyPanel = $("studyPanel");
+  if (studyPanel){
+    studyPanel.querySelectorAll(".ptab").forEach(tab => {
+      tab.addEventListener("click", () => {
+        const target = tab.dataset.ptab;
+        studyPanel.querySelectorAll(".ptab").forEach(x => x.classList.toggle("active", x === tab));
+        studyPanel.querySelectorAll(".pcontent").forEach(p => p.classList.toggle("on", p.dataset.pcontent === target));
+        const body = studyPanel.querySelector(".panel-body"); if (body) body.scrollTop = 0;
       });
-    } else {
-      quizEl.classList.add("empty-panel");
-      quizEl.innerHTML = emptyPanelHTML("🎯", "No quiz", "Ask Zyro for a study kit and it'll generate MCQs with answers.");
-    }
-  }
-  let targetTab = "notes";
-  if (!kit.notes && kit.cards.length) targetTab = "cards";
-  if (!kit.notes && !kit.cards.length && kit.quiz.length) targetTab = "quiz";
-  panel.querySelectorAll(".ptab").forEach(x => x.classList.toggle("active", x.dataset.ptab === targetTab));
-  panel.querySelectorAll(".pcontent").forEach(x => x.classList.toggle("on", x.dataset.pcontent === targetTab));
-  panel.classList.add("on");
-  const body = panel.querySelector(".panel-body"); if (body) body.scrollTop = 0;
-  try { typeset(panel); } catch(_) {}
-}
-
-function closePanel(){
-  const p = $("studyPanel"); if (p) p.classList.remove("on");
-}
-const studyPanel = $("studyPanel");
-if (studyPanel){
-  studyPanel.querySelectorAll(".ptab").forEach(tab => {
-    tab.addEventListener("click", () => {
-      const target = tab.dataset.ptab;
-      studyPanel.querySelectorAll(".ptab").forEach(x => x.classList.toggle("active", x === tab));
-      studyPanel.querySelectorAll(".pcontent").forEach(p => p.classList.toggle("on", p.dataset.pcontent === target));
-      const body = studyPanel.querySelector(".panel-body"); if (body) body.scrollTop = 0;
     });
-  });
-}
-{ const cp = $("closePanel"); if (cp) cp.addEventListener("click", closePanel); }
+  }
+  { const cp = $("closePanel"); if (cp) cp.addEventListener("click", closePanel); }
 
-/* ---------- WORKER STREAM ---------- */
-async function workerStream(messages, onText, signal, fast, onThought, isGen){
-  let r;
-  try {
-    r = await fetch(WORKER_URL, {
-      method: "POST", signal,
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ messages, mode: "Auto", fast, isGen: !!isGen })
-    });
-  } catch(e){
-    if (e && e.name === "AbortError") return "";
-    throw { code: "net", info: "can't reach the server" };
-  }
-  if (!r.ok){
-    let m = "";
-    try { const j = await r.json(); m = (j.error && j.error.message) || ""; } catch(_) {}
-    throw { code: r.status === 429 ? "rate" : r.status === 403 ? "origin" : r.status === 413 ? "big" : "http", info: r.status + (m ? " " + m.slice(0, 100) : "") };
-  }
-  if (!r.body) throw { code: "http", info: "empty response" };
-  let full = "", th = "", used = 0, aborted = false, gotFirst = false;
-  const rd = r.body.getReader(), dec = new TextDecoder();
-  let buf = "";
-  let firstTokenTimer = setTimeout(() => { try { rd.cancel(); } catch(_) {} }, FIRST_TOKEN_MS);
-  let lastChunkAt = Date.now();
-  const stallTimer = setInterval(() => {
-    if (!gotFirst) return;
-    if (Date.now() - lastChunkAt > 25000 && !aborted){
-      try { rd.cancel(); } catch(_) {}
-      clearInterval(stallTimer);
+  /* ---------- WORKER STREAM ---------- */
+  async function workerStream(messages, onText, signal, fast, onThought, isGen){
+    let r;
+    try {
+      r = await fetch(WORKER_URL, {
+        method: "POST", signal,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ messages, mode: "Auto", fast, isGen: !!isGen })
+      });
+    } catch(e){
+      if (e && e.name === "AbortError") return "";
+      throw { code: "net", info: "can't reach the server" };
     }
-  }, 5000);
-  try {
-    for (;;){
-      const { done, value } = await rd.read();
-      if (done) break;
-      lastChunkAt = Date.now();
-      buf += dec.decode(value, { stream: true });
-      const lines = buf.split("\n");
-      buf = lines.pop();
-      for (const ln of lines){
-        if (!ln.startsWith("data:")) continue;
-        const dd = ln.slice(5).trim();
-        if (!dd || dd === "[DONE]") continue;
-        try {
-          const j = JSON.parse(dd);
-          const cd = j.candidates && j.candidates[0];
-          if (cd && cd.content && cd.content.parts){
-            for (const p of cd.content.parts){
-              if (!p.text) continue;
-              if (p.thought){ th += p.text; if (onThought) onThought(th); }
-              else {
-                if (!gotFirst){ gotFirst = true; clearTimeout(firstTokenTimer); }
-                full += p.text; onText(full);
+    if (!r.ok){
+      let m = "";
+      try { const j = await r.json(); m = (j.error && j.error.message) || ""; } catch(_) {}
+      throw { code: r.status === 429 ? "rate" : r.status === 403 ? "origin" : r.status === 413 ? "big" : "http", info: r.status + (m ? " " + m.slice(0, 100) : "") };
+    }
+    if (!r.body) throw { code: "http", info: "empty response" };
+    let full = "", th = "", used = 0, aborted = false, gotFirst = false;
+    const rd = r.body.getReader(), dec = new TextDecoder();
+    let buf = "";
+    let firstTokenTimer = setTimeout(() => { try { rd.cancel(); } catch(_) {} }, FIRST_TOKEN_MS);
+    let lastChunkAt = Date.now();
+    const stallTimer = setInterval(() => {
+      if (!gotFirst) return;
+      if (Date.now() - lastChunkAt > 25000 && !aborted){
+        try { rd.cancel(); } catch(_) {}
+        clearInterval(stallTimer);
+      }
+    }, 5000);
+    try {
+      for (;;){
+        const { done, value } = await rd.read();
+        if (done) break;
+        lastChunkAt = Date.now();
+        buf += dec.decode(value, { stream: true });
+        const lines = buf.split("\n");
+        buf = lines.pop();
+        for (const ln of lines){
+          if (!ln.startsWith("data:")) continue;
+          const dd = ln.slice(5).trim();
+          if (!dd || dd === "[DONE]") continue;
+          try {
+            const j = JSON.parse(dd);
+            const cd = j.candidates && j.candidates[0];
+            if (cd && cd.content && cd.content.parts){
+              for (const p of cd.content.parts){
+                if (!p.text) continue;
+                if (p.thought){ th += p.text; if (onThought) onThought(th); }
+                else {
+                  if (!gotFirst){ gotFirst = true; clearTimeout(firstTokenTimer); }
+                  full += p.text; onText(full);
+                }
               }
             }
-          }
-          if (j.usageMetadata){ used = j.usageMetadata.totalTokenCount || used; }
-        } catch(_) {}
+            if (j.usageMetadata){ used = j.usageMetadata.totalTokenCount || used; }
+          } catch(_) {}
+        }
       }
+    } catch(e){
+      if (e && e.name === "AbortError") aborted = true;
+      else if (gotFirst) {}
+      else throw e;
+    } finally {
+      clearTimeout(firstTokenTimer);
+      clearInterval(stallTimer);
     }
-  } catch(e){
-    if (e && e.name === "AbortError") aborted = true;
-    else if (gotFirst) {}
-    else throw e;
-  } finally {
-    clearTimeout(firstTokenTimer);
-    clearInterval(stallTimer);
+    if (used > 0) addTokens(used);
+    else if (full) addTokens(Math.ceil(full.length / 4));
+    if (!full && !aborted){
+      if (th) throw { code: "thoughtonly", info: "model returned reasoning but no answer" };
+      throw { code: "empty" };
+    }
+    return full;
   }
-  if (used > 0) addTokens(used);
-  else if (full) addTokens(Math.ceil(full.length / 4));
-  if (!full && !aborted){
-    if (th) throw { code: "thoughtonly", info: "model returned reasoning but no answer" };
-    throw { code: "empty" };
-  }
-  return full;
-}
 
-const api = (h) => {
-  if (!h.length) return [];
-  const N = 12, MAX = 60000;
-  const keepIdx = new Set();
-  const firstUser = h.findIndex(m => m.role === "user");
-  if (firstUser >= 0) keepIdx.add(firstUser);
-  for (let i = Math.max(0, h.length - N); i < h.length; i++) keepIdx.add(i);
-  h.forEach((m, i) => { if (m.imgs && m.imgs.length) keepIdx.add(i); });
-  let idxs = Array.from(keepIdx).sort((a, b) => a - b);
-  let total = 0;
-  idxs.forEach(i => total += (h[i].content || "").length);
-  if (total > MAX){
-    const kept = []; let sz = 0;
+  const api = (h) => {
+    if (!h.length) return [];
+    const N = 12, MAX = 60000;
+    const keepIdx = new Set();
+    const firstUser = h.findIndex(m => m.role === "user");
+    if (firstUser >= 0) keepIdx.add(firstUser);
+    for (let i = Math.max(0, h.length - N); i < h.length; i++) keepIdx.add(i);
+    h.forEach((m, i) => { if (m.imgs && m.imgs.length) keepIdx.add(i); });
+    let idxs = Array.from(keepIdx).sort((a, b) => a - b);
+    let total = 0;
+    idxs.forEach(i => total += (h[i].content || "").length);
+    if (total > MAX){
+      const kept = []; let sz = 0;
+      for (let k = idxs.length - 1; k >= 0; k--){
+        const i = idxs[k];
+        const len = (h[i].content || "").length;
+        if (sz + len > MAX) continue;
+        kept.push(i); sz += len;
+      }
+      idxs = kept.sort((a, b) => a - b);
+    }
+    while (idxs.length && h[idxs[0]].role !== "user") idxs.shift();
+    let imgBudget = 10;
+    const out = [];
     for (let k = idxs.length - 1; k >= 0; k--){
-      const i = idxs[k];
-      const len = (h[i].content || "").length;
-      if (sz + len > MAX) continue;
-      kept.push(i); sz += len;
+      const m = h[idxs[k]];
+      const c2 = { role: m.role, content: m.content };
+      if (m.imgs && m.imgs.length && imgBudget > 0){ c2.images = m.imgs; imgBudget -= m.imgs.length; }
+      out.unshift(c2);
     }
-    idxs = kept.sort((a, b) => a - b);
-  }
-  while (idxs.length && h[idxs[0]].role !== "user") idxs.shift();
-  let imgBudget = 10;
-  const out = [];
-  for (let k = idxs.length - 1; k >= 0; k--){
-    const m = h[idxs[k]];
-    const c2 = { role: m.role, content: m.content };
-    if (m.imgs && m.imgs.length && imgBudget > 0){ c2.images = m.imgs; imgBudget -= m.imgs.length; }
-    out.unshift(c2);
-  }
-  return out;
-};
-   function buildNotesHint(files){
-  if (!files.length) return "";
-  const totalChars = files.reduce((s, f) => s + (f.text ? f.text.length : 0), 0);
-  const biggestSize = files.reduce((s, f) => Math.max(s, f.origSize || 0), 0);
-  const coverage = biggestSize > 2 * 1024 * 1024 ? 0.5 : 0.75;
-  const targetWords = Math.min(2500, Math.max(400, Math.floor(totalChars / 15 * coverage)));
-  return "The source is about " + totalChars + " characters of text. " +
-    "Write THOROUGH notes that cover at least " + Math.round(coverage * 100) + "% of the source content. " +
-    "Target length: at least " + targetWords + " words. " +
-    "Do NOT summarize in a few lines. Include definitions, examples, formulas, lists, and everything important in order. " +
-    "Use headings and sub-headings inside the Notes section when helpful.";
-}
+    return out;
+  };
 
-let stickyIntent = null;
-let stickyIntentAt = 0;
-const STICKY_MS = 5 * 60 * 1000;
-function setStickyIntent(intent){
-  if (intent){ stickyIntent = intent; stickyIntentAt = Date.now(); }
-}
-function getStickyIntent(){
-  if (!stickyIntent) return null;
-  if (Date.now() - stickyIntentAt > STICKY_MS){ stickyIntent = null; return null; }
-  return stickyIntent;
-}
-function clearStickyIntent(){ stickyIntent = null; stickyIntentAt = 0; }
-
-function send(text){
-  const items = pending.slice();
-  if (busy || (!text.trim() && !items.length)) return;
-  const files = items.filter(f => !f.img);
-  const imgs = items.filter(f => f.img).map(f => f.img);
-
-  const isFileKit = (pendingKind === "studykit" || pendingKind === "notes") && files.length;
-  const isSnap = pendingKind === "snap" && imgs.length;
-
-  let intent = detectGenIntent(text);
-  if (!intent && !isFileKit && !isSnap && text.trim().length < 200){
-    const stuck = getStickyIntent();
-    if (stuck){ intent = stuck; clearStickyIntent(); }
-  }
-  if (intent && text.trim().length < 60){
-    const topicGuess = text.replace(/.*\b(flashcards?e?|study\s*kit|quiz|notes?)\b.*/i, "").trim();
-    if (topicGuess.length < 8) setStickyIntent(intent);
+  function buildNotesHint(files){
+    if (!files.length) return "";
+    const totalChars = files.reduce((s, f) => s + (f.text ? f.text.length : 0), 0);
+    const biggestSize = files.reduce((s, f) => Math.max(s, f.origSize || 0), 0);
+    const coverage = biggestSize > 2 * 1024 * 1024 ? 0.5 : 0.75;
+    const targetWords = Math.min(2500, Math.max(400, Math.floor(totalChars / 15 * coverage)));
+    return "The source is about " + totalChars + " characters of text. " +
+      "Write THOROUGH notes that cover at least " + Math.round(coverage * 100) + "% of the source content. " +
+      "Target length: at least " + targetWords + " words. " +
+      "Do NOT summarize in a few lines. Include definitions, examples, formulas, lists, and everything important in order. " +
+      "Use headings and sub-headings inside the Notes section when helpful.";
   }
 
-  const proIntent = (intent === "mock" || intent === "viva");
-
-  if (proIntent && !pro){
-    pending = []; pendingKind = null; renderAtts();
-    if (intent === "viva"){ toast("Viva is coming soon"); return; }
-    openProPaywall("feature");
-    return;
+  function setStickyIntent(intent){
+    if (intent){ stickyIntent = intent; stickyIntentAt = Date.now(); }
   }
+  function getStickyIntent(){
+    if (!stickyIntent) return null;
+    if (Date.now() - stickyIntentAt > STICKY_MS){ stickyIntent = null; return null; }
+    return stickyIntent;
+  }
+  function clearStickyIntent(){ stickyIntent = null; stickyIntentAt = 0; }
 
-  if ((intent === "studykit" || intent === "flashcard" || intent === "quiz" || isFileKit) && !pro){
-    const kind = isFileKit ? "studykit" : intent;
-    if (!genAllowed(kind)){
+  function send(text){
+    const items = pending.slice();
+    if (busy || (!text.trim() && !items.length)) return;
+    const files = items.filter(f => !f.img);
+    const imgs = items.filter(f => f.img).map(f => f.img);
+
+    const isFileKit = (pendingKind === "studykit" || pendingKind === "notes") && files.length;
+    const isSnap = pendingKind === "snap" && imgs.length;
+
+    if (curSubject === "General" && text.trim().length > 3){
+      const guessed = detectSubjectFromText(text);
+      if (guessed){ curSubject = guessed; paintSubjectChip(); }
+    }
+
+    let intent = detectGenIntent(text);
+    if (!intent && !isFileKit && !isSnap && text.trim().length < 200){
+      const stuck = getStickyIntent();
+      if (stuck){ intent = stuck; clearStickyIntent(); }
+    }
+    if (intent && text.trim().length < 60){
+      const topicGuess = text.replace(/.*\b(flashcards?e?|study\s*kit|quiz|notes?)\b.*/i, "").trim();
+      if (topicGuess.length < 8) setStickyIntent(intent);
+    }
+
+    const proIntent = (intent === "mock" || intent === "viva");
+
+    if (proIntent && !pro){
       pending = []; pendingKind = null; renderAtts();
-      openProPaywall("limit", kind);
+      if (intent === "viva"){ toast("Viva is coming soon"); return; }
+      openProPaywall("feature");
       return;
     }
-  }
 
-  if (isFileKit){
-    const base = "I uploaded file(s). Generate a COMPLETE study kit based STRICTLY on this content. " +
-      "Output ONLY these three sections in this exact order. No preamble, no closing, no extra commentary:\n\n" +
-      "## 📖 Notes\n" + buildNotesHint(files) + "\n\n" +
-      "## 🎴 Flashcards\nWrite 12-16 cards. Each EXACTLY:\nF: [front]\nB: [back]\n\n" +
-      "## 📝 Quiz\nWrite 8 MCQs. Each EXACTLY:\nQ: [question]\nA) [option]\nB) [option]\nC) [option]\nD) [option]\nAns: [A/B/C/D]\nEx: [one-line explanation]";
-    const full = base + files.map(f => "\n\n--- " + f.name + " ---\n" + f.text).join("");
-    pending = []; pendingKind = null; renderAtts();
-    if (!pro) bumpGen("studykit");
-    bumpStreak(); renderStreak(); bumpGoal();
-    return run("Study kit from " + files[0].name, full, files.map(f => f.name), imgs, "studykit");
-  }
-
-  if (isSnap){
-    const prompt = "Read this exam question from the photo. Give a proper exam answer in under 400 words. " +
-      "Format EXACTLY: **Marks:** [best guess], **Answer:** (numbered points), **Key terms:** (4-6 terms). " +
-      "No preamble, no closing.";
-    pending = []; pendingKind = null; renderAtts();
-    return run("📸 Snap a question", prompt, [], imgs, null);
-  }
-
-  applyLimits();
-  const show = text.trim() || (imgs.length && !files.length ? "Describe this image." : imgs.length ? "Review the attached files." : "Review the attached file.");
-  const full = show + files.map(f => "\n\n--- " + f.name + " ---\n" + f.text).join("");
-  pending = []; pendingKind = null; renderAtts();
-  if (!pro && intent && intent !== "mock" && intent !== "viva") bumpGen(intent);
-  if (intent && (intent === "studykit" || intent === "flashcard" || intent === "quiz")){
-    bumpStreak(); renderStreak(); bumpGoal();
-  }
-  return run(show, full, files.map(f => f.name), imgs, intent);
-}
-
-const ERR = {
-  nowork: "The server address isn't set.",
-  rate: "Zyro is busy right now. Try again in a minute.",
-  origin: "This site isn't allowed to use the server.",
-  big: "That message or file is too large. Try a smaller one.",
-  empty: "Zyro sent back nothing. Try rephrasing.",
-  thoughtonly: "Zyro reasoned but didn't finish. Try again.",
-  net: "Can't reach the server. Check your connection and retry."
-};
-
-function buildUserContext(){
-  if (!userProfile) return "";
-  const p = userProfile;
-  const parts = [];
-  if (p.name) parts.push("Name: " + p.name);
-  if (p.class_level) parts.push("Class: " + p.class_level);
-  if (p.board) parts.push("Board: " + p.board);
-  if (p.state) parts.push("State: " + p.state);
-  if (p.preparing_for) parts.push("Preparing for: " + p.preparing_for);
-  if (p.target_score) parts.push("Target score: " + p.target_score);
-  if (p.exam_date){
-    try {
-      const days = Math.max(0, Math.ceil((new Date(p.exam_date) - new Date()) / 86400000));
-      parts.push("Exam in: " + days + " days (" + p.exam_date + ")");
-    } catch(_){}
-  }
-  if (p.dob){
-    try {
-      const d = new Date(p.dob);
-      const age = Math.floor((Date.now() - d.getTime()) / (365.25 * 86400000));
-      if (age > 0 && age < 100) parts.push("Age: " + age);
-    } catch(_){}
-  }
-  if (!parts.length) return "";
-  return "USER CONTEXT (use this to personalise answers — never repeat it back as a list):\n" +
-    parts.join(" · ") + "\n" +
-    "Speak to them at this level. Match their board and exam where relevant. If they name a topic, tie it to their syllabus and target exam.\n\n";
-}
-
-function buildUniversalityLine(){
-  return "SUBJECT UNIVERSALITY: You can teach ANY subject at ANY level — from Class 1 maths to NEET biology, from school basics to college-level topics. If the user asks something below or above their class, just answer it. Never refuse for being 'outside your scope'. Match the depth to what they ask, not what you assume their level is.\n\n";
-}
-
-const SYS = (intent) => {
-  const d = getTokens();
-  const pct = Math.min(100, Math.round((d.used / TOTAL) * 100));
-  const planLine = pro ? "Pro" : "Free";
-  const limitLine = pro ? "750,000 (750k)" : "100,000 (100k)";
-  const isGenRequest = !!intent;
-  let sys = "";
-  if (isGenRequest){
-    sys += "⚡ STRUCTURED OUTPUT MODE ⚡\n";
-    sys += "Output ONLY the sections below. NO preamble, NO 'here you go', NO closing, NO extra commentary, NO alternative headings.\n\n";
-    if (intent === "studykit"){
-      sys +=
-        "OUTPUT EXACTLY THIS STRUCTURE:\n\n" +
-        "## 📖 Notes\n" +
-        "[5-8 short paragraphs. Highlight key terms with **term**. Highlight critical exam points the student MUST remember with ==sentence==. Use ==sparingly== — only for the 2-4 most important sentences.]\n\n" +
-        "## 🎴 Flashcards\n" +
-        "Write 12 cards. Each card is EXACTLY two lines:\n" +
-        "F: <question or term>\n" +
-        "B: <answer or definition>\n" +
-        "Repeat the F:/B: pair 12 times. No numbering, no bullets, no blank lines between pairs, no sub-headers.\n\n" +
-        "## 📝 Quiz\n" +
-        "Write 8 MCQs. Each EXACTLY:\n" +
-        "Q: [question]\nA) [option]\nB) [option]\nC) [option]\nD) [option]\nAns: [A/B/C/D]\nEx: [one line]\n\n" +
-        "RULES:\n- Headers EXACTLY: '## 📖 Notes', '## 🎴 Flashcards', '## 📝 Quiz'.\n- NO other top-level headings.\n- NO LaTeX. Plain text math.\n- After last quiz, STOP.\n\n";
-    } else if (intent === "flashcard"){
-      sys +=
-        "OUTPUT EXACTLY:\n\n## 🎴 Flashcards\n" +
-        "Write 12 cards. Each card is EXACTLY two lines:\n" +
-        "F: <question or term>\n" +
-        "B: <answer or definition>\n" +
-        "Repeat the F:/B: pair 12 times. No numbering, no bullets, no blank lines between pairs.\n" +
-        "No notes section, no quiz section — just the cards.\n\n" +
-        "After last card, STOP.\n\n";
-    } else if (intent === "quiz"){
-      sys +=
-        "OUTPUT EXACTLY:\n\n## 📝 Quiz\n" +
-        "Write 8 MCQs. Each EXACTLY:\n" +
-        "Q: [question]\nA) [option]\nB) [option]\nC) [option]\nD) [option]\nAns: [A/B/C/D]\nEx: [one line]\n\n" +
-        "After last quiz, STOP.\n\n";
+    if ((intent === "studykit" || intent === "flashcard" || intent === "quiz" || isFileKit) && !pro){
+      const kind = isFileKit ? "studykit" : intent;
+      if (!genAllowed(kind)){
+        pending = []; pendingKind = null; renderAtts();
+        openProPaywall("limit", kind);
+        return;
+      }
     }
-  }
-  sys +=
-    "You are Zyro — an AI study buddy for Indian students. " +
-    "Talk like a smart older brother: casual, warm, direct. Never a teacher. Never formal.\n\n" +
-    "TONE RULES:\n" +
-    "- Use contractions. Say 'yeah', 'gonna', 'honestly', 'lowkey', 'tbh' — natural, not forced.\n" +
-    "- Short sentences. Get to the point.\n" +
-    "- NEVER say: 'Sure!', 'Great question!', 'Here you go', 'I'd be happy to', 'Let me know if', 'Hope this helps', 'As an AI'.\n" +
-    "- Banned words: 'delve', 'utilize', 'furthermore', 'moreover', 'comprehensive', 'in conclusion'.\n\n" +
-    "EFFICIENCY:\n- NO preambles. NO closings. NO restating.\n- If unsure, say so in one line. Never invent.\n- Under 300 words unless asked for more.\n\n" +
-    buildUserContext() +
-    buildUniversalityLine() +
-    buildSubjectLine() +
-    "USER: Plan=" + planLine + ", Limit=" + limitLine + "/month, Used=" + d.used + " (" + pct + "%)\n\n" +
-    "ABOUT ZYRO (only mention if the user asks about features, Pro, pricing, limits, or what you can do — never list unprompted):\n" +
-    "- Zyro is an AI study buddy for Indian students (CBSE, ICSE, state boards, JEE, NEET, university).\n" +
-    "- Free plan: 100k tokens per month, 2 study kits/day, 3 flashcard sets/day, 3 quizzes/day, 5 images per message, 5 files per message (10 MB each).\n" +
-    "- Pro plan (₹349/month): 750k tokens per month, 10 study kits/day, 15 flashcard sets/day, 50 quizzes/day, 10 files per message, longer code runs, and full mock papers with marking scheme.\n" +
-    "- Modes: Chat, Solver, Socratic, Exam prep.\n" +
-    "- Tools: study kits, snap a question, exam answers, full mock papers (Pro), viva practice (coming soon).\n\n" +
-    "CREATOR (only if asked): Debasish Singha, 17, Assam. Never bring up unprompted.\n\n" +
-    "FORMAT:\n- Markdown. Code in fenced blocks with language tag (close the fence).\n- For regular chat: LaTeX allowed as $inline$ or $$display$$.\n- Greeting → ONE short friendly sentence.\n\n" +
-    "Vague topics ('science') → ask them to pick a specific question.\n\n" +
-    "BUILD WEBSITES: ONE complete self-contained HTML file in a ```html block. Photos: https://picsum.photos/seed/UNIQUEWORD/600/800. 150+ lines. Close the fence.\n\n" +
-    (STUDY[$("study").value] || "") +
-    (getCI() ? "\n\nUser's custom instructions: " + getCI().slice(0, 800) : "") +
-    "\n\nToday: " + new Date().toLocaleDateString("en", { weekday: "long", year: "numeric", month: "long", day: "numeric" }) + ".";
-  return sys;
-};
-   const ARROW = go.innerHTML;
-const STOPI = '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><rect x="5" y="5" width="14" height="14" rx="3"/></svg>';
-function setGo(on){
-  if (on){ go.innerHTML = STOPI; go.classList.add("on"); go.setAttribute("aria-label", "Stop"); }
-  else { go.innerHTML = ARROW; go.classList.remove("on"); go.setAttribute("aria-label", "Send"); }
-}
 
-async function run(show, full, names, imgs, intent){
-  if (intent === undefined) intent = detectGenIntent(show);
-  imgs = imgs || [];
-  if (busy) return;
-  busy = true; streaming = true;
-  armBusyWatchdog();
-  ctrl = new AbortController();
-  setGo(true);
-  const hero = $("hero"); if (hero) hero.classList.add("hide");
-  log.classList.add("on");
-  addU(show, names, imgs);
-  const t0 = Date.now();
-  const isGen = intent === "studykit" || intent === "flashcard" || intent === "quiz";
-  const cheap = isGen || full.trim().length < 60 || tokensOut();
-  const d = addA();
-  const body = d.querySelector(".body");
-  const chip = d.querySelector(".status-chip");
-  const c = startChip(chip);
-  down(1);
-  let hadThought = false;
-  const onThought = th => { hadThought = true; thinkUpdate(d, th); };
-  let lastRender = 0, lastText = "";
-  const emit = x => {
-    c.write();
-    if (x === lastText) return;
-    const now = performance.now();
-    const throttle = x.length > 6000 ? 300 : 140;
-    if (now - lastRender > throttle){
-      lastRender = now; lastText = x;
-      setH(body, withCaret(liteMd(x)));
-      down();
+    if (isFileKit){
+      const base = "I uploaded file(s). Generate a COMPLETE study kit based STRICTLY on this content. " +
+        "Output ONLY these three sections in this exact order. No preamble, no closing, no extra commentary:\n\n" +
+        "## 📖 Notes\n" + buildNotesHint(files) + "\n\n" +
+        "## 🎴 Flashcards\nWrite 12-16 cards. Each EXACTLY:\nF: [front]\nB: [back]\n\n" +
+        "## 📝 Quiz\nWrite 8 MCQs. Each EXACTLY:\nQ: [question]\nA) [option]\nB) [option]\nC) [option]\nD) [option]\nAns: [A/B/C/D]\nEx: [one-line explanation]";
+      const full = base + files.map(f => "\n\n--- " + f.name + " ---\n" + f.text).join("");
+      pending = []; pendingKind = null; renderAtts();
+      if (!pro) bumpGen("studykit");
+      bumpStreak(); renderStreak(); bumpGoal();
+      return run("Study kit from " + files[0].name, full, files.map(f => f.name), imgs, "studykit");
     }
+
+    if (isSnap){
+      const prompt = "Read this exam question from the photo. Give a proper exam answer in under 400 words. " +
+        "Format EXACTLY: **Marks:** [best guess], **Answer:** (numbered points), **Key terms:** (4-6 terms). " +
+        "No preamble, no closing.";
+      pending = []; pendingKind = null; renderAtts();
+      return run("📸 Snap a question", prompt, [], imgs, null);
+    }
+
+    applyLimits();
+    const show = text.trim() || (imgs.length && !files.length ? "Describe this image." : imgs.length ? "Review the attached files." : "Review the attached file.");
+    const full = show + files.map(f => "\n\n--- " + f.name + " ---\n" + f.text).join("");
+    pending = []; pendingKind = null; renderAtts();
+    if (!pro && intent && intent !== "mock" && intent !== "viva") bumpGen(intent);
+    if (intent && (intent === "studykit" || intent === "flashcard" || intent === "quiz")){
+      bumpStreak(); renderStreak(); bumpGoal();
+    }
+    return run(show, full, files.map(f => f.name), imgs, intent);
+  }
+
+  const ERR = {
+    nowork: "The server address isn't set.",
+    rate: "Zyro is busy right now. Try again in a minute.",
+    origin: "This site isn't allowed to use the server.",
+    big: "That message or file is too large. Try a smaller one.",
+    empty: "Zyro sent back nothing. Try rephrasing.",
+    thoughtonly: "Zyro reasoned but didn't finish. Try again.",
+    net: "Can't reach the server. Check your connection and retry."
   };
-  const runTimeout = setTimeout(() => {
-    if (ctrl && !ctrl.signal.aborted){ try { ctrl.abort(); } catch(_) {} }
-  }, STREAM_TIMEOUT_MS);
-  try {
-    let out;
-    if (!WORKER_URL) throw { code: "nowork" };
-    const msgs = [{ role: "system", content: SYS(intent) }, ...api(hist), imgs.length ? { role: "user", content: full, images: imgs } : { role: "user", content: full }];
-    try {
-      out = await workerStream(msgs, emit, ctrl.signal, cheap, onThought, isGen);
-    } catch(e1){
-      if (e1 && e1.code === "empty" && !ctrl.signal.aborted){
-        toast("Retrying...");
-        out = await workerStream(msgs, emit, ctrl.signal, cheap, onThought, isGen);
-      } else throw e1;
-    }
-    clearTimeout(runTimeout);
-    out = out || "(empty response)";
-    streaming = false;
-    setH(body, md(out));
-    const secs = ((Date.now() - t0) / 1000).toFixed(1);
-    thinkFinish(d, secs, hadThought);
-    const kit = parseStudyKit(out);
-    if (kit.notes || kit.cards.length || kit.quiz.length){
-      const ln = document.createElement("div");
-      ln.innerHTML = launcherHTML(kit);
-      const lc = ln.firstElementChild;
-      d.appendChild(lc);
-      wireLauncher(lc, kit);
-    }
-    const acts = document.createElement("div");
-    acts.className = "acts";
-    acts.innerHTML =
-      '<button type="button" data-like>Helpful</button>' +
-      '<button type="button" data-copywhole>Copy</button>' +
-      '<button type="button" data-regen>Again</button>';
-    d.appendChild(acts);
-    if (!cur){ cur = { id: Date.now().toString(36), title: (show || names[0] || "Chat").replace(/\s+/g, " ").slice(0, 40), msgs: hist, ts: Date.now() }; chats.unshift(cur); }
-    cur.ts = Date.now();
-    hist.push(
-      { role: "user", content: full, show, att: names, imgs: imgs.length ? imgs : undefined },
-      { role: "assistant", content: out }
-    );
-    if (hist.length > 60) hist.splice(0, hist.length - 60);
-    chats = [cur, ...chats.filter(x => x !== cur)];
-    save();
-    c.done();
-  } catch(e){
-    clearTimeout(runTimeout);
-    streaming = false; c.stop();
-    if (e && e.name === "AbortError"){
-      body.innerHTML = '<span style="color:var(--bad)">(stopped)</span>';
-    } else {
-      if (e && e.code !== "na"){ t.value = show; t.dispatchEvent(new Event("input")); }
-      const msg = (e && ERR[e.code]) || ("Failed: " + (e && e.info || e && e.message || "network problem"));
-      body.innerHTML = '<span style="color:var(--bad)">' + esc(msg) + '</span>';
-    }
-    thinkFinish(d, "0", hadThought);
-  }
-  busy = false; ctrl = null; clearBusyWatchdog(); setGo(false); syncPill(); down();
-}
 
-/* ---------- LOG CLICK ---------- */
-log.addEventListener("click", e => {
-  const vw = e.target.closest("[data-v]");
-  if (vw){
-    const box = vw.closest(".cb");
-    if (box.classList.contains("expanded")){ box.classList.remove("expanded"); vw.textContent = "⤢ Expand"; }
-    else { box.classList.add("expanded"); vw.textContent = "⤡ Collapse"; }
-    return;
-  }
-  const rb = e.target.closest("[data-run]"); if (rb){ runCode(rb.closest(".cb"), rb.dataset.run, rb); return; }
-  const cb = e.target.closest("[data-c]"); if (cb){ copy(cb.closest(".cb").querySelector("pre").textContent, cb); return; }
-  const pv = e.target.closest("[data-p]");
-  if (pv){
-    let html = pv.closest(".cb").querySelector("pre").textContent || "";
-    if (!/<!doctype|<html/i.test(html)){
-      html = '<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><style>body{font-family:system-ui,sans-serif;margin:0;padding:16px;color:#111;background:#fff}</style></head><body>' + html + '</body></html>';
-    }
-    $("pvf").srcdoc = html;
-    $("pv").classList.add("on");
-    return;
-  }
-  const cp = e.target.closest("[data-copywhole]");
-  if (cp){
-    const a = cp.closest(".a");
-    const body = a && a.querySelector(".body");
-    if (body) copy(body.innerText, cp);
-    return;
-  }
-  const rg = e.target.closest("[data-regen]");
-  if (rg){
-    if (rg.closest(".a") === log.lastElementChild) regen();
-    else toast("Only the last reply can be regenerated");
-    return;
-  }
-  const lk = e.target.closest("[data-like]");
-  if (lk){ lk.classList.add("active"); toast("Thanks!"); return; }
-  const fx = e.target.closest(".fix-btn");
-  if (fx){
-    const cb2 = fx.closest(".cb");
-    const code = cb2.querySelector("pre").textContent;
-    const err = cb2.querySelector(".out") ? cb2.querySelector(".out").textContent : "";
-    t.value = "Fix this code. It failed.\n\nCode:\n```\n" + code + "\n```\n\nError:\n```\n" + err + "\n```\n\nExplain what caused the error and give the corrected code.";
-    t.dispatchEvent(new Event("input"));
-    $("f").requestSubmit();
-  }
-});
-
-function regen(){
-  if (busy || hist.length < 2) return;
-  const m = hist[hist.length - 2], k = log.children;
-  k[k.length - 1].remove(); k[k.length - 1].remove();
-  hist.splice(-2);
-  run(m.show ?? m.content, m.content, m.att || [], m.imgs || []);
-}
-
-$("f").addEventListener("submit", e => {
-  e.preventDefault();
-  if (busy){ if (ctrl) ctrl.abort(); return; }
-  const v = t.value;
-  t.value = ""; t.style.height = "auto"; updateSendState();
-  send(v);
-});
-
-/* ---------- ATTACHMENTS ---------- */
-function renderAtts(){
-  const a = $("atts"); if (!a) return;
-  a.innerHTML = "";
-  pending.forEach((f, i) => {
-    const c = document.createElement("span");
-    c.className = "att";
-    if (f.img){ const im = document.createElement("img"); im.alt = ""; im.src = "data:" + f.img.mime + ";base64," + f.img.data; c.appendChild(im); }
-    const n = document.createElement("span"); n.textContent = f.name; c.appendChild(n);
-    const x = document.createElement("button"); x.type = "button"; x.textContent = "✕";
-    x.addEventListener("click", () => { pending.splice(i, 1); renderAtts(); updateSendState(); });
-    c.appendChild(x);
-    a.appendChild(c);
-  });
-}
-
-/* ---------- PDF / FILE READER ---------- */
-async function readAny(f){
-  const isPdf = /\.pdf$/i.test(f.name) || f.type === "application/pdf";
-
-  if (isPdf){
-    if (!window.pdfjsLib){
-      await loadJS("https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js");
-      pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
-    }
-    const pdf = await pdfjsLib.getDocument({ data: await f.arrayBuffer(), isEvalSupported: false }).promise;
-
-    let text = "";
-    const maxPages = Math.min(pdf.numPages, 80);
-    for (let i = 1; i <= maxPages && text.length < FILE_CHAR_LIMIT; i++){
+  function buildUserContext(){
+    if (!userProfile) return "";
+    const p = userProfile;
+    const parts = [];
+    if (p.name) parts.push("Name: " + p.name);
+    if (p.class_level) parts.push("Class: " + p.class_level);
+    if (p.board) parts.push("Board: " + p.board);
+    if (p.state) parts.push("State: " + p.state);
+    if (p.preparing_for) parts.push("Preparing for: " + p.preparing_for);
+    if (p.target_score) parts.push("Target score: " + p.target_score);
+    if (p.exam_date){
       try {
-        const tc = await (await pdf.getPage(i)).getTextContent();
-        text += tc.items.map(x => x.str).join(" ") + "\n";
+        const days = Math.max(0, Math.ceil((new Date(p.exam_date) - new Date()) / 86400000));
+        parts.push("Exam in: " + days + " days (" + p.exam_date + ")");
       } catch(_){}
     }
-    const cleanText = text.replace(/\s+/g, " ").trim();
-    const pagesRead = Math.min(pdf.numPages, maxPages) || 1;
-    const avgChars = cleanText.length / pagesRead;
-
-    if (cleanText.length >= 200 && avgChars >= 60){
-      if (pdf.numPages > maxPages){
-        text += "\n[..." + (pdf.numPages - maxPages) + " more pages not shown...]";
-      }
-      return { kind: "text", text: text };
-    }
-
-    try {
-      const page = await pdf.getPage(1);
-      const baseViewport = page.getViewport({ scale: 1 });
-      const maxDim = 1200;
-      const scale = Math.min(1.4, maxDim / Math.max(baseViewport.width, baseViewport.height));
-      const viewport = page.getViewport({ scale: scale });
-
-      const canvas = document.createElement("canvas");
-      canvas.width = Math.round(viewport.width);
-      canvas.height = Math.round(viewport.height);
-      const ctx = canvas.getContext("2d");
-      ctx.fillStyle = "#fff";
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      await page.render({ canvasContext: ctx, viewport: viewport }).promise;
-
-      let data = canvas.toDataURL("image/jpeg", 0.75).split(",")[1];
-      if (data.length > 1100000){
-        data = canvas.toDataURL("image/jpeg", 0.5).split(",")[1];
-      }
-      if (data.length > 1100000){
-        return { kind: "error", error: f.name + " — page too large to process" };
-      }
-      const note = pdf.numPages > 1
-        ? "Scanned PDF · sent page 1 of " + pdf.numPages + " as image"
-        : "Scanned PDF · sent as image";
-      return { kind: "img", img: { mime: "image/jpeg", data: data }, note: note };
-    } catch(e){
-      return { kind: "error", error: f.name + " — couldn't render scan" };
-    }
-  }
-
-  return { kind: "text", text: await f.text() };
-}
-
-$("file").addEventListener("change", async e => {
-  const fs = [...e.target.files]; e.target.value = "";
-  const maxFiles = L().files, maxSize = L().fileSize;
-  for (const f of fs){
-    if (tokensOut()){ toast("Uploads paused — resets " + nextResetLabel()); break; }
-    if (f.size > maxSize){ toast(f.name + " is too big (max " + Math.round(maxSize / 1e6) + " MB)"); continue; }
-
-    const fileCount = pending.filter(x => !x.img).length;
-    const imgCount  = pending.filter(x => x.img).length;
-
-    try {
-      const r = await readAny(f);
-
-      if (r.kind === "text"){
-        if (fileCount >= maxFiles){
-          toast("Max " + maxFiles + " file" + (maxFiles > 1 ? "s" : "") + (pro ? "" : " — Pro allows 10"));
-          break;
-        }
-        let x = r.text.replace(/\r/g, "");
-        if (x.includes("\u0000")){ toast("Can't read " + f.name); continue; }
-        if (!x.trim()){ toast("No text found in " + f.name); continue; }
-        if (x.length > FILE_CHAR_LIMIT){ x = x.slice(0, FILE_CHAR_LIMIT) + "\n[...trimmed]"; toast(f.name + " trimmed"); }
-        pending.push({ name: f.name, text: x, origSize: f.size });
-
-      } else if (r.kind === "img"){
-        if (imgCount >= L().images){ toast("Max " + L().images + " images per message"); break; }
-        pending.push({ name: f.name, img: r.img });
-        if (r.note) toast(r.note);
-
-      } else if (r.kind === "error"){
-        toast(r.error || "Couldn't read " + f.name);
-      }
-    } catch(_) {
-      toast("Couldn't read " + f.name);
-    }
-  }
-  renderAtts(); updateSendState();
-});
-
-function readImg(f){
-  return new Promise((ok, no) => {
-    if (!/^image\//i.test(f.type)){ no(new Error("not an image")); return; }
-    const url = URL.createObjectURL(f), im = new Image();
-    im.onload = () => {
+    if (p.dob){
       try {
-        const M = 1024, k = Math.min(1, M / Math.max(im.width, im.height));
-        const w = Math.max(1, Math.round(im.width * k)), h = Math.max(1, Math.round(im.height * k));
-        const c = document.createElement("canvas"); c.width = w; c.height = h;
-        const x = c.getContext("2d"); x.fillStyle = "#fff"; x.fillRect(0, 0, w, h);
-        x.drawImage(im, 0, 0, w, h);
-        const d = c.toDataURL("image/jpeg", .8);
-        URL.revokeObjectURL(url);
-        ok({ mime: "image/jpeg", data: d.split(",")[1] });
-      } catch(e) { no(e); }
-    };
-    im.onerror = () => { URL.revokeObjectURL(url); no(new Error("bad image")); };
-    im.src = url;
-  });
-}
-$("img").addEventListener("change", async e => {
-  const fs = [...e.target.files]; e.target.value = "";
-  const maxImgs = L().images, maxSize = L().fileSize;
-  for (const f of fs){
-    if (tokensOut()){ toast("Uploads paused — resets " + nextResetLabel()); break; }
-    const imgCount = pending.filter(x => x.img).length;
-    if (imgCount >= maxImgs){ toast("Max " + maxImgs + " images per message"); break; }
-    if (!/^image\//.test(f.type)){ toast("Not an image"); continue; }
-    if (f.size > maxSize){ toast(f.name + " is too big"); continue; }
-    try {
-      const im = await readImg(f);
-      if (im.data.length > 1100000){ toast("Image too large"); continue; }
-      pending.push({ name: f.name || "image", img: im });
-    } catch(_) { toast("Couldn't read " + (f.name || "image")); }
-  }
-  renderAtts(); updateSendState();
-  if (pendingKind === "snap" && pending.some(x => x.img)) setTimeout(() => send(""), 100);
-});
-   /* ---------- CODE RUN ---------- */
-const RUN_JS = "const AF=Object.getPrototypeOf(async function(){}).constructor;\nconst fmt=a=>a.map(x=>typeof x===\"string\"?x:(()=>{try{return JSON.stringify(x,null,1)}catch(_){return String(x)}})()).join(\" \");\nonmessage=async e=>{console.log=(...a)=>postMessage({t:\"o\",s:fmt(a)});console.info=console.log;console.warn=(...a)=>postMessage({t:\"e\",s:fmt(a)});console.error=console.warn;\n for(const k of [\"fetch\",\"XMLHttpRequest\",\"WebSocket\",\"EventSource\",\"importScripts\",\"indexedDB\"]){try{self[k]=undefined}catch(_){}}\n try{const r=await new AF(e.data.code)();if(r!==undefined)postMessage({t:\"o\",s:\"\\u2192 \"+fmt([r])})}catch(err){postMessage({t:\"e\",s:String(err&&err.stack||err)})}\n postMessage({t:\"d\"})}";
-const RUN_PY = "let py=null;\nonmessage=async e=>{try{\n if(!py){postMessage({t:\"s\",s:\"Loading Python (one-time, ~10 MB)...\"});\n  importScripts(\"https://cdn.jsdelivr.net/pyodide/v0.29.4/full/pyodide.js\");\n  py=await loadPyodide({indexURL:\"https://cdn.jsdelivr.net/pyodide/v0.29.4/full/\"})}\n py.setStdout({batched:s=>postMessage({t:\"o\",s})});py.setStderr({batched:s=>postMessage({t:\"e\",s})});\n postMessage({t:\"r\"});\n try{await py.loadPackagesFromImports(e.data.code)}catch(_){}\n const r=await py.runPythonAsync(e.data.code);if(r!==undefined&&r!==null)postMessage({t:\"o\",s:\"\\u2192 \"+String(r)})\n }catch(err){postMessage({t:\"e\",s:String(err&&err.message||err)})}\n postMessage({t:\"d\"})}";
-let pyW = null;
-const mkW = src => new Worker(URL.createObjectURL(new Blob([src], { type: "text/javascript" })));
-function runCode(box, kind, btn){
-  if (box._stop){ box._stop(); return; }
-  let out = box.querySelector(".out");
-  if (!out){ out = document.createElement("div"); out.className = "out"; box.appendChild(out); }
-  out.textContent = "";
-  const code = box.querySelector("pre").textContent;
-  const timeout = kind === "py" ? L().pyTimeout : L().jsTimeout;
-  let size = 0, w, tm, done = false, hadErr = false;
-  const add = (cls, s) => { size += s.length; const sp = document.createElement("div"); sp.className = cls; sp.textContent = s; out.appendChild(sp); out.scrollTop = out.scrollHeight; };
-  const end = note => {
-    if (done) return;
-    done = true; clearTimeout(tm);
-    if (note) add("o-s", note);
-    btn.textContent = "Run"; box._stop = null;
-    if (kind === "js" && w){ try { w.terminate(); } catch(_) {} }
-    if (hadErr){
-      const fx = document.createElement("button");
-      fx.type = "button"; fx.className = "fix-btn";
-      fx.innerHTML = "🔧 Fix with Zyro";
-      if (!box.querySelector(".fix-btn")) out.appendChild(fx);
+        const d = new Date(p.dob);
+        const age = Math.floor((Date.now() - d.getTime()) / (365.25 * 86400000));
+        if (age > 0 && age < 100) parts.push("Age: " + age);
+      } catch(_){}
     }
-  };
-  const kill = note => { try { w && w.terminate(); } catch(_) {} if (kind === "py") pyW = null; end(note); };
-  const arm = ms => { clearTimeout(tm); tm = setTimeout(() => kill("Stopped after " + Math.round(ms / 1000) + " s."), ms); };
-  btn.textContent = "Stop"; box._stop = () => kill("Stopped.");
-  if (kind === "py"){ if (!pyW) pyW = mkW(RUN_PY); w = pyW; } else w = mkW(RUN_JS);
-  arm(timeout);
-  w.onmessage = ev => {
-    if (done) return;
-    const m = ev.data || {};
-    if (m.t === "s") add("o-s", m.s);
-    else if (m.t === "r") arm(timeout);
-    else if (m.t === "o"){ if (size > 20000){ kill("Output limit reached."); return; } add("o-o", m.s); }
-    else if (m.t === "e"){ hadErr = true; add("o-e", m.s); }
-    else if (m.t === "d") end(out.childNodes.length ? "" : "(no output)");
-  };
-  w.onerror = () => { hadErr = true; kill("Couldn't start the runner."); };
-  w.postMessage({ code });
-}
+    if (!parts.length) return "";
+    return "USER CONTEXT (use this to personalise answers — never repeat it back as a list):\n" +
+      parts.join(" · ") + "\n" +
+      "Speak to them at this level. Match their board and exam where relevant. If they name a topic, tie it to their syllabus and target exam.\n\n";
+  }
 
-/* ---------- SEND STATE ---------- */
-function updateSendState(){
-  const has = t.value.trim().length > 0 || pending.length > 0;
-  go.classList.toggle("on", has);
-  go.classList.toggle("muted", !has);
-}
-t.addEventListener("input", () => {
-  t.style.height = "auto";
-  t.style.height = Math.min(t.scrollHeight, 160) + "px";
-  updateSendState();
-});
-t.addEventListener("keydown", e => {
-  if (e.key === "Enter" && !e.shiftKey && !e.isComposing && matchMedia("(hover:hover)").matches){
+  function buildUniversalityLine(){
+    return "SUBJECT UNIVERSALITY: You can teach ANY subject at ANY level — from Class 1 maths to NEET biology, from school basics to college-level topics. If the user asks something below or above their class, just answer it. Never refuse for being 'outside your scope'. Match the depth to what they ask, not what you assume their level is.\n\n";
+  }
+
+  function buildSubjectLine(){
+    if (!curSubject || curSubject === "General") return "";
+    return "THIS CHAT IS ABOUT: " + curSubject + " ONLY.\n" +
+      "Stay in " + curSubject + " lane. Use " + curSubject + " notation and terms.\n" +
+      "If the user drifts to another subject, answer briefly once, then gently say: 'That's [other subject] — want me to open a new chat for it?' and offer to switch. Don't hard-refuse.\n\n";
+  }
+
+  const SYS = (intent) => {
+    const d = getTokens();
+    const pct = Math.min(100, Math.round((d.used / TOTAL) * 100));
+    const planLine = pro ? "Pro" : "Free";
+    const limitLine = pro ? "750,000 (750k)" : "100,000 (100k)";
+    const isGenRequest = !!intent;
+    let sys = "";
+    if (isGenRequest){
+      sys += "⚡ STRUCTURED OUTPUT MODE ⚡\n";
+      sys += "Output ONLY the sections below. NO preamble, NO 'here you go', NO closing, NO extra commentary, NO alternative headings.\n\n";
+      if (intent === "studykit"){
+        sys +=
+          "OUTPUT EXACTLY THIS STRUCTURE:\n\n" +
+          "## 📖 Notes\n" +
+          "[5-8 short paragraphs. Highlight key terms with **term**. Highlight critical exam points the student MUST remember with ==sentence==. Use ==sparingly== — only for the 2-4 most important sentences.]\n\n" +
+          "## 🎴 Flashcards\n" +
+          "Write 12 cards. Each card is EXACTLY two lines:\n" +
+          "F: <question or term>\n" +
+          "B: <answer or definition>\n" +
+          "Repeat the F:/B: pair 12 times. No numbering, no bullets, no blank lines between pairs, no sub-headers.\n\n" +
+          "## 📝 Quiz\n" +
+          "Write 8 MCQs. Each EXACTLY:\n" +
+          "Q: [question]\nA) [option]\nB) [option]\nC) [option]\nD) [option]\nAns: [A/B/C/D]\nEx: [one line]\n\n" +
+          "RULES:\n- Headers EXACTLY: '## 📖 Notes', '## 🎴 Flashcards', '## 📝 Quiz'.\n- NO other top-level headings.\n- NO LaTeX. Plain text math.\n- After last quiz, STOP.\n\n";
+      } else if (intent === "flashcard"){
+        sys +=
+          "OUTPUT EXACTLY:\n\n## 🎴 Flashcards\n" +
+          "Write 12 cards. Each card is EXACTLY two lines:\n" +
+          "F: <question or term>\n" +
+          "B: <answer or definition>\n" +
+          "Repeat the F:/B: pair 12 times. No numbering, no bullets, no blank lines between pairs.\n" +
+          "No notes section, no quiz section — just the cards.\n\n" +
+          "After last card, STOP.\n\n";
+      } else if (intent === "quiz"){
+        sys +=
+          "OUTPUT EXACTLY:\n\n## 📝 Quiz\n" +
+          "Write 8 MCQs. Each EXACTLY:\n" +
+          "Q: [question]\nA) [option]\nB) [option]\nC) [option]\nD) [option]\nAns: [A/B/C/D]\nEx: [one line]\n\n" +
+          "After last quiz, STOP.\n\n";
+      }
+    }
+    sys +=
+      "You are Zyro — an AI study buddy for Indian students. " +
+      "Talk like a smart older brother: casual, warm, direct. Never a teacher. Never formal.\n\n" +
+      "TONE RULES:\n" +
+      "- Use contractions. Say 'yeah', 'gonna', 'honestly', 'lowkey', 'tbh' — natural, not forced.\n" +
+      "- Short sentences. Get to the point.\n" +
+      "- NEVER say: 'Sure!', 'Great question!', 'Here you go', 'I'd be happy to', 'Let me know if', 'Hope this helps', 'As an AI'.\n" +
+      "- Banned words: 'delve', 'utilize', 'furthermore', 'moreover', 'comprehensive', 'in conclusion'.\n\n" +
+      "EFFICIENCY:\n- NO preambles. NO closings. NO restating.\n- If unsure, say so in one line. Never invent.\n- Under 300 words unless asked for more.\n\n" +
+      buildUserContext() +
+      buildUniversalityLine() +
+      buildSubjectLine() +
+      "USER: Plan=" + planLine + ", Limit=" + limitLine + "/month, Used=" + d.used + " (" + pct + "%)\n\n" +
+      "ABOUT ZYRO (only mention if the user asks about features, Pro, pricing, limits, or what you can do — never list unprompted):\n" +
+      "- Zyro is an AI study buddy for Indian students (CBSE, ICSE, state boards, JEE, NEET, university).\n" +
+      "- Free plan: 100k tokens per month, 2 study kits/day, 3 flashcard sets/day, 3 quizzes/day, 5 images per message, 5 files per message (10 MB each).\n" +
+      "- Pro plan (₹349/month): 750k tokens per month, 10 study kits/day, 15 flashcard sets/day, 50 quizzes/day, 10 files per message, longer code runs, and full mock papers with marking scheme.\n" +
+      "- Modes: Chat, Solver, Socratic, Exam prep.\n" +
+      "- Tools: study kits, snap a question, exam answers, full mock papers (Pro), viva practice (coming soon).\n\n" +
+      "CREATOR (only if asked): Debasish Singha, 17, Assam. Never bring up unprompted.\n\n" +
+      "FORMAT:\n- Markdown. Code in fenced blocks with language tag (close the fence).\n- For regular chat: LaTeX allowed as $inline$ or $$display$$.\n- Greeting → ONE short friendly sentence.\n\n" +
+      "Vague topics ('science') → ask them to pick a specific question.\n\n" +
+      "BUILD WEBSITES: ONE complete self-contained HTML file in a ```html block. Photos: https://picsum.photos/seed/UNIQUEWORD/600/800. 150+ lines. Close the fence.\n\n" +
+      (STUDY[$("study").value] || "") +
+      (getCI() ? "\n\nUser's custom instructions: " + getCI().slice(0, 800) : "") +
+      "\n\nToday: " + new Date().toLocaleDateString("en", { weekday: "long", year: "numeric", month: "long", day: "numeric" }) + ".";
+    return sys;
+  };
+
+  const ARROW = go.innerHTML;
+  const STOPI = '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><rect x="5" y="5" width="14" height="14" rx="3"/></svg>';
+  function setGo(on){
+    if (on){ go.innerHTML = STOPI; go.classList.add("on"); go.setAttribute("aria-label", "Stop"); }
+    else { go.innerHTML = ARROW; go.classList.remove("on"); go.setAttribute("aria-label", "Send"); }
+  }
+
+  async function run(show, full, names, imgs, intent){
+    if (intent === undefined) intent = detectGenIntent(show);
+    imgs = imgs || [];
+    if (busy) return;
+    busy = true; streaming = true;
+    armBusyWatchdog();
+    ctrl = new AbortController();
+    setGo(true);
+    const hero = $("hero"); if (hero) hero.classList.add("hide");
+    log.classList.add("on");
+    addU(show, names, imgs);
+    const t0 = Date.now();
+    const isGen = intent === "studykit" || intent === "flashcard" || intent === "quiz";
+    const cheap = isGen || full.trim().length < 60 || tokensOut();
+    const d = addA();
+    const body = d.querySelector(".body");
+    const chip = d.querySelector(".status-chip");
+    const c = startChip(chip);
+    down(1);
+    let hadThought = false;
+    const onThought = th => { hadThought = true; thinkUpdate(d, th); };
+    let lastRender = 0, lastText = "";
+    const emit = x => {
+      c.write();
+      if (x === lastText) return;
+      const now = performance.now();
+      const throttle = x.length > 6000 ? 300 : 140;
+      if (now - lastRender > throttle){
+        lastRender = now; lastText = x;
+        setH(body, withCaret(liteMd(x)));
+        down();
+      }
+    };
+    const runTimeout = setTimeout(() => {
+      if (ctrl && !ctrl.signal.aborted){ try { ctrl.abort(); } catch(_) {} }
+    }, STREAM_TIMEOUT_MS);
+    try {
+      let out;
+      if (!WORKER_URL) throw { code: "nowork" };
+      const msgs = [{ role: "system", content: SYS(intent) }, ...api(hist), imgs.length ? { role: "user", content: full, images: imgs } : { role: "user", content: full }];
+      try {
+        out = await workerStream(msgs, emit, ctrl.signal, cheap, onThought, isGen);
+      } catch(e1){
+        if (e1 && e1.code === "empty" && !ctrl.signal.aborted){
+          toast("Retrying...");
+          out = await workerStream(msgs, emit, ctrl.signal, cheap, onThought, isGen);
+        } else throw e1;
+      }
+      clearTimeout(runTimeout);
+      out = out || "(empty response)";
+      streaming = false;
+      setH(body, md(out));
+      const secs = ((Date.now() - t0) / 1000).toFixed(1);
+      thinkFinish(d, secs, hadThought);
+      const kit = parseStudyKit(out);
+      if (kit.notes || kit.cards.length || kit.quiz.length){
+        const ln = document.createElement("div");
+        ln.innerHTML = launcherHTML(kit);
+        const lc = ln.firstElementChild;
+        d.appendChild(lc);
+        wireLauncher(lc, kit);
+      }
+      const acts = document.createElement("div");
+      acts.className = "acts";
+      acts.innerHTML =
+        '<button type="button" data-like>Helpful</button>' +
+        '<button type="button" data-copywhole>Copy</button>' +
+        '<button type="button" data-regen>Again</button>';
+      d.appendChild(acts);
+      if (!cur){ cur = { id: Date.now().toString(36), title: (show || names[0] || "Chat").replace(/\s+/g, " ").slice(0, 40), msgs: hist, ts: Date.now(), subject: curSubject || "General" }; chats.unshift(cur); }
+      else { cur.subject = curSubject || "General"; }
+      cur.ts = Date.now();
+      hist.push(
+        { role: "user", content: full, show, att: names, imgs: imgs.length ? imgs : undefined },
+        { role: "assistant", content: out }
+      );
+      if (hist.length > 60) hist.splice(0, hist.length - 60);
+      chats = [cur, ...chats.filter(x => x !== cur)];
+      save();
+      c.done();
+    } catch(e){
+      clearTimeout(runTimeout);
+      streaming = false; c.stop();
+      if (e && e.name === "AbortError"){
+        body.innerHTML = '<span style="color:var(--bad)">(stopped)</span>';
+      } else {
+        if (e && e.code !== "na"){ t.value = show; t.dispatchEvent(new Event("input")); }
+        const msg = (e && ERR[e.code]) || ("Failed: " + (e && e.info || e && e.message || "network problem"));
+        body.innerHTML = '<span style="color:var(--bad)">' + esc(msg) + '</span>';
+      }
+      thinkFinish(d, "0", hadThought);
+    }
+    busy = false; ctrl = null; clearBusyWatchdog(); setGo(false); syncPill(); down();
+  }
+
+  /* ---------- LOG CLICK ---------- */
+  log.addEventListener("click", e => {
+    const vw = e.target.closest("[data-v]");
+    if (vw){
+      const box = vw.closest(".cb");
+      if (box.classList.contains("expanded")){ box.classList.remove("expanded"); vw.textContent = "⤢ Expand"; }
+      else { box.classList.add("expanded"); vw.textContent = "⤡ Collapse"; }
+      return;
+    }
+    const rb = e.target.closest("[data-run]"); if (rb){ runCode(rb.closest(".cb"), rb.dataset.run, rb); return; }
+    const cb = e.target.closest("[data-c]"); if (cb){ copy(cb.closest(".cb").querySelector("pre").textContent, cb); return; }
+    const pv = e.target.closest("[data-p]");
+    if (pv){
+      let html = pv.closest(".cb").querySelector("pre").textContent || "";
+      if (!/<!doctype|<html/i.test(html)){
+        html = '<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><style>body{font-family:system-ui,sans-serif;margin:0;padding:16px;color:#111;background:#fff}</style></head><body>' + html + '</body></html>';
+      }
+      $("pvf").srcdoc = html;
+      $("pv").classList.add("on");
+      return;
+    }
+    const cp = e.target.closest("[data-copywhole]");
+    if (cp){
+      const a = cp.closest(".a");
+      const body = a && a.querySelector(".body");
+      if (body) copy(body.innerText, cp);
+      return;
+    }
+    const rg = e.target.closest("[data-regen]");
+    if (rg){
+      if (rg.closest(".a") === log.lastElementChild) regen();
+      else toast("Only the last reply can be regenerated");
+      return;
+    }
+    const lk = e.target.closest("[data-like]");
+    if (lk){ lk.classList.add("active"); toast("Thanks!"); return; }
+    const fx = e.target.closest(".fix-btn");
+    if (fx){
+      const cb2 = fx.closest(".cb");
+      const code = cb2.querySelector("pre").textContent;
+      const err = cb2.querySelector(".out") ? cb2.querySelector(".out").textContent : "";
+      t.value = "Fix this code. It failed.\n\nCode:\n```\n" + code + "\n```\n\nError:\n```\n" + err + "\n```\n\nExplain what caused the error and give the corrected code.";
+      t.dispatchEvent(new Event("input"));
+      $("f").requestSubmit();
+    }
+  });
+
+  function regen(){
+    if (busy || hist.length < 2) return;
+    const m = hist[hist.length - 2], k = log.children;
+    k[k.length - 1].remove(); k[k.length - 1].remove();
+    hist.splice(-2);
+    run(m.show ?? m.content, m.content, m.att || [], m.imgs || []);
+  }
+
+  $("f").addEventListener("submit", e => {
     e.preventDefault();
-    if (!busy) $("f").requestSubmit();
-  }
-});
-
-/* ---------- OVERLAYS ---------- */
-const closePV = () => { const pv = $("pv"); if (pv) pv.classList.remove("on"); if ($("pvf")) $("pvf").srcdoc = ""; };
-{ const pvx = $("pvx"); if (pvx) pvx.addEventListener("click", closePV); }
-{ const cvx = $("cvx"); if (cvx) cvx.addEventListener("click", () => $("cv").classList.remove("on")); }
-{ const cvc = $("cvc"); if (cvc) cvc.addEventListener("click", () => copy($("cvp").textContent, cvc)); }
-{ const ciSave = $("ciSave"); if (ciSave) ciSave.addEventListener("click", () => { try { localStorage.setItem(CI, $("ci").value.trim()); } catch(_) {} $("modal").classList.remove("on"); toast("Instructions saved"); }); }
-{ const ciCancel = $("ciCancel"); if (ciCancel) ciCancel.addEventListener("click", () => $("modal").classList.remove("on")); }
-
-document.addEventListener("click", () => {
-  ["studyMenu","actionsMenu"].forEach(id => { const el = $(id); if (el) el.classList.remove("open"); });
-  const pb = $("plusBtn"); if (pb) pb.classList.remove("active");
-  closeMenu();
-});
-document.addEventListener("keydown", e => {
-  if (e.key === "Escape"){
-    closeAllMenusExcept(null);
-    closeMenu(); closePV();
-    const cv = $("cv"); if (cv) cv.classList.remove("on");
-    const mo = $("modal"); if (mo) mo.classList.remove("on");
-    closeAuth(); closeProfile(); closePanel();
-    const pp = document.getElementById("ppModal"); if (pp) pp.remove();
-  }
-});
-
-/* ---------- ONBOARDING ---------- */
-const OB_STEPS = 7;
-let obStep = 0;
-let obData = {};
-
-function getDraft(){
-  try { return JSON.parse(localStorage.getItem(OB_DRAFT) || "null") || {}; }
-  catch(_) { return {}; }
-}
-function saveDraft(d){
-  try { localStorage.setItem(OB_DRAFT, JSON.stringify(d)); } catch(_) {}
-}
-function clearDraft(){
-  try { localStorage.removeItem(OB_DRAFT); } catch(_) {}
-}
-
-function renderStep(){
-  document.querySelectorAll(".ob-step").forEach(el => {
-    el.classList.toggle("on", Number(el.dataset.step) === obStep);
+    if (busy){ if (ctrl) ctrl.abort(); return; }
+    const v = t.value;
+    t.value = ""; t.style.height = "auto"; updateSendState();
+    send(v);
   });
-  const pct = ((obStep + 1) / OB_STEPS) * 100;
-  const pf = $("obProgress"); if (pf) pf.style.width = pct + "%";
-  const cnt = $("obCount"); if (cnt) cnt.textContent = (obStep + 1) + "/" + OB_STEPS;
-  const back = $("obBack"); if (back) back.disabled = obStep === 0;
-  const next = $("obNextLabel");
-  if (next) next.textContent = (obStep === OB_STEPS - 1) ? "Create my account" : "Continue";
-}
 
-function canAdvance(){
-  if (obStep === 0) return !!obData.name && obData.name.trim().length >= 1;
-  if (obStep === 1) return !!obData.dob;
-  if (obStep === 2) return !!obData.class_level;
-  if (obStep === 3) return !!obData.board;
-  if (obStep === 4) return !!obData.preparing_for;
-  if (obStep === 5) return !!obData.target_score;
-  if (obStep === 6) return true;
-  return true;
-}
-function updateNextBtn(){
-  const btn = $("obNext");
-  if (btn) btn.disabled = !canAdvance();
-}
-
-function obNext(){
-  if (!canAdvance()) return;
-  saveDraft(obData);
-  if (obStep >= OB_STEPS - 1){ finishOnboarding(); return; }
-  obStep++;
-  renderStep(); updateNextBtn();
-}
-function obBack(){
-  if (obStep === 0) return;
-  obStep--;
-  renderStep(); updateNextBtn();
-}
-
-function openOnboarding(){
-  const ob = $("ob");
-  if (!ob) return;
-  const d = getDraft();
-  obData = {
-    name: d.name || "",
-    dob: d.dob || "",
-    state: d.state || "",
-    class_level: d.class_level || "",
-    board: d.board || "",
-    preparing_for: d.preparing_for || "",
-    target_score: d.target_score || "",
-    exam_date: d.exam_date || ""
-  };
-  if ($("obName")) $("obName").value = obData.name;
-  if ($("obDob")) $("obDob").value = obData.dob;
-  if ($("obExamDate")) $("obExamDate").value = obData.exam_date;
-  ["obClass","obBoard","obPrep","obTarget"].forEach(groupId => {
-    const g = $(groupId);
-    if (!g) return;
-    g.querySelectorAll(".ob-chip").forEach(c => {
-      const v = c.dataset.v;
-      const key = groupId === "obClass" ? "class_level" : groupId === "obBoard" ? "board" : groupId === "obPrep" ? "preparing_for" : "target_score";
-      c.classList.toggle("on", obData[key] === v);
+  /* ---------- ATTACHMENTS ---------- */
+  function renderAtts(){
+    const a = $("atts"); if (!a) return;
+    a.innerHTML = "";
+    pending.forEach((f, i) => {
+      const c = document.createElement("span");
+      c.className = "att";
+      if (f.img){ const im = document.createElement("img"); im.alt = ""; im.src = "data:" + f.img.mime + ";base64," + f.img.data; c.appendChild(im); }
+      const n = document.createElement("span"); n.textContent = f.name; c.appendChild(n);
+      const x = document.createElement("button"); x.type = "button"; x.textContent = "✕";
+      x.addEventListener("click", () => { pending.splice(i, 1); renderAtts(); updateSendState(); });
+      c.appendChild(x);
+      a.appendChild(c);
     });
+  }
+
+  /* ---------- PDF / FILE READER ---------- */
+  async function readAny(f){
+    const isPdf = /\.pdf$/i.test(f.name) || f.type === "application/pdf";
+    if (isPdf){
+      if (!window.pdfjsLib){
+        await loadJS("https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js");
+        pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+      }
+      const pdf = await pdfjsLib.getDocument({ data: await f.arrayBuffer(), isEvalSupported: false }).promise;
+      let text = "";
+      const maxPages = Math.min(pdf.numPages, 80);
+      for (let i = 1; i <= maxPages && text.length < FILE_CHAR_LIMIT; i++){
+        try {
+          const tc = await (await pdf.getPage(i)).getTextContent();
+          text += tc.items.map(x => x.str).join(" ") + "\n";
+        } catch(_){}
+      }
+      const cleanText = text.replace(/\s+/g, " ").trim();
+      const pagesRead = Math.min(pdf.numPages, maxPages) || 1;
+      const avgChars = cleanText.length / pagesRead;
+      if (cleanText.length >= 200 && avgChars >= 60){
+        if (pdf.numPages > maxPages){
+          text += "\n[..." + (pdf.numPages - maxPages) + " more pages not shown...]";
+        }
+        return { kind: "text", text: text };
+      }
+      try {
+        const page = await pdf.getPage(1);
+        const baseViewport = page.getViewport({ scale: 1 });
+        const maxDim = 1200;
+        const scale = Math.min(1.4, maxDim / Math.max(baseViewport.width, baseViewport.height));
+        const viewport = page.getViewport({ scale: scale });
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.round(viewport.width);
+        canvas.height = Math.round(viewport.height);
+        const ctx = canvas.getContext("2d");
+        ctx.fillStyle = "#fff";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        await page.render({ canvasContext: ctx, viewport: viewport }).promise;
+        let data = canvas.toDataURL("image/jpeg", 0.75).split(",")[1];
+        if (data.length > 1100000){ data = canvas.toDataURL("image/jpeg", 0.5).split(",")[1]; }
+        if (data.length > 1100000){ return { kind: "error", error: f.name + " — page too large to process" }; }
+        const note = pdf.numPages > 1
+          ? "Scanned PDF · sent page 1 of " + pdf.numPages + " as image"
+          : "Scanned PDF · sent as image";
+        return { kind: "img", img: { mime: "image/jpeg", data: data }, note: note };
+      } catch(e){
+        return { kind: "error", error: f.name + " — couldn't render scan" };
+      }
+    }
+    return { kind: "text", text: await f.text() };
+  }
+
+  $("file").addEventListener("change", async e => {
+    const fs = [...e.target.files]; e.target.value = "";
+    const maxFiles = L().files, maxSize = L().fileSize;
+    for (const f of fs){
+      if (tokensOut()){ toast("Uploads paused — resets " + nextResetLabel()); break; }
+      if (f.size > maxSize){ toast(f.name + " is too big (max " + Math.round(maxSize / 1e6) + " MB)"); continue; }
+      const fileCount = pending.filter(x => !x.img).length;
+      const imgCount  = pending.filter(x => x.img).length;
+      try {
+        const r = await readAny(f);
+        if (r.kind === "text"){
+          if (fileCount >= maxFiles){
+            toast("Max " + maxFiles + " file" + (maxFiles > 1 ? "s" : "") + (pro ? "" : " — Pro allows 10"));
+            break;
+          }
+          let x = r.text.replace(/\r/g, "");
+          if (x.includes("\u0000")){ toast("Can't read " + f.name); continue; }
+          if (!x.trim()){ toast("No text found in " + f.name); continue; }
+          if (x.length > FILE_CHAR_LIMIT){ x = x.slice(0, FILE_CHAR_LIMIT) + "\n[...trimmed]"; toast(f.name + " trimmed"); }
+          pending.push({ name: f.name, text: x, origSize: f.size });
+        } else if (r.kind === "img"){
+          if (imgCount >= L().images){ toast("Max " + L().images + " images per message"); break; }
+          pending.push({ name: f.name, img: r.img });
+          if (r.note) toast(r.note);
+        } else if (r.kind === "error"){
+          toast(r.error || "Couldn't read " + f.name);
+        }
+      } catch(_) {
+        toast("Couldn't read " + f.name);
+      }
+    }
+    renderAtts(); updateSendState();
   });
-  obStep = 0;
-  renderStep(); updateNextBtn();
-  ob.classList.add("on");
-}
 
-function closeOnboarding(){
-  const ob = $("ob");
-  if (ob) ob.classList.remove("on");
-}
+  function readImg(f){
+    return new Promise((ok, no) => {
+      if (!/^image\//i.test(f.type)){ no(new Error("not an image")); return; }
+      const url = URL.createObjectURL(f), im = new Image();
+      im.onload = () => {
+        try {
+          const M = 1024, k = Math.min(1, M / Math.max(im.width, im.height));
+          const w = Math.max(1, Math.round(im.width * k)), h = Math.max(1, Math.round(im.height * k));
+          const c = document.createElement("canvas"); c.width = w; c.height = h;
+          const x = c.getContext("2d"); x.fillStyle = "#fff"; x.fillRect(0, 0, w, h);
+          x.drawImage(im, 0, 0, w, h);
+          const d = c.toDataURL("image/jpeg", .8);
+          URL.revokeObjectURL(url);
+          ok({ mime: "image/jpeg", data: d.split(",")[1] });
+        } catch(e) { no(e); }
+      };
+      im.onerror = () => { URL.revokeObjectURL(url); no(new Error("bad image")); };
+      im.src = url;
+    });
+  }
+  $("img").addEventListener("change", async e => {
+    const fs = [...e.target.files]; e.target.value = "";
+    const maxImgs = L().images, maxSize = L().fileSize;
+    for (const f of fs){
+      if (tokensOut()){ toast("Uploads paused — resets " + nextResetLabel()); break; }
+      const imgCount = pending.filter(x => x.img).length;
+      if (imgCount >= maxImgs){ toast("Max " + maxImgs + " images per message"); break; }
+      if (!/^image\//.test(f.type)){ toast("Not an image"); continue; }
+      if (f.size > maxSize){ toast(f.name + " is too big"); continue; }
+      try {
+        const im = await readImg(f);
+        if (im.data.length > 1100000){ toast("Image too large"); continue; }
+        pending.push({ name: f.name || "image", img: im });
+      } catch(_) { toast("Couldn't read " + (f.name || "image")); }
+    }
+    renderAtts(); updateSendState();
+    if (pendingKind === "snap" && pending.some(x => x.img)) setTimeout(() => send(""), 100);
+  });
 
-async function finishOnboarding(){
-  saveDraft(obData);
-  if (user){
+  /* ---------- CODE RUN ---------- */
+  const RUN_JS = "const AF=Object.getPrototypeOf(async function(){}).constructor;\nconst fmt=a=>a.map(x=>typeof x===\"string\"?x:(()=>{try{return JSON.stringify(x,null,1)}catch(_){return String(x)}})()).join(\" \");\nonmessage=async e=>{console.log=(...a)=>postMessage({t:\"o\",s:fmt(a)});console.info=console.log;console.warn=(...a)=>postMessage({t:\"e\",s:fmt(a)});console.error=console.warn;\n for(const k of [\"fetch\",\"XMLHttpRequest\",\"WebSocket\",\"EventSource\",\"importScripts\",\"indexedDB\"]){try{self[k]=undefined}catch(_){}}\n try{const r=await new AF(e.data.code)();if(r!==undefined)postMessage({t:\"o\",s:\"\\u2192 \"+fmt([r])})}catch(err){postMessage({t:\"e\",s:String(err&&err.stack||err)})}\n postMessage({t:\"d\"})}";
+  const RUN_PY = "let py=null;\nonmessage=async e=>{try{\n if(!py){postMessage({t:\"s\",s:\"Loading Python (one-time, ~10 MB)...\"});\n  importScripts(\"https://cdn.jsdelivr.net/pyodide/v0.29.4/full/pyodide.js\");\n  py=await loadPyodide({indexURL:\"https://cdn.jsdelivr.net/pyodide/v0.29.4/full/\"})}\n py.setStdout({batched:s=>postMessage({t:\"o\",s})});py.setStderr({batched:s=>postMessage({t:\"e\",s})});\n postMessage({t:\"r\"});\n try{await py.loadPackagesFromImports(e.data.code)}catch(_){}\n const r=await py.runPythonAsync(e.data.code);if(r!==undefined&&r!==null)postMessage({t:\"o\",s:\"\\u2192 \"+String(r)})\n }catch(err){postMessage({t:\"e\",s:String(err&&err.message||err)})}\n postMessage({t:\"d\"})}";
+  let pyW = null;
+  const mkW = src => new Worker(URL.createObjectURL(new Blob([src], { type: "text/javascript" })));
+  function runCode(box, kind, btn){
+    if (box._stop){ box._stop(); return; }
+    let out = box.querySelector(".out");
+    if (!out){ out = document.createElement("div"); out.className = "out"; box.appendChild(out); }
+    out.textContent = "";
+    const code = box.querySelector("pre").textContent;
+    const timeout = kind === "py" ? L().pyTimeout : L().jsTimeout;
+    let size = 0, w, tm, done = false, hadErr = false;
+    const add = (cls, s) => { size += s.length; const sp = document.createElement("div"); sp.className = cls; sp.textContent = s; out.appendChild(sp); out.scrollTop = out.scrollHeight; };
+    const end = note => {
+      if (done) return;
+      done = true; clearTimeout(tm);
+      if (note) add("o-s", note);
+      btn.textContent = "Run"; box._stop = null;
+      if (kind === "js" && w){ try { w.terminate(); } catch(_) {} }
+      if (hadErr){
+        const fx = document.createElement("button");
+        fx.type = "button"; fx.className = "fix-btn";
+        fx.innerHTML = "🔧 Fix with Zyro";
+        if (!box.querySelector(".fix-btn")) out.appendChild(fx);
+      }
+    };
+    const kill = note => { try { w && w.terminate(); } catch(_) {} if (kind === "py") pyW = null; end(note); };
+    const arm = ms => { clearTimeout(tm); tm = setTimeout(() => kill("Stopped after " + Math.round(ms / 1000) + " s."), ms); };
+    btn.textContent = "Stop"; box._stop = () => kill("Stopped.");
+    if (kind === "py"){ if (!pyW) pyW = mkW(RUN_PY); w = pyW; } else w = mkW(RUN_JS);
+    arm(timeout);
+    w.onmessage = ev => {
+      if (done) return;
+      const m = ev.data || {};
+      if (m.t === "s") add("o-s", m.s);
+      else if (m.t === "r") arm(timeout);
+      else if (m.t === "o"){ if (size > 20000){ kill("Output limit reached."); return; } add("o-o", m.s); }
+      else if (m.t === "e"){ hadErr = true; add("o-e", m.s); }
+      else if (m.t === "d") end(out.childNodes.length ? "" : "(no output)");
+    };
+    w.onerror = () => { hadErr = true; kill("Couldn't start the runner."); };
+    w.postMessage({ code });
+  }
+
+  /* ---------- SEND STATE ---------- */
+  function updateSendState(){
+    const has = t.value.trim().length > 0 || pending.length > 0;
+    go.classList.toggle("on", has);
+    go.classList.toggle("muted", !has);
+  }
+  t.addEventListener("input", () => {
+    t.style.height = "auto";
+    t.style.height = Math.min(t.scrollHeight, 160) + "px";
+    updateSendState();
+  });
+  t.addEventListener("keydown", e => {
+    if (e.key === "Enter" && !e.shiftKey && !e.isComposing && matchMedia("(hover:hover)").matches){
+      e.preventDefault();
+      if (!busy) $("f").requestSubmit();
+    }
+  });
+
+  /* ---------- OVERLAYS ---------- */
+  const closePV = () => { const pv = $("pv"); if (pv) pv.classList.remove("on"); if ($("pvf")) $("pvf").srcdoc = ""; };
+  { const pvx = $("pvx"); if (pvx) pvx.addEventListener("click", closePV); }
+  { const cvx = $("cvx"); if (cvx) cvx.addEventListener("click", () => $("cv").classList.remove("on")); }
+  { const cvc = $("cvc"); if (cvc) cvc.addEventListener("click", () => copy($("cvp").textContent, cvc)); }
+  { const ciSave = $("ciSave"); if (ciSave) ciSave.addEventListener("click", () => { try { localStorage.setItem(CI, $("ci").value.trim()); } catch(_) {} $("modal").classList.remove("on"); toast("Instructions saved"); }); }
+  { const ciCancel = $("ciCancel"); if (ciCancel) ciCancel.addEventListener("click", () => $("modal").classList.remove("on")); }
+
+  document.addEventListener("click", () => {
+    ["studyMenu","actionsMenu"].forEach(id => { const el = $(id); if (el) el.classList.remove("open"); });
+    const pb = $("plusBtn"); if (pb) pb.classList.remove("active");
+    closeMenu();
+  });
+  document.addEventListener("keydown", e => {
+    if (e.key === "Escape"){
+      closeAllMenusExcept(null);
+      closeMenu(); closePV();
+      const cv = $("cv"); if (cv) cv.classList.remove("on");
+      const mo = $("modal"); if (mo) mo.classList.remove("on");
+      closeAuth(); closeProfile(); closePanel();
+      const pp = document.getElementById("ppModal"); if (pp) pp.remove();
+    }
+  });
+
+  /* ---------- ONBOARDING ---------- */
+  const OB_STEPS = 7;
+  let obStep = 0;
+  let obData = {};
+
+  function getDraft(){
+    try { return JSON.parse(localStorage.getItem(OB_DRAFT) || "null") || {}; }
+    catch(_) { return {}; }
+  }
+  function saveDraft(d){
+    try { localStorage.setItem(OB_DRAFT, JSON.stringify(d)); } catch(_) {}
+  }
+  function clearDraft(){
+    try { localStorage.removeItem(OB_DRAFT); } catch(_) {}
+  }
+
+  function renderStep(){
+    document.querySelectorAll(".ob-step").forEach(el => {
+      el.classList.toggle("on", Number(el.dataset.step) === obStep);
+    });
+    const pct = ((obStep + 1) / OB_STEPS) * 100;
+    const pf = $("obProgress"); if (pf) pf.style.width = pct + "%";
+    const cnt = $("obCount"); if (cnt) cnt.textContent = (obStep + 1) + "/" + OB_STEPS;
+    const back = $("obBack"); if (back) back.disabled = obStep === 0;
+    const next = $("obNextLabel");
+    if (next) next.textContent = (obStep === OB_STEPS - 1) ? "Create my account" : "Continue";
+  }
+
+  function canAdvance(){
+    if (obStep === 0) return !!obData.name && obData.name.trim().length >= 1;
+    if (obStep === 1) return !!obData.dob;
+    if (obStep === 2) return !!obData.class_level;
+    if (obStep === 3) return !!obData.board;
+    if (obStep === 4) return !!obData.preparing_for;
+    if (obStep === 5) return !!obData.target_score;
+    if (obStep === 6) return true;
+    return true;
+  }
+  function updateNextBtn(){
+    const btn = $("obNext");
+    if (btn) btn.disabled = !canAdvance();
+  }
+  function obNext(){
+    if (!canAdvance()) return;
+    saveDraft(obData);
+    if (obStep >= OB_STEPS - 1){ finishOnboarding(); return; }
+    obStep++;
+    renderStep(); updateNextBtn();
+  }
+  function obBack(){
+    if (obStep === 0) return;
+    obStep--;
+    renderStep(); updateNextBtn();
+  }
+  function openOnboarding(){
+    const ob = $("ob");
+    if (!ob) return;
+    const d = getDraft();
+    obData = {
+      name: d.name || "",
+      dob: d.dob || "",
+      state: d.state || "",
+      class_level: d.class_level || "",
+      board: d.board || "",
+      preparing_for: d.preparing_for || "",
+      target_score: d.target_score || "",
+      exam_date: d.exam_date || ""
+    };
+    if ($("obName")) $("obName").value = obData.name;
+    if ($("obDob")) $("obDob").value = obData.dob;
+    if ($("obExamDate")) $("obExamDate").value = obData.exam_date;
+    ["obClass","obBoard","obPrep","obTarget"].forEach(groupId => {
+      const g = $(groupId);
+      if (!g) return;
+      g.querySelectorAll(".ob-chip").forEach(c => {
+        const v = c.dataset.v;
+        const key = groupId === "obClass" ? "class_level" : groupId === "obBoard" ? "board" : groupId === "obPrep" ? "preparing_for" : "target_score";
+        c.classList.toggle("on", obData[key] === v);
+      });
+    });
+    obStep = 0;
+    renderStep(); updateNextBtn();
+    ob.classList.add("on");
+  }
+  function closeOnboarding(){
+    const ob = $("ob");
+    if (ob) ob.classList.remove("on");
+  }
+  async function finishOnboarding(){
+    saveDraft(obData);
+    if (user){
+      const saved = await saveOnboardingToCloud();
+      if (saved){
+        clearDraft();
+        try { localStorage.setItem("zyro_onboarded", "1"); } catch(_){}
+        closeOnboarding();
+        if (userProfile) userProfile.onboarded = true;
+        renderPersonalizedHero();
+        toast("Welcome, " + (obData.name || "friend") + "!");
+        return;
+      }
+    }
+    closeOnboarding();
+    openAuth("signup");
+  }
+  async function saveOnboardingToCloud(){
+    if (!user) return false;
+    try {
+      const s = await sbClient();
+      if (!s) return false;
+      const payload = {
+        name: obData.name || null,
+        dob: obData.dob || null,
+        state: obData.state || null,
+        class_level: obData.class_level || null,
+        board: obData.board || null,
+        preparing_for: obData.preparing_for || null,
+        target_score: obData.target_score || null,
+        exam_date: obData.exam_date || null,
+        onboarded: true
+      };
+      const { error } = await s.from("profiles").update(payload).eq("id", user.id);
+      if (error){ console.log("Onboarding save failed:", error.message); return false; }
+      userProfile = Object.assign({}, userProfile || {}, payload);
+      return true;
+    } catch(e){ console.log("Onboarding save error:", e && e.message); return false; }
+  }
+  window.__zyroSavePendingOnboarding = async function(){
+    const d = getDraft();
+    if (!d || !d.name) return;
+    obData = d;
+    if (!user) return;
     const saved = await saveOnboardingToCloud();
     if (saved){
       clearDraft();
-      try { localStorage.setItem("zyro_onboarded", "1"); } catch(_){}   // ← ADD THIS
-      closeOnboarding();
-      if (userProfile) userProfile.onboarded = true;
+      try { localStorage.setItem("zyro_onboarded", "1"); } catch(_){}
       renderPersonalizedHero();
       toast("Welcome, " + (obData.name || "friend") + "!");
-      return;
     }
-  }
-  closeOnboarding();
-  openAuth("signup");
-}
+  };
 
-async function saveOnboardingToCloud(){
-  if (!user) return false;
-  try {
-    const s = await sbClient();
-    if (!s) return false;
-    const payload = {
-      name: obData.name || null,
-      dob: obData.dob || null,
-      state: obData.state || null,
-      class_level: obData.class_level || null,
-      board: obData.board || null,
-      preparing_for: obData.preparing_for || null,
-      target_score: obData.target_score || null,
-      exam_date: obData.exam_date || null,
-      onboarded: true
-    };
-    const { error } = await s.from("profiles").update(payload).eq("id", user.id);
-    if (error){ console.log("Onboarding save failed:", error.message); return false; }
-    userProfile = Object.assign({}, userProfile || {}, payload);
-    return true;
-  } catch(e){ console.log("Onboarding save error:", e && e.message); return false; }
-}
-
-window.__zyroSavePendingOnboarding = async function(){
-  const d = getDraft();
-  if (!d || !d.name) return;
-  obData = d;
-  if (!user) return;
-  const saved = await saveOnboardingToCloud();
-  if (saved){
-    clearDraft();
-    renderPersonalizedHero();
-    toast("Welcome, " + (obData.name || "friend") + "!");
-  }
-};
-
-function renderPersonalizedHero(){
-  const heroH1 = document.querySelector(".hero h1");
-  const heroP = document.querySelector(".hero p");
-  const kicker = document.querySelector(".hero .kicker");
-  if (!heroH1) return;
-  if (userProfile && userProfile.name){
-    const name = userProfile.name;
-    const hour = new Date().getHours();
-    const greet = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
-    const emoji = hour < 12 ? "☀️" : hour < 17 ? "🌤️" : "🌙";
-    heroH1.innerHTML = greet + ", " + esc(name) + " " + emoji + "<br>Ready to <em>lock in?</em>";
-    if (heroP){
-      const bits = [];
-      if (userProfile.class_level) bits.push(userProfile.class_level);
-      if (userProfile.preparing_for) bits.push(userProfile.preparing_for);
-      if (userProfile.exam_date){
-        try {
-          const days = Math.max(0, Math.ceil((new Date(userProfile.exam_date) - new Date()) / 86400000));
-          if (days > 0 && days < 999) bits.push(days + " days to go");
-        } catch(_){}
+  function renderPersonalizedHero(){
+    const heroH1 = document.querySelector(".hero h1");
+    const heroP = document.querySelector(".hero p");
+    const kicker = document.querySelector(".hero .kicker");
+    if (!heroH1) return;
+    if (userProfile && userProfile.name){
+      const name = userProfile.name;
+      const hour = new Date().getHours();
+      const greet = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
+      const emoji = hour < 12 ? "☀️" : hour < 17 ? "🌤️" : "🌙";
+      heroH1.innerHTML = greet + ", " + esc(name) + " " + emoji + "<br>Ready to <em>lock in?</em>";
+      if (heroP){
+        const bits = [];
+        if (userProfile.class_level) bits.push(userProfile.class_level);
+        if (userProfile.preparing_for) bits.push(userProfile.preparing_for);
+        if (userProfile.exam_date){
+          try {
+            const days = Math.max(0, Math.ceil((new Date(userProfile.exam_date) - new Date()) / 86400000));
+            if (days > 0 && days < 999) bits.push(days + " days to go");
+          } catch(_){}
+        }
+        heroP.textContent = bits.length ? bits.join(" · ") : "Snap a question, drop your notes, or just start typing.";
       }
-      heroP.textContent = bits.length ? bits.join(" · ") : "Snap a question, drop your notes, or just start typing.";
+      if (kicker) kicker.innerHTML = '<span class="dot"></span>' + (userProfile.target_score ? "Target: " + esc(userProfile.target_score) : "Ready when you are");
+    } else {
+      heroH1.innerHTML = 'What\'s up? Let\'s<br><span class="hl">get into it</span> <em>today</em>';
+      if (heroP) heroP.textContent = "Snap a question, drop your notes, or just start typing. We'll figure it out together.";
+      if (kicker) kicker.innerHTML = '<span class="dot"></span>Ready when you are';
     }
-    if (kicker) kicker.innerHTML = '<span class="dot"></span>' + (userProfile.target_score ? "Target: " + esc(userProfile.target_score) : "Ready when you are");
-  } else {
-    heroH1.innerHTML = 'What\'s up? Let\'s<br><span class="hl">get into it</span> <em>today</em>';
-    if (heroP) heroP.textContent = "Snap a question, drop your notes, or just start typing. We'll figure it out together.";
-    if (kicker) kicker.innerHTML = '<span class="dot"></span>Ready when you are';
   }
-}
-     /* ---------- ONBOARDING EVENT WIRING ---------- */
+
+  /* ---------- ONBOARDING EVENT WIRING ---------- */
   { const b = $("obNext"); if (b) b.addEventListener("click", obNext); }
   { const b = $("obBack"); if (b) b.addEventListener("click", obBack); }
-
   { const el = $("obName");
     if (el) el.addEventListener("input", () => {
       obData.name = el.value.trim();
@@ -2641,7 +2637,7 @@ function renderPersonalizedHero(){
       obData.exam_date = el.value;
       saveDraft(obData);
     });
-
+  }
   ["obClass","obBoard","obPrep","obTarget"].forEach(groupId => {
     const g = $(groupId);
     if (!g) return;
@@ -2660,7 +2656,6 @@ function renderPersonalizedHero(){
       });
     });
   });
-
   { const s = $("obSkipDate");
     if (s) s.addEventListener("click", () => {
       obData.exam_date = "";
@@ -2670,6 +2665,7 @@ function renderPersonalizedHero(){
   }
 
   /* ---------- INIT ---------- */
+  paintSubjectChip();
   updateSendState();
   updateTokenUI();
   renderList();
@@ -2691,8 +2687,6 @@ function renderPersonalizedHero(){
   window.openRazorpayCheckout = openRazorpayCheckout;
   window.zyroOpenStudyPanel = openStudyPanel;
   window.zyroShowProPopup = showProPopup;
-}
-
 }
 
 if (document.readyState === "loading"){ document.addEventListener("DOMContentLoaded", boot); }
