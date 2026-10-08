@@ -113,9 +113,10 @@ function openProPaywall(reason, feature){
       '</ul>' +
       '<div style="display:flex;flex-direction:column;gap:8px">' +
         '<button id="ppUpgrade" style="padding:12px;border-radius:12px;font-weight:800;font-size:14.5px;cursor:pointer;border:0;background:var(--violet);color:#fff">Go Pro · ₹349/mo</button>' +
-        '<button id="ppClose" style="padding:12px;border-radius:12px;font-weight:700;font-size:14.5px;cursor:pointer;border:1px solid var(--line-2);background:none;color:var(--ink)">Maybe later</button>' +
-      '</div>' +
-    '</div>';
+            '<button id="ppClose" style="padding:12px;border-radius:12px;font-weight:700;font-size:14.5px;cursor:pointer;border:1px solid var(--line-2);background:none;color:var(--ink)">Maybe later</button>' +
+            '<a href="mailto:zyroaisupport@gmail.com?subject=Zyro%20Support" style="text-align:center;font-size:11.5px;color:var(--dim);text-decoration:none;padding:6px;font-weight:600">Questions? zyroaisupport@gmail.com</a>' +
+          '</div>' +
+         '</div>';
   document.body.appendChild(modal);
   modal.querySelector("#ppUpgrade").onclick = () => {
     modal.remove();
@@ -192,7 +193,8 @@ async function openRazorpayCheckout(plan){
             TOTAL = 750000;
             showProPopup(response.razorpay_payment_id);
           } else {
-            toast("Verification failed — contact support");
+            toast("Verification failed — email zyroaisupport@gmail.com");
+            setTimeout(() => { window.location.href = "mailto:zyroaisupport@gmail.com?subject=Payment%20issue"; }, 2000);
           }
         })
         .catch(() => toast("Verification error — email zyroaisupport@gmail.com"));
