@@ -619,12 +619,21 @@ textarea::placeholder{color:var(--dim-2);font-weight:500}
     <span>Delete chats older than 30 days</span>
   </div>
 
-  <div class="menu-foot">
+  <div class="menu-foot" style="flex-direction:column;align-items:stretch;gap:8px">
+  <div style="display:flex;align-items:center;justify-content:space-between;width:100%">
     <span>v51 · india</span>
     <button class="theme-tog" id="themeToggle">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
       <span id="themeLabel">Dark mode</span>
     </button>
+  </div>
+  <a href="mailto:zyroaisupport@gmail.com?subject=Zyro%20Support" style="display:flex;align-items:center;gap:7px;padding:8px 11px;border-radius:10px;font-size:11.5px;font-weight:700;color:var(--ink-2);background:var(--bg-3);border:1px solid var(--line);text-decoration:none">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;flex:none">
+      <rect x="2" y="4" width="20" height="16" rx="2"/>
+      <path d="m2 7 10 6 10-6"/>
+    </svg>
+    Need help? Email support
+  </a>
   </div>
 </nav>
 
@@ -784,7 +793,14 @@ textarea::placeholder{color:var(--dim-2);font-weight:500}
         <p>Way more power, kits, quizzes, and full mock tests.</p>
         <button id="profileUpgradeBtn">Go Pro · ₹349/mo</button>
       </div>
-      <button class="profile-signout" id="profileSignOut">Sign out</button>
+      <button class="profile-signout" id="profileSignOut" style="margin-bottom:10px">Sign out</button>
+<a href="mailto:zyroaisupport@gmail.com?subject=Zyro%20Support" class="profile-signout" style="display:flex;align-items:center;justify-content:center;gap:8px;text-decoration:none;margin-top:0;background:var(--bg-3)">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px">
+    <rect x="2" y="4" width="20" height="16" rx="2"/>
+    <path d="m2 7 10 6 10-6"/>
+  </svg>
+  Contact support
+</a>
     </div>
   </div>
 </div>
