@@ -2351,7 +2351,7 @@ document.addEventListener("keydown", e => {
 });
 
 /* ---------- ONBOARDING ---------- */
-const OB_STEPS = 8;
+const OB_STEPS = 7;
 let obStep = 0;
 let obData = {};
 
@@ -2381,12 +2381,11 @@ function renderStep(){
 function canAdvance(){
   if (obStep === 0) return !!obData.name && obData.name.trim().length >= 1;
   if (obStep === 1) return !!obData.dob;
-  if (obStep === 2) return true;
-  if (obStep === 3) return !!obData.class_level;
-  if (obStep === 4) return !!obData.board;
-  if (obStep === 5) return !!obData.preparing_for;
-  if (obStep === 6) return !!obData.target_score;
-  if (obStep === 7) return true;
+  if (obStep === 2) return !!obData.class_level;
+  if (obStep === 3) return !!obData.board;
+  if (obStep === 4) return !!obData.preparing_for;
+  if (obStep === 5) return !!obData.target_score;
+  if (obStep === 6) return true;
   return true;
 }
 function updateNextBtn(){
@@ -2423,7 +2422,6 @@ function openOnboarding(){
   };
   if ($("obName")) $("obName").value = obData.name;
   if ($("obDob")) $("obDob").value = obData.dob;
-  if ($("obState")) $("obState").value = obData.state;
   if ($("obExamDate")) $("obExamDate").value = obData.exam_date;
   ["obClass","obBoard","obPrep","obTarget"].forEach(groupId => {
     const g = $(groupId);
@@ -2548,13 +2546,6 @@ function renderPersonalizedHero(){
       obData.exam_date = el.value;
       saveDraft(obData);
     });
-  }
-  { const el = $("obState");
-    if (el) el.addEventListener("change", () => {
-      obData.state = el.value;
-      saveDraft(obData); updateNextBtn();
-    });
-  }
 
   ["obClass","obBoard","obPrep","obTarget"].forEach(groupId => {
     const g = $(groupId);
