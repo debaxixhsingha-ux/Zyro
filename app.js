@@ -55,7 +55,47 @@ let ctrl=null,hist=[],busy=false,streaming=false;
 let pending=[],pendingKind=null;
 let sid=0,follow=true,uAcc=0,uT=null,syncT=null;
 let busyWatchdog=null;
-let lastKit=null;
+let lastKit = null;
+let curSubject = "General";
+
+const SUBJECT_ICONS = {
+  "General": "📖",
+  "Maths": "📐",
+  "Physics": "⚛️",
+  "Chemistry": "⚗️",
+  "Biology": "🧬",
+  "English": "📚",
+  "Computer Science": "💻",
+  "Social Science": "🌏"
+};
+const SUBJECT_KEYWORDS = {
+  "Maths": /\b(algebra|geometry|calculus|trigonometry|equation|integral|derivative|polynomial|triangle|quadratic|maths?|mathemat|matrix|vector|probabilit)\b/i,
+  "Physics": /\b(physics|force|motion|velocity|acceleration|newton|energy|work|power|electric|magnet|circuit|wave|optic|thermodynamic)\b/i,
+  "Chemistry": /\b(chemistry|chemical|reaction|acid|base|atom|molecule|element|compound|organic|inorganic|periodic|mole|bond)\b/i,
+  "Biology": /\b(biology|cell|dna|gene|photosynthesis|organism|plant|animal|human|blood|nervous|tissue|enzyme)\b/i,
+  "English": /\b(english|grammar|essay|poem|literature|shakespeare|writing|comprehension|vocabulary)\b/i,
+  "Computer Science": /\b(code|coding|program|python|javascript|java|algorithm|function|variable|html|css|react|compile|debug|software)\b/i,
+  "Social Science": /\b(history|geography|civics|economics|society|polity|constitution|freedom|revolution|map)\b/i
+};
+
+function detectSubjectFromText(text){
+  if (!text) return null;
+  for (const subj of Object.keys(SUBJECT_KEYWORDS)){
+    if (SUBJECT_KEYWORDS[subj].test(text)) return subj;
+  }
+  return null;
+}
+
+function paintSubjectChip(){
+  const chip = $("subjectChip");
+  const label = $("subjectChipLabel");
+  const em = chip && chip.querySelector(".em");
+  if (!chip || !label || !em) return;
+  const subj = curSubject || "General";
+  label.textContent = subj;
+  em.textContent = SUBJECT_ICONS[subj] || "📖";
+  chip.classList.toggle("empty", subj === "General");
+}
 
 const RZP_WORKER_URL = WORKER_URL.replace(/\/$/, "");
 
@@ -675,6 +715,42 @@ try {
   else setTheme("light");
 } catch(_) { setTheme("light"); }
 
+   /* ---------- SUBJECT CHIP + PICKER ---------- */
+function openSubjectPicker(){
+  const m = $("subjectModal");
+  if (!m) return;
+  m.querySelectorAll(".subject-opt").forEach(b => {
+    b.classList.toggle("on", b.dataset.subj === curSubject);
+  });
+  m.classList.add("on");
+}
+function closeSubjectPicker(){
+  const m = $("subjectModal");
+  if (m) m.classList.remove("on");
+}
+{ const chip = $("subjectChip");
+  if (chip) chip.addEventListener("click", (e) => { e.stopPropagation(); openSubjectPicker(); });
+}
+{ const close = $("subjectClose");
+  if (close) close.addEventListener("click", closeSubjectPicker);
+}
+{ const m = $("subjectModal");
+  if (m) m.addEventListener("click", (e) => { if (e.target === m) closeSubjectPicker(); });
+}
+{ const grid = $("subjectGrid");
+  if (grid) grid.querySelectorAll(".subject-opt").forEach(b => {
+    b.addEventListener("click", () => {
+      curSubject = b.dataset.subj || "General";
+      paintSubjectChip();
+      closeSubjectPicker();
+      if (curSubject === "General"){
+        toast("Chat unlocked");
+      } else {
+        toast("Locked to " + curSubject);
+      }
+    });
+  });
+}
 ["newcBtn","newChatBtn"].forEach(id => {
   const b = $(id);
   if (b) b.addEventListener("click", newChat);
@@ -1943,6 +2019,7 @@ const SYS = (intent) => {
     "EFFICIENCY:\n- NO preambles. NO closings. NO restating.\n- If unsure, say so in one line. Never invent.\n- Under 300 words unless asked for more.\n\n" +
     buildUserContext() +
     buildUniversalityLine() +
+    buildSubjectLine() +
     "USER: Plan=" + planLine + ", Limit=" + limitLine + "/month, Used=" + d.used + " (" + pct + "%)\n\n" +
     "ABOUT ZYRO (only mention if the user asks about features, Pro, pricing, limits, or what you can do — never list unprompted):\n" +
     "- Zyro is an AI study buddy for Indian students (CBSE, ICSE, state boards, JEE, NEET, university).\n" +
