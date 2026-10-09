@@ -1144,9 +1144,7 @@
   // These are referenced above; Part 2 will define them fully.
   // For now, minimal no-op versions so nothing breaks.
   window.__zyro_app_ready = true;
-
-})();
-/* ============================================================
+   /* ============================================================
    PART 2 — auth, onboarding, chat list, study kit, files, pro
    ============================================================ */
 
@@ -2034,4 +2032,5 @@ function readImg(f) {
     renderAtts(); updateSendState();
     if (pendingKind === "snap" && pending.some((x) => x.img)) setTimeout(() => send(""), 100);
   });
-}
+   }
+})();
