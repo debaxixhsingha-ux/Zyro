@@ -1,5 +1,5 @@
 /* ============================================================
-   Zyro app.js — v3 (Subjects-first, tokens, walkthroughs)
+   Zyro app.js — v4 (Subjects-first + tokens + stack animation)
    ============================================================ */
 
 const WORKER_URL = "https://zyro-ai.debaxixhsingha.workers.dev/";
@@ -36,7 +36,7 @@ let sb = null, sbP = null;
 let user = null, pro = false, profile = null;
 let usage = { limit: 25000, used: 0, remaining: 25000, reset_at: 0, is_pro: false };
 let subjects = [];
-let setsCache = {};   // subject → [study_sets]
+let setsCache = {};
 let currentSubject = null;
 let currentSet = null;
 let walkStep = "notes";
@@ -75,8 +75,8 @@ function toast(msg) {
 }
 window.toast = toast;
 
-function lsGet(k, fb) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : fb; } catch(_) { return fb; } }
-function lsSet(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch(_) {} }
+function lsGet(k, fb) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : fb; } catch (_) { return fb; } }
+function lsSet(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (_) {} }
 
 function loadJS(url) {
   return new Promise((ok, no) => {
@@ -106,7 +106,7 @@ function countdown(ms) {
   const h = Math.floor(ms / 3600000);
   const m = Math.floor((ms % 3600000) / 60000);
   const s = Math.floor((ms % 60000) / 1000);
-  return String(h).padStart(2,"0") + ":" + String(m).padStart(2,"0") + ":" + String(s).padStart(2,"0");
+  return String(h).padStart(2, "0") + ":" + String(m).padStart(2, "0") + ":" + String(s).padStart(2, "0");
 }
 
 /* -----------------------------------------------------------
@@ -191,7 +191,7 @@ function renderTokenPill() {
   num.textContent = fmtNum(rem);
   pill.classList.remove("warn", "out");
   if (rem === 0) pill.classList.add("out");
-  else if (rem < usage.limit * 0.25) pill.classList.add("warn");
+  else if (rem < (usage.limit || 25000) * 0.25) pill.classList.add("warn");
 }
 
 function renderAccount() {
@@ -271,12 +271,8 @@ function obUpdateNext() {
 
 async function obNext() {
   if (!obCanAdvance()) return;
-  if (obStep < OB_STEPS - 1) {
-    obStep++;
-    obRender();
-    return;
-  }
-  // Final step: create account
+  if (obStep < OB_STEPS - 1) { obStep++; obRender(); return; }
+
   const msg = $("obMsg");
   const btn = $("obNext");
   if (msg) { msg.style.color = "var(--dim)"; msg.textContent = "Creating your account…"; }
@@ -341,7 +337,6 @@ async function saveOnboardingToCloud() {
       onboarded: true,
     };
     await s.from("profiles").upsert(payload, { onConflict: "id" });
-    // Also insert into user_subjects
     if (obData.subjects && obData.subjects.length) {
       const rows = obData.subjects.map(sub => ({ user_id: user.id, subject: sub }));
       await s.from("user_subjects").upsert(rows, { onConflict: "user_id,subject" });
@@ -485,7 +480,7 @@ function addAssistantMsg() {
   const n = Math.floor(Math.random() * 1e6);
   d.innerHTML =
     '<div class="status-chip"><span class="spark"><svg viewBox="0 0 24 24" aria-hidden="true"><defs><linearGradient id="sg' + n + '" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#c3f53c"/><stop offset=".55" stop-color="#ff6b4a"/><stop offset="1" stop-color="#7c5cff"/></linearGradient></defs><path fill="url(#sg' + n + ')" d="M12 2l2.6 7.4L22 12l-7.4 2.6L12 22l-2.6-7.4L2 12l7.4-2.6z"/></svg></span><span class="shimmer status-text">Thinking</span></div>' +
-    '<div class="think-live" hidden><button type="button" class="think-live-head" aria-expanded="false"><span class="chev">›</span><span class="think-live-dot"></span><span class="think-live-label">Thinking…</span></button><div class="think-live-body"><div class="think-live-inner"></div></div></div>' +
+    '<div class="think-live"><button type="button" class="think-live-head" aria-expanded="false"><span class="chev">›</span><span class="think-live-dot"></span><span class="think-live-label">Thinking…</span></button><div class="think-live-body"><div class="think-live-inner"></div></div></div>' +
     '<div class="body"></div>';
   $("log").appendChild(d);
   return d;
@@ -494,7 +489,7 @@ function addAssistantMsg() {
 function thinkUpdate(d, text) {
   const el = d.querySelector(".think-live");
   if (!el) return;
-  el.hidden = false;
+  el.classList.add("on");
   const inner = el.querySelector(".think-live-inner");
   if (inner) { inner.textContent = text; inner.scrollTop = inner.scrollHeight; }
   down();
@@ -503,8 +498,7 @@ function thinkFinish(d, hadText, seconds) {
   const el = d.querySelector(".think-live");
   if (!el) return;
   if (!hadText) { el.remove(); return; }
-  el.hidden = false;
-  el.classList.add("done");
+  el.classList.add("on", "done");
   const dot = el.querySelector(".think-live-dot"); if (dot) dot.remove();
   const label = el.querySelector(".think-live-label");
   if (label) label.textContent = "Thought for " + (seconds || 0) + "s";
@@ -549,7 +543,6 @@ async function sendChat(text) {
 
   busy = true;
   ctrl = new AbortController();
-  const chatScroll = $("chatScroll");
   const hero = $("hero");
   if (hero) hero.style.display = "none";
   const log = $("log"); log.classList.add("on");
@@ -563,7 +556,7 @@ async function sendChat(text) {
   const body = d.querySelector(".body");
   const chip = d.querySelector(".status-chip");
   const statusText = chip.querySelector(".status-text");
-  let stages = ["Thinking", "Analyzing", "Writing"];
+  const stages = ["Thinking", "Analyzing", "Writing"];
   let stageIdx = 0;
   const stageInterval = setInterval(() => {
     stageIdx = (stageIdx + 1) % stages.length;
@@ -586,7 +579,7 @@ async function sendChat(text) {
     }
   };
 
-  const runTimeout = setTimeout(() => { try { ctrl.abort(); } catch(_) {} }, STREAM_TIMEOUT_MS);
+  const runTimeout = setTimeout(() => { try { ctrl.abort(); } catch (_) {} }, STREAM_TIMEOUT_MS);
 
   try {
     const headers = await authHeaders();
@@ -606,7 +599,7 @@ async function sendChat(text) {
       clearTimeout(runTimeout);
       clearInterval(stageInterval);
       let msg = "";
-      try { const j = await r.json(); msg = (j.error && j.error.message) || ""; } catch(_) {}
+      try { const j = await r.json(); msg = (j.error && j.error.message) || ""; } catch (_) {}
       if (r.status === 401) { body.innerHTML = '<span style="color:var(--bad)">Please sign in again.</span>'; openAuth("signin"); }
       else if (r.status === 429 && /token/i.test(msg)) { body.innerHTML = '<span style="color:var(--bad)">' + esc(msg) + '</span>'; showTokenModal("Out of tokens", msg, usage.reset_at); }
       else body.innerHTML = '<span style="color:var(--bad)">' + esc(msg || "Something went wrong.") + '</span>';
@@ -618,7 +611,7 @@ async function sendChat(text) {
     const reader = r.body.getReader();
     const dec = new TextDecoder();
     let buf = "", full = "", thought = "", gotFirst = false;
-    const firstTimer = setTimeout(() => { try { reader.cancel(); } catch(_) {} }, FIRST_TOKEN_MS);
+    const firstTimer = setTimeout(() => { try { reader.cancel(); } catch (_) {} }, FIRST_TOKEN_MS);
 
     for (;;) {
       const { done, value } = await reader.read();
@@ -632,6 +625,15 @@ async function sendChat(text) {
         if (!dd || dd === "[DONE]") continue;
         try {
           const j = JSON.parse(dd);
+
+          // NEW: server-reported charge
+          if (j.zyro_charged) {
+            usage.used = (usage.used || 0) + j.zyro_charged;
+            usage.remaining = Math.max(0, (usage.remaining || 0) - j.zyro_charged);
+            renderTokenPill();
+            continue;
+          }
+
           const cd = j.candidates && j.candidates[0];
           if (cd && cd.content && cd.content.parts) {
             for (const p of cd.content.parts) {
@@ -661,7 +663,8 @@ async function sendChat(text) {
     acts.innerHTML = '<button type="button" data-like>Helpful</button><button type="button" data-copy>Copy</button>';
     d.appendChild(acts);
 
-    await loadUsage();
+    // Refresh usage after a short delay so the Worker's async write lands
+    setTimeout(() => { loadUsage(); }, 900);
   } catch (e) {
     clearTimeout(runTimeout);
     clearInterval(stageInterval);
@@ -706,25 +709,117 @@ function renderAtts() {
   a.appendChild(c);
 }
 
+/* Image reader with HEIC detection + better errors */
 function readImg(file) {
-  return new Promise((ok, no) => {
-    if (!/^image\//i.test(file.type)) { no(new Error("not image")); return; }
-    const url = URL.createObjectURL(file), im = new Image();
+  return new Promise(async (ok, no) => {
+    if (file.size > 25 * 1024 * 1024) {
+      no(new Error("Image is too big (>25MB)"));
+      return;
+    }
+    if (!/^image\//i.test(file.type) && !/\.(jpe?g|png|webp|heic|heif)$/i.test(file.name || "")) {
+      no(new Error("Not an image file"));
+      return;
+    }
+
+    const url = URL.createObjectURL(file);
+    const im = new Image();
+
+    const timeout = setTimeout(() => {
+      URL.revokeObjectURL(url);
+      no(new Error("Image took too long to load. Try a JPG or PNG."));
+    }, 12000);
+
     im.onload = () => {
+      clearTimeout(timeout);
       try {
-        const M = 1024, k = Math.min(1, M / Math.max(im.width, im.height));
-        const w = Math.max(1, Math.round(im.width * k)), h = Math.max(1, Math.round(im.height * k));
-        const c = document.createElement("canvas"); c.width = w; c.height = h;
-        const x = c.getContext("2d"); x.fillStyle = "#fff"; x.fillRect(0, 0, w, h);
+        const M = 1400;
+        const k = Math.min(1, M / Math.max(im.width, im.height));
+        const w = Math.max(1, Math.round(im.width * k));
+        const h = Math.max(1, Math.round(im.height * k));
+        const c = document.createElement("canvas");
+        c.width = w; c.height = h;
+        const x = c.getContext("2d");
+        x.fillStyle = "#fff";
+        x.fillRect(0, 0, w, h);
         x.drawImage(im, 0, 0, w, h);
-        const d = c.toDataURL("image/jpeg", 0.8);
+
+        let d = c.toDataURL("image/jpeg", 0.85);
+        let b64 = d.split(",")[1];
+        if (b64.length > 1100000) {
+          d = c.toDataURL("image/jpeg", 0.65);
+          b64 = d.split(",")[1];
+        }
+        if (b64.length > 1200000) {
+          URL.revokeObjectURL(url);
+          no(new Error("Image is too detailed. Try a smaller photo."));
+          return;
+        }
         URL.revokeObjectURL(url);
-        ok({ mime: "image/jpeg", data: d.split(",")[1] });
-      } catch (e) { no(e); }
+        ok({ mime: "image/jpeg", data: b64 });
+      } catch (e) {
+        URL.revokeObjectURL(url);
+        no(new Error("Couldn't process the image."));
+      }
     };
-    im.onerror = () => { URL.revokeObjectURL(url); no(new Error("bad image")); };
+
+    im.onerror = () => {
+      clearTimeout(timeout);
+      URL.revokeObjectURL(url);
+      const isHeic = /heic|heif/i.test(file.type) || /\.(heic|heif)$/i.test(file.name || "");
+      if (isHeic) no(new Error("iPhone HEIC photo. Switch camera to 'Most Compatible' (Settings → Camera → Formats) or share as JPG."));
+      else no(new Error("This image format isn't supported. Try a JPG or PNG."));
+    };
+
     im.src = url;
   });
+}
+
+/* PDF reader with better errors */
+async function readPdf(file) {
+  if (file.size > 40 * 1024 * 1024) {
+    throw new Error("PDF is too large (>40MB). Try splitting it.");
+  }
+
+  try {
+    if (!window.pdfjsLib) {
+      await loadJS("https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js");
+      window.pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+    }
+  } catch (_) {
+    throw new Error("Couldn't load the PDF reader. Check your internet and try again.");
+  }
+
+  let pdf;
+  try {
+    const buf = await file.arrayBuffer();
+    pdf = await window.pdfjsLib.getDocument({ data: buf, isEvalSupported: false }).promise;
+  } catch (e) {
+    if (/password/i.test((e && e.message) || "")) {
+      throw new Error("This PDF is password-protected. Remove the password and try again.");
+    }
+    throw new Error("Couldn't open this PDF — it may be corrupted.");
+  }
+
+  let text = "";
+  const maxPages = Math.min(pdf.numPages, 80);
+  for (let i = 1; i <= maxPages && text.length < FILE_CHAR_LIMIT; i++) {
+    try {
+      const tc = await (await pdf.getPage(i)).getTextContent();
+      text += tc.items.map(x => x.str).join(" ") + "\n";
+    } catch (_) {}
+  }
+
+  const clean = text.replace(/\s+/g, " ").trim();
+
+  if (clean.length < 100) {
+    const isScanned = pdf.numPages > 0 && clean.length < 50;
+    if (isScanned) {
+      throw new Error("This looks like a scanned PDF (photos of pages). Zyro needs a text PDF — try a downloaded ebook or the original notes file.");
+    }
+    throw new Error("No readable text in this PDF. Try another file, or paste a YouTube video on the same topic.");
+  }
+
+  return clean.slice(0, FILE_CHAR_LIMIT);
 }
 
 /* -----------------------------------------------------------
@@ -767,7 +862,6 @@ async function renderSubjects() {
     const meta = SUBJECT_META[subject] || { em: "📖" };
     const sets = setsCache[subject] || await loadSetsForSubject(subject);
 
-    // Compute progress
     let avgPct = 0;
     if (sets.length) {
       const totals = await Promise.all(sets.map(async (set) => {
@@ -814,7 +908,6 @@ async function openSubjectPanel(subject) {
   if (title) title.textContent = subject;
   if (eye) eye.textContent = "Subject";
   if (panel) panel.classList.add("on");
-
   await refreshSourceList();
 }
 
@@ -857,7 +950,6 @@ async function refreshSourceList() {
 
     card.addEventListener("click", () => openWalk(set.id));
 
-    // Fetch progress async and update the mini bar
     (async () => {
       try {
         const s = await sbClient();
@@ -889,58 +981,48 @@ function closeSrcModal() { const m = $("srcModal"); if (m) m.classList.remove("o
 async function handlePdfSelect(file) {
   if (!file) return;
   closeSrcModal();
-  await checkTokensThenProcess(SOURCE_COSTS.pdf, async () => {
-    showProcessing();
-    setProcStep(1);
-    try {
-      const text = await readPdf(file);
-      if (!text || text.length < 100) {
-        hideProcessing();
-        toast("Couldn't read text from that PDF");
-        return;
-      }
-      setProcStep(2);
-      await new Promise(r => setTimeout(r, 400));
-      setProcStep(3);
-      await processSource({
-        subject: currentSubject,
-        source_type: "pdf",
-        title: file.name.replace(/\.pdf$/i, ""),
-        pdf_text: text,
-      });
-    } catch (e) {
-      hideProcessing();
-      toast("Failed: " + (e.message || "unknown"));
-    }
-  });
+  if (!(await checkTokens(SOURCE_COSTS.pdf))) return;
+
+  showProcessing(file.name);
+  setProcStep(1);
+  try {
+    const text = await readPdf(file);
+    setProcStep(2);
+    await new Promise(r => setTimeout(r, 300));
+    setProcStep(3);
+    await new Promise(r => setTimeout(r, 300));
+    setProcStep(4);
+    await processSource({
+      subject: currentSubject,
+      source_type: "pdf",
+      title: file.name.replace(/\.pdf$/i, ""),
+      pdf_text: text,
+    });
+  } catch (e) {
+    hideProcessing();
+    toast(e.message || "Couldn't read that PDF");
+  }
 }
 
 async function handleYoutubeSubmit(url) {
   const m = $("ytModal"); if (m) m.classList.remove("on");
   if (!url || !/youtu/.test(url)) { toast("Enter a valid YouTube link"); return; }
-  await checkTokensThenProcess(SOURCE_COSTS.youtube, async () => {
-    showProcessing();
-    setProcStep(1);
-    try {
-      setProcStep(2);
-      await new Promise(r => setTimeout(r, 400));
-      setProcStep(3);
-      await processSource({
-        subject: currentSubject,
-        source_type: "youtube",
-        title: "YouTube lecture",
-        url: url,
-      });
-    } catch (e) {
-      hideProcessing();
-      toast("Failed: " + (e.message || "unknown"));
-    }
-  });
-}
+  if (!(await checkTokens(SOURCE_COSTS.youtube))) return;
 
-async function checkTokensThenProcess(cost, run) {
-  if (!(await checkTokens(cost))) return;
-  await run();
+  showProcessing("YouTube lecture");
+  setProcStep(1);
+  await new Promise(r => setTimeout(r, 300));
+  setProcStep(2);
+  await new Promise(r => setTimeout(r, 300));
+  setProcStep(3);
+  await new Promise(r => setTimeout(r, 300));
+  setProcStep(4);
+  await processSource({
+    subject: currentSubject,
+    source_type: "youtube",
+    title: "YouTube lecture",
+    url: url,
+  });
 }
 
 async function processSource(payload) {
@@ -954,15 +1036,18 @@ async function processSource(payload) {
     const j = await r.json();
     if (!r.ok) {
       hideProcessing();
-      if (r.status === 429 && /token/i.test(j.error && j.error.message)) {
+      if (r.status === 429 && /token/i.test((j.error && j.error.message) || "")) {
         showTokenModal("Not enough tokens", (j.error && j.error.message) || "", usage.reset_at);
       } else {
         toast((j.error && j.error.message) || "Failed to build study set");
       }
       return;
     }
-    // Success — open the walkthrough
+
+    setProcStep(5); // triggers checkmark + 100%
+    await new Promise(r => setTimeout(r, 700));
     hideProcessing();
+
     await loadUsage();
     await loadSetsForSubject(currentSubject);
     await refreshSourceList();
@@ -974,48 +1059,61 @@ async function processSource(payload) {
   }
 }
 
-function readPdf(file) {
-  return new Promise(async (ok, no) => {
-    try {
-      if (!window.pdfjsLib) {
-        await loadJS("https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js");
-        window.pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
-      }
-      const pdf = await window.pdfjsLib.getDocument({ data: await file.arrayBuffer(), isEvalSupported: false }).promise;
-      let text = "";
-      const maxPages = Math.min(pdf.numPages, 80);
-      for (let i = 1; i <= maxPages && text.length < FILE_CHAR_LIMIT; i++) {
-        try {
-          const tc = await (await pdf.getPage(i)).getTextContent();
-          text += tc.items.map(x => x.str).join(" ") + "\n";
-        } catch (_) {}
-      }
-      const clean = text.replace(/\s+/g, " ").trim();
-      if (clean.length < 100) return ok("");
-      ok(clean.slice(0, FILE_CHAR_LIMIT));
-    } catch (e) { no(e); }
-  });
-}
-
 /* -----------------------------------------------------------
-   PROCESSING OVERLAY
+   PROCESSING OVERLAY — The Stack
    ----------------------------------------------------------- */
-function showProcessing() {
+const PROC_ICONS = {
+  pdf:   '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/>',
+  notes: '<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/><path d="M9 7h7M9 11h5"/>',
+  cards: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 9h18"/><circle cx="8" cy="14" r="1"/><circle cx="12" cy="14" r="1"/>',
+  quiz:  '<circle cx="12" cy="12" r="9"/><path d="M9.5 9.5h.01M14.5 9.5h.01M8.5 15c1.5-1.5 5.5-1.5 7 0"/>',
+  check: '<circle cx="12" cy="12" r="10"/><path d="M8 12.5l2.8 2.8L16 9.5"/>',
+};
+
+function showProcessing(fileName) {
   const p = $("processing");
   if (p) p.classList.add("on");
-  ["procStep1", "procStep2", "procStep3"].forEach(id => {
-    const el = $(id); if (el) el.classList.remove("active", "done");
-  });
-  const s1 = $("procStep1"); if (s1) s1.classList.add("active");
+  const sub = $("procSub");
+  if (sub) sub.textContent = fileName || "Analyzing your source…";
+  for (let i = 1; i <= 4; i++) {
+    const el = $("procStep" + i);
+    if (el) el.classList.remove("active", "done");
+  }
+  const bar = $("procBarFill");
+  if (bar) bar.style.width = "0%";
+  setProcStep(1);
 }
-function hideProcessing() { const p = $("processing"); if (p) p.classList.remove("on"); }
+
+function hideProcessing() {
+  const p = $("processing");
+  if (p) p.classList.remove("on");
+}
+
 function setProcStep(n) {
-  for (let i = 1; i <= 3; i++) {
+  for (let i = 1; i <= 4; i++) {
     const el = $("procStep" + i);
     if (!el) continue;
     el.classList.remove("active", "done");
     if (i < n) el.classList.add("done");
     if (i === n) el.classList.add("active");
+  }
+  const bar = $("procBarFill");
+  if (bar) bar.style.width = Math.min(100, (n / 5) * 100) + "%";
+
+  // Morph the card icon + flip it
+  const top = $("topCard");
+  const icon = $("cardIcon");
+  if (top && icon) {
+    const map = ["pdf", "notes", "cards", "quiz"];
+    const key = n <= 4 ? map[n - 1] : "check";
+    const colorClass = n >= 5 ? "check" : map[n - 1];
+    icon.className = "card-icon " + colorClass;
+    icon.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">' + PROC_ICONS[key] + '</svg>';
+
+    if (n <= 4) {
+      top.classList.add("flip-out");
+      setTimeout(() => top.classList.remove("flip-out"), 500);
+    }
   }
 }
 
@@ -1025,7 +1123,6 @@ function setProcStep(n) {
 async function openWalk(setId, cachedSet) {
   const panel = $("walkPanel");
   const title = $("walkPanelTitle");
-  const eyebrow = $("walkEyebrow");
   if (!panel) return;
 
   let kit = cachedSet;
@@ -1049,8 +1146,6 @@ async function openWalk(setId, cachedSet) {
   };
 
   if (title) title.textContent = (kit.title || "Study set").slice(0, 40);
-  if (eyebrow) eyebrow.textContent = "Study set";
-
   renderWalk();
   panel.classList.add("on");
 }
@@ -1066,7 +1161,6 @@ function renderWalk() {
 
   body.innerHTML = "";
 
-  // Steps indicator
   const steps = document.createElement("div");
   steps.className = "walk-steps";
   ["notes", "cards", "quiz"].forEach(s => {
@@ -1187,11 +1281,8 @@ function renderCardsStep(body) {
 
   function showCard() {
     stage.innerHTML = "";
-    if (idx >= cards.length) {
-      finishCards();
-      return;
-    }
-    $(".fnow", flipHeader).textContent = idx + 1;
+    if (idx >= cards.length) { finishCards(); return; }
+    flipHeader.querySelector(".fnow").textContent = idx + 1;
     stage.appendChild(buildCard(cards[idx], idx));
     buildDots();
   }
@@ -1283,7 +1374,6 @@ function renderQuizStep(body) {
             '<div class="quiz-score-msg">' +
               (pct >= 85 ? "🔥 Killing it" : pct >= 65 ? "👍 Solid work" : pct >= 45 ? "Getting there" : "Needs revision") +
             '</div>';
-          // Show finish button
           if (!$("finishQuizBtn")) {
             const nav = document.createElement("div");
             nav.className = "walk-nav";
@@ -1310,7 +1400,6 @@ async function finishQuiz() {
 
 function renderCompleteStep(body) {
   const stats = walkStats;
-  const pct = stats.cardsTotal ? Math.round((stats.cardsGot / stats.cardsTotal) * 100) : 0;
   body.innerHTML =
     '<div class="complete-screen">' +
       '<div class="complete-em">🎉</div>' +
@@ -1427,16 +1516,13 @@ async function loadProfile() {
    EVENT WIRING
    ----------------------------------------------------------- */
 function wireUI() {
-  // Theme
   const tt = $("topTheme");
   if (tt) tt.addEventListener("click", toggleTheme);
 
-  // Tabs
   document.querySelectorAll(".tab-btn").forEach(b => {
     b.addEventListener("click", () => switchTab(b.dataset.tab));
   });
 
-  // Token pill
   const pill = $("tokenPill");
   if (pill) pill.addEventListener("click", () => {
     showTokenModal(
@@ -1448,11 +1534,9 @@ function wireUI() {
     );
   });
 
-  // Token modal
   { const b = $("tokenUpgrade"); if (b) b.addEventListener("click", () => { hideTokenModal(); openRazorpayCheckout("monthly"); }); }
   { const b = $("tokenClose"); if (b) b.addEventListener("click", hideTokenModal); }
 
-  // Chat input
   const t = $("t");
   if (t) {
     t.addEventListener("input", () => {
@@ -1475,31 +1559,26 @@ function wireUI() {
     });
   }
 
-  // Plus → image picker
   const plus = $("plusBtn");
   if (plus) plus.addEventListener("click", () => { const i = $("img"); if (i) i.click(); });
 
-  // Image file input
   const img = $("img");
   if (img) img.addEventListener("change", async (e) => {
     const fs = [...e.target.files]; e.target.value = "";
     if (!fs.length) return;
     const f = fs[0];
-    if (f.size > 10e6) { toast("Image is too big"); return; }
     try {
       pendingImg = await readImg(f);
       renderAtts(); updateSendState();
-    } catch (_) { toast("Couldn't read image"); }
+    } catch (err) { toast(err.message || "Couldn't read image"); }
   });
 
-  // PDF file input
   const pdf = $("pdf");
   if (pdf) pdf.addEventListener("change", async (e) => {
     const fs = [...e.target.files]; e.target.value = "";
     if (fs.length) await handlePdfSelect(fs[0]);
   });
 
-  // Log delegation
   const log = $("log");
   if (log) log.addEventListener("click", (e) => {
     const cp = e.target.closest("[data-c]");
@@ -1518,18 +1597,15 @@ function wireUI() {
     if (like) { like.classList.add("active"); toast("Thanks!"); return; }
   });
 
-  // Chat scroll follow
   const chatScroll = $("chatScroll");
   if (chatScroll) chatScroll.addEventListener("scroll", () => {
     const dist = chatScroll.scrollHeight - chatScroll.scrollTop - chatScroll.clientHeight;
     if (dist < 140) follow = true;
   });
 
-  // Subject panel close
   { const b = $("closeSubjectPanel"); if (b) b.addEventListener("click", () => { const p = $("subjectPanel"); if (p) p.classList.remove("on"); }); }
   { const b = $("closeWalkPanel"); if (b) b.addEventListener("click", closeWalk); }
 
-  // Add source
   { const b = $("addSourceBtn"); if (b) b.addEventListener("click", openSrcModal); }
   { const b = $("srcCancel"); if (b) b.addEventListener("click", closeSrcModal); }
   { const m = $("srcModal"); if (m) m.addEventListener("click", (e) => { if (e.target === m) closeSrcModal(); }); }
@@ -1541,13 +1617,11 @@ function wireUI() {
     });
   }
 
-  // YouTube modal
   { const b = $("ytCancel"); if (b) b.addEventListener("click", () => { const m = $("ytModal"); if (m) m.classList.remove("on"); const u = $("ytUrl"); if (u) u.value = ""; }); }
   { const b = $("ytGo"); if (b) b.addEventListener("click", () => { const u = $("ytUrl"); const url = u ? u.value.trim() : ""; if (u) u.value = ""; handleYoutubeSubmit(url); }); }
   { const m = $("ytModal"); if (m) m.addEventListener("click", (e) => { if (e.target === m) { m.classList.remove("on"); const u = $("ytUrl"); if (u) u.value = ""; } }); }
   { const el = $("ytUrl"); if (el) el.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); const b = $("ytGo"); if (b) b.click(); } }); }
 
-  // Add subject
   { const b = $("addSubjectBtn"); if (b) b.addEventListener("click", () => openAddSubjModal()); }
   { const b = $("addSubjCancel"); if (b) b.addEventListener("click", () => { const m = $("addSubjModal"); if (m) m.classList.remove("on"); }); }
   { const b = $("addSubjGo"); if (b) b.addEventListener("click", async () => {
@@ -1557,7 +1631,6 @@ function wireUI() {
         const s = await sbClient();
         const rows = picked.map(sub => ({ user_id: user.id, subject: sub }));
         await s.from("user_subjects").upsert(rows, { onConflict: "user_id,subject" });
-        // Also update profiles.subjects
         const newSubjects = Array.from(new Set([...subjects, ...picked]));
         await s.from("profiles").update({ subjects: newSubjects }).eq("id", user.id);
         subjects = newSubjects;
@@ -1569,7 +1642,6 @@ function wireUI() {
   }
   { const m = $("addSubjModal"); if (m) m.addEventListener("click", (e) => { if (e.target === m) m.classList.remove("on"); }); }
 
-  // Account
   { const b = $("acctProBtn"); if (b) b.addEventListener("click", () => openRazorpayCheckout("monthly")); }
   { const b = $("acctSignOut"); if (b) b.addEventListener("click", async () => {
       const s = await sbClient();
@@ -1581,7 +1653,6 @@ function wireUI() {
     });
   }
 
-  // Onboarding
   { const b = $("obNext"); if (b) b.addEventListener("click", obNext); }
   { const b = $("obBack"); if (b) b.addEventListener("click", obBack); }
   { const el = $("obName"); if (el) el.addEventListener("input", () => { obData.name = el.value.trim(); obUpdateNext(); }); }
@@ -1589,7 +1660,6 @@ function wireUI() {
   { const el = $("obEmail"); if (el) el.addEventListener("input", () => { obData.email = el.value.trim(); obUpdateNext(); }); }
   { const el = $("obPw"); if (el) el.addEventListener("input", () => { obData.pw = el.value; obUpdateNext(); }); }
 
-  // Onboarding subject chips
   const obSubj = $("obSubjects");
   if (obSubj) obSubj.querySelectorAll(".ob-chip").forEach(c => {
     c.addEventListener("click", () => {
@@ -1615,7 +1685,6 @@ function wireUI() {
     c.addEventListener("click", () => c.classList.toggle("on"));
   });
 
-  // Onboarding eye
   { const eye = $("obEye"), icon = $("obEyeIcon"), pw = $("obPw");
     if (eye && icon && pw) eye.addEventListener("click", () => {
       const showing = pw.type === "text";
@@ -1626,7 +1695,6 @@ function wireUI() {
     });
   }
 
-  // Auth modal
   { const b = $("amCancel"); if (b) b.addEventListener("click", closeAuth); }
   { const b = $("amSwitch"); if (b) b.addEventListener("click", (e) => { e.preventDefault(); setAuthMode(authMode === "signin" ? "signup" : "signin"); }); }
   { const b = $("amGo"); if (b) b.addEventListener("click", async () => {
@@ -1657,7 +1725,6 @@ function wireUI() {
     });
   }
 
-  // Escape closes overlays
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape") {
       closeAuth(); hideTokenModal();
@@ -1684,21 +1751,18 @@ async function afterSignIn() {
   await loadSubjects();
   await loadUsage();
   renderSubjects();
-  // Periodic token refresh
   clearInterval(afterSignIn._t);
   afterSignIn._t = setInterval(() => { loadUsage(); renderAccount(); }, 60000);
 }
 
 async function boot() {
-  // Restore theme
-  const saved = (() => { try { return localStorage.getItem(K.theme); } catch(_) { return null; } })();
+  const saved = (() => { try { return localStorage.getItem(K.theme); } catch (_) { return null; } })();
   setTheme(saved === "dark" ? "dark" : "light");
 
   wireUI();
   renderTokenPill();
   renderAccount();
 
-  // Supabase session
   try {
     const s = await sbClient();
     const { data } = await s.auth.getSession();
@@ -1721,15 +1785,12 @@ async function boot() {
     await maybeSavePendingDraft();
     await afterSignIn();
   } else {
-    // No session — check if onboarding is needed
     let onboarded = false;
     try { onboarded = localStorage.getItem(K.onboard) === "1"; } catch (_) {}
     const draft = lsGet(K.obDraft, null);
     if (!onboarded && (!user || !profile || !profile.onboarded)) {
-      // If we have a draft with a name, resume from last step instead of full onboarding
       if (draft && draft.name) {
         obData = Object.assign(obData, draft);
-        // If draft has name+dob+subjects+board, jump to signup step
         if (draft.name && draft.dob && draft.subjects && draft.subjects.length && draft.board) {
           obStep = 3;
         }
