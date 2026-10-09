@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en-IN">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -49,8 +49,7 @@ body{
   margin:0;height:100vh;height:100dvh;overflow:hidden;
   background:var(--bg);color:var(--ink);
   font:14.5px/1.55 'Plus Jakarta Sans',system-ui,sans-serif;
-  font-weight:500;letter-spacing:-.005em;
-  -webkit-font-smoothing:antialiased;
+  font-weight:500;letter-spacing:-.005em;-webkit-font-smoothing:antialiased;
   display:flex;flex-direction:column;position:relative;
   padding-top:env(safe-area-inset-top,0px);
   padding-bottom:env(safe-area-inset-bottom,0px);
@@ -63,10 +62,7 @@ button:disabled{opacity:.4;cursor:not-allowed}
 img{max-width:100%}
 
 /* ===== TOPBAR ===== */
-.topbar{
-  display:flex;align-items:center;justify-content:space-between;
-  padding:12px 16px 6px;flex:none;z-index:100;gap:8px;
-}
+.topbar{display:flex;align-items:center;justify-content:space-between;padding:12px 16px 6px;flex:none;z-index:100;gap:8px}
 .tb-left,.tb-right{display:flex;align-items:center;gap:8px}
 .icon-btn{
   width:36px;height:36px;border-radius:11px;
@@ -80,9 +76,7 @@ img{max-width:100%}
   padding:7px 12px;border-radius:999px;
   background:linear-gradient(135deg,var(--lime-soft),var(--coral-soft));
   border:1px solid var(--lime-line);
-  font-family:'JetBrains Mono',monospace;
-  font-size:11px;font-weight:700;color:var(--ink);
-  cursor:pointer;
+  font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;color:var(--ink);
 }
 .token-pill.warn{background:linear-gradient(135deg,var(--sun-soft),var(--coral-soft));border-color:var(--coral-line);color:var(--coral)}
 .token-pill.out{background:var(--bad-soft);border-color:rgba(220,38,38,.3);color:var(--bad)}
@@ -93,13 +87,13 @@ img{max-width:100%}
 .tab-screen.on{display:flex}
 .tab-scroll{flex:1;overflow-y:auto;padding:0 16px 20px;scroll-behavior:smooth}
 
-/* ===== HERO / EMPTY STATES ===== */
+/* ===== HERO ===== */
 .hero{padding:20px 0 24px;text-align:center}
 .hero h1{font-size:24px;font-weight:800;letter-spacing:-.04em;line-height:1.15;margin:0 0 10px}
 .hero h1 em{font-style:normal;background:linear-gradient(120deg,var(--coral),var(--violet));-webkit-background-clip:text;background-clip:text;color:transparent}
 .hero p{color:var(--dim);font-size:13px;font-weight:500;line-height:1.55;max-width:280px;margin:0 auto}
 
-/* ===== CHAT ===== */
+/* ===== CHAT LOG ===== */
 #log{padding-bottom:16px;display:none}
 #log.on{display:flex;flex-direction:column;gap:20px;padding-top:12px}
 .u{margin:2px 0;display:flex;justify-content:flex-end}
@@ -119,8 +113,7 @@ img{max-width:100%}
   background:var(--bg-2);border:1px solid var(--line);
   border-radius:6px 20px 20px 20px;
   padding:14px 16px;font-size:14.5px;line-height:1.65;
-  color:var(--ink-2);box-shadow:var(--shadow-soft);
-  word-break:break-word;
+  color:var(--ink-2);box-shadow:var(--shadow-soft);word-break:break-word;
 }
 .body:empty{display:none;padding:0;border:0;box-shadow:none}
 .body p{margin:0 0 10px;white-space:pre-wrap}
@@ -135,7 +128,7 @@ img{max-width:100%}
 .body img{max-width:100%;border-radius:10px}
 .body .hl{background:linear-gradient(180deg,transparent 55%,rgba(255,181,71,.55) 55%);font-weight:700;color:var(--ink);padding:0 1px}
 .body .term{background:var(--bg-3);color:var(--ink);font-weight:700;padding:1px 5px;border-radius:4px}
-.cb{background:var(--bg-3);border:1px solid var(--line);border-radius:12px;margin:12px 0;overflow:hidden;max-width:100%;min-width:0}
+.cb{background:var(--bg-3);border:1px solid var(--line);border-radius:12px;margin:12px 0;overflow:hidden}
 .ch{display:flex;justify-content:space-between;align-items:center;padding:8px 14px;font:12px 'JetBrains Mono',monospace;color:var(--dim);border-bottom:1px solid var(--line);gap:8px;flex-wrap:wrap;background:var(--bg-4)}
 .ch span:first-child{color:var(--coral);font-weight:600}
 .ch button{color:var(--ink-2);font-size:11.5px;padding:4px 9px;border-radius:6px;background:var(--bg-2);border:1px solid var(--line);font-weight:600}
@@ -158,10 +151,9 @@ img{max-width:100%}
 .shimmer{font-weight:600;color:transparent;-webkit-background-clip:text;background-clip:text;background-image:linear-gradient(90deg,var(--dim-2) 0%,var(--ink) 40%,var(--coral) 50%,var(--ink) 60%,var(--dim-2) 100%);background-size:220% 100%;animation:shimmer 1.6s linear infinite}
 @keyframes shimmer{0%{background-position:200% 0}100%{background-position:-20% 0}}
 .think-live{display:none}
-.think-live[hidden]{display:none}
 .think-live.on{display:block}
 .think-live-head{display:inline-flex;align-items:center;gap:8px;background:none;border:0;padding:3px 0;font:500 12.5px 'Plus Jakarta Sans',sans-serif;color:var(--dim);cursor:pointer}
-.think-live-head .chev{font-family:'JetBrains Mono',monospace;color:var(--coral);font-weight:700;font-size:14px;display:inline-block;width:14px;overflow:hidden;transition:transform .3s;transform-origin:left center}
+.think-live-head .chev{font-family:'JetBrains Mono',monospace;color:var(--coral);font-weight:700;font-size:14px;display:inline-block;width:14px;overflow:hidden;transition:transform .3s}
 .think-live-head[aria-expanded="true"] .chev{transform:rotate(90deg)}
 .think-live-dot{width:6px;height:6px;border-radius:50%;background:var(--coral);box-shadow:0 0 10px var(--coral-line);flex:none;animation:livePulse 1.2s ease-in-out infinite}
 @keyframes livePulse{0%,100%{opacity:.4;transform:scale(.9)}50%{opacity:1;transform:scale(1.2)}}
@@ -203,7 +195,7 @@ textarea::placeholder{color:var(--dim-2);font-weight:500}
 .send-btn svg{width:15px;height:15px;display:block}
 .send-btn.muted{background:var(--bg-3);color:var(--dim-2);border-color:var(--line-2);box-shadow:none}
 
-/* ===== TAB BAR ===== */
+/* ===== TABS BAR ===== */
 .tabs-bar{
   display:flex;align-items:stretch;gap:8px;
   padding:10px 12px calc(12px + env(safe-area-inset-bottom,0px));
@@ -279,7 +271,7 @@ textarea::placeholder{color:var(--dim-2);font-weight:500}
 .acct-row.danger{color:var(--bad)}
 .acct-row.danger svg.ic{color:var(--bad)}
 
-/* ===== PANELS (full-screen slide up) ===== */
+/* ===== PANELS ===== */
 .panel{
   position:fixed;inset:0;background:var(--bg);z-index:500;
   display:flex;flex-direction:column;
@@ -296,7 +288,7 @@ textarea::placeholder{color:var(--dim-2);font-weight:500}
 .close-panel svg{width:15px;height:15px;display:block}
 .panel-body{flex:1;overflow-y:auto;padding:18px 18px calc(40px + env(safe-area-inset-bottom,0px))}
 
-/* ===== SUBJECT DETAIL (sources list) ===== */
+/* ===== SUBJECT SOURCES ===== */
 .source-card{
   padding:16px;border-radius:16px;
   background:var(--bg-2);border:1px solid var(--line-2);
@@ -366,72 +358,167 @@ textarea::placeholder{color:var(--dim-2);font-weight:500}
 .src-option .tx span{display:block;font-size:11.5px;color:var(--dim);font-weight:500}
 .src-option svg{width:14px;height:14px;color:var(--dim-2);flex:none}
 
-.yt-input{
-  width:100%;padding:14px 16px;border-radius:12px;
-  border:1.5px solid var(--line-2);background:var(--bg-3);
-  color:var(--ink);font:14px 'Plus Jakarta Sans',sans-serif;font-weight:500;
-  outline:0;margin-bottom:12px;
+.src-btn-ghost{
+  width:100%;padding:12px;border-radius:12px;
+  background:var(--bg-3);color:var(--ink);border:1px solid var(--line-2);
+  font-size:13.5px;font-weight:700;margin-top:8px;
 }
-.yt-input:focus{border-color:var(--lime-deep)}
 .src-btn-primary{
   width:100%;padding:14px;border-radius:12px;
   background:var(--lime);color:#111;border:1px solid var(--lime-deep);
   box-shadow:0 2px 0 var(--lime-deep);
   font-size:14px;font-weight:800;
 }
-.src-btn-ghost{
-  width:100%;padding:12px;border-radius:12px;
-  background:var(--bg-3);color:var(--ink);border:1px solid var(--line-2);
-  font-size:13.5px;font-weight:700;margin-top:8px;
-}
 
-/* ===== PROCESSING OVERLAY ===== */
+/* ===== PROCESSING OVERLAY — The Stack ===== */
 .processing{
-  position:fixed;inset:0;z-index:9999;
-  background:var(--bg);
+  position:fixed;inset:0;z-index:9999;background:var(--bg);
   display:none;flex-direction:column;align-items:center;justify-content:center;
-  padding:40px 30px;
+  padding:40px 24px;
+  padding-top:calc(40px + env(safe-area-inset-top,0px));
+  padding-bottom:calc(60px + env(safe-area-inset-bottom,0px));
 }
 .processing.on{display:flex}
-.proc-orb{
-  width:100px;height:100px;border-radius:50%;
-  background:conic-gradient(from 0deg,var(--lime),var(--coral),var(--violet),var(--lime));
-  animation:orbSpin 3s linear infinite, orbPulse 2s ease-in-out infinite;
-  margin-bottom:36px;position:relative;
+
+.stack-wrap{
+  position:relative;width:200px;height:200px;
+  margin:0 auto 26px;
+  display:grid;place-items:center;
 }
-.proc-orb::after{
-  content:"";position:absolute;inset:8px;border-radius:50%;background:var(--bg);
+
+/* Converging particles */
+.particle{
+  position:absolute;width:8px;height:8px;border-radius:50%;
+  opacity:0;top:50%;left:50%;margin:-4px 0 0 -4px;
+  animation:converge 2.8s ease-in infinite;
 }
-@keyframes orbSpin{to{transform:rotate(1turn)}}
-@keyframes orbPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.08)}}
-.proc-title{font-size:20px;font-weight:800;letter-spacing:-.03em;text-align:center;margin:0 0 8px;color:var(--ink)}
-.proc-sub{font-size:13px;color:var(--dim);text-align:center;font-weight:500;margin:0 0 30px}
-.proc-steps{display:flex;flex-direction:column;gap:12px;width:100%;max-width:280px}
-.proc-step{
+.particle.p1{background:var(--lime);animation-delay:0s;--angle:0deg;--dist:100px}
+.particle.p2{background:var(--coral);animation-delay:.15s;--angle:45deg;--dist:110px}
+.particle.p3{background:var(--violet);animation-delay:.3s;--angle:90deg;--dist:95px}
+.particle.p4{background:var(--sun);animation-delay:.45s;--angle:135deg;--dist:105px}
+.particle.p5{background:var(--lime);animation-delay:.6s;--angle:180deg;--dist:100px}
+.particle.p6{background:var(--violet);animation-delay:.75s;--angle:225deg;--dist:110px}
+.particle.p7{background:var(--coral);animation-delay:.9s;--angle:270deg;--dist:95px}
+.particle.p8{background:var(--sun);animation-delay:1.05s;--angle:315deg;--dist:105px}
+
+@keyframes converge{
+  0%{opacity:0;transform:rotate(var(--angle)) translateX(var(--dist)) scale(.4)}
+  15%{opacity:.9}
+  70%{opacity:.9;transform:rotate(var(--angle)) translateX(10px) scale(1)}
+  85%{opacity:0;transform:rotate(var(--angle)) translateX(0) scale(1.6)}
+  100%{opacity:0;transform:rotate(var(--angle)) translateX(0) scale(.4)}
+}
+
+.card-stack{
+  position:relative;width:158px;height:158px;
+  perspective:800px;
+}
+.stack-card{
+  position:absolute;inset:0;border-radius:16px;
+  background:var(--bg-2);border:1px solid var(--line-2);
+  box-shadow:var(--shadow-card);
+  display:flex;align-items:center;justify-content:center;
+  transition:transform .6s cubic-bezier(.34,1.56,.64,1),opacity .5s;
+  transform-origin:center bottom;overflow:hidden;
+  backface-visibility:hidden;
+}
+.stack-card.b3{transform:translateY(12px) rotate(-8deg) scale(.9);opacity:.35;z-index:1}
+.stack-card.b2{transform:translateY(8px) rotate(-4deg) scale(.95);opacity:.6;z-index:2}
+.stack-card.top{z-index:3;animation:cardFloat 3s ease-in-out infinite}
+@keyframes cardFloat{
+  0%,100%{transform:translateY(0) rotate(-1deg)}
+  50%{transform:translateY(-4px) rotate(1deg)}
+}
+.stack-card.top.flip-out{animation:flipOut .5s cubic-bezier(.4,0,.2,1) forwards}
+@keyframes flipOut{
+  0%{transform:translateY(0) rotate(0);opacity:1}
+  100%{transform:translateY(-30px) rotate(15deg) scale(.85);opacity:0}
+}
+.card-icon{
+  width:66px;height:66px;
+  display:grid;place-items:center;transition:all .35s;
+}
+.card-icon svg{width:100%;height:100%;stroke-width:2}
+.card-icon.pdf{color:var(--coral)}
+.card-icon.notes{color:var(--lime-deep)}
+.card-icon.cards{color:var(--violet)}
+.card-icon.quiz{color:var(--sun)}
+.card-icon.check{color:var(--good)}
+
+.proc-headline{
+  font-size:22px;font-weight:800;letter-spacing:-.035em;line-height:1.15;
+  margin:0 0 8px;color:var(--ink);text-align:center;
+}
+.proc-headline em{
+  font-style:normal;
+  background:linear-gradient(120deg,var(--coral),var(--violet));
+  -webkit-background-clip:text;background-clip:text;color:transparent;
+}
+.proc-sub{
+  font-size:11.5px;color:var(--dim);font-weight:500;margin:0 0 24px;
+  font-family:'JetBrains Mono',monospace;letter-spacing:.02em;text-align:center;
+  transition:opacity .3s;min-height:14px;
+}
+
+.proc-phases{
+  list-style:none;padding:0;margin:0;width:100%;max-width:340px;
+  display:flex;flex-direction:column;gap:8px;text-align:left;
+}
+.proc-phase{
   display:flex;align-items:center;gap:12px;
+  padding:10px 14px;border-radius:11px;
   font-size:13px;font-weight:600;color:var(--dim-2);
-  transition:color .3s;
+  border:1px solid transparent;transition:all .4s cubic-bezier(.4,0,.2,1);
 }
-.proc-step.active{color:var(--ink)}
-.proc-step.done{color:var(--good)}
-.proc-step .dot{
+.proc-phase.active{
+  color:var(--ink);background:var(--bg-2);
+  border-color:var(--line-2);
+  box-shadow:0 1px 3px rgba(24,23,22,.04),0 8px 16px -12px rgba(24,23,22,.12);
+  transform:translateX(4px);
+}
+.proc-phase.done{color:var(--dim)}
+.proc-phase .check{
   width:20px;height:20px;border-radius:50%;flex:none;
   background:var(--bg-3);border:1.5px solid var(--line-2);
-  display:grid;place-items:center;
-  transition:all .3s;
+  display:grid;place-items:center;transition:all .35s cubic-bezier(.34,1.56,.64,1);
+  position:relative;
 }
-.proc-step.active .dot{background:var(--lime);border-color:var(--lime-deep);animation:dotPulse 1.4s ease-in-out infinite}
-.proc-step.done .dot{background:var(--good);border-color:var(--good);color:#fff}
-.proc-step .dot svg{width:11px;height:11px}
-@keyframes dotPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.15)}}
+.proc-phase.active .check{background:var(--lime);border-color:var(--lime-deep)}
+.proc-phase.active .check::after{
+  content:"";position:absolute;inset:-4px;border-radius:50%;
+  border:1.5px solid var(--lime-line);
+  animation:dotRipple 1.4s ease-in-out infinite;
+}
+@keyframes dotRipple{0%{transform:scale(1);opacity:.7}100%{transform:scale(1.7);opacity:0}}
+.proc-phase .check svg{width:11px;height:11px;opacity:0;color:#fff}
+.proc-phase.done .check{background:var(--good);border-color:var(--good)}
+.proc-phase.done .check svg{opacity:1}
+
+.proc-bar{
+  position:absolute;left:24px;right:24px;
+  bottom:calc(24px + env(safe-area-inset-bottom,0px));
+  height:3px;background:var(--bg-3);border-radius:2px;
+  overflow:hidden;
+}
+.proc-bar-fill{
+  height:100%;width:0%;
+  background:linear-gradient(90deg,var(--lime),var(--coral),var(--violet));
+  background-size:200% 100%;
+  border-radius:2px;
+  transition:width .7s cubic-bezier(.4,0,.2,1);
+  animation:barShine 2s linear infinite;
+}
+@keyframes barShine{0%{background-position:0% 0}100%{background-position:200% 0}}
+
+@media(prefers-reduced-motion:reduce){
+  .particle{display:none}
+  .stack-card.top{animation:none}
+}
 
 /* ===== STUDY SET WALKTHROUGH ===== */
 .walk{padding:6px 0}
 .walk-steps{display:flex;gap:6px;margin-bottom:20px}
-.walk-step-dot{
-  flex:1;height:5px;border-radius:3px;background:var(--bg-4);
-  transition:background .3s;
-}
+.walk-step-dot{flex:1;height:5px;border-radius:3px;background:var(--bg-4);transition:background .3s}
 .walk-step-dot.on{background:var(--lime)}
 .walk-step-dot.done{background:var(--good)}
 
@@ -441,7 +528,6 @@ textarea::placeholder{color:var(--dim-2);font-weight:500}
 .walk-header h2 em{font-style:normal;background:linear-gradient(120deg,var(--lime),var(--coral));-webkit-background-clip:text;background-clip:text;color:transparent}
 .walk-header p{font-size:12.5px;color:var(--dim);font-weight:500;margin:0}
 
-/* notes */
 .notes-content{background:var(--bg-2);border:1px solid var(--line-2);border-radius:16px;padding:20px;box-shadow:var(--shadow-soft)}
 .notes-content p{font-size:14.5px;line-height:1.75;color:var(--ink-2);margin:0 0 14px;font-weight:500}
 .notes-content p:last-child{margin:0}
@@ -449,7 +535,6 @@ textarea::placeholder{color:var(--dim-2);font-weight:500}
 .notes-content .hl{background:linear-gradient(180deg,transparent 55%,rgba(255,181,71,.55) 55%);font-weight:700;color:var(--ink);padding:0 1px;border-radius:2px}
 .notes-content .term{background:var(--lime-soft);color:var(--ink);font-weight:700;padding:1px 5px;border-radius:4px}
 
-/* flashcards */
 .flip-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}
 .flip-counter{font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;padding:6px 12px;border-radius:999px;background:var(--bg-3);border:1px solid var(--line);color:var(--dim)}
 .flip-counter b{color:var(--ink);font-weight:800}
@@ -482,13 +567,11 @@ textarea::placeholder{color:var(--dim-2);font-weight:500}
 .flip-btn.review{background:var(--bg-2);color:var(--ink);border:1px solid var(--line-2)}
 .flip-btn.got{background:linear-gradient(135deg,var(--lime),#a8e02a);color:#111;border:1px solid var(--lime-deep);box-shadow:0 2px 0 var(--lime-deep)}
 .flip-dots{display:flex;gap:5px;justify-content:center;margin-top:14px}
-.fdot{height:5px;border-radius:3px;width:16px;background:var(--line-2);flex:none;transition:all .35s cubic-bezier(.4,0,.2,1)}
+.fdot{height:5px;border-radius:3px;width:16px;background:var(--line-2);flex:none;transition:all .35s}
 .fdot.seen{background:var(--dim-2)}
-.fdot.correct{background:var(--lime);box-shadow:0 0 8px rgba(195,245,60,.6)}
+.fdot.correct{background:var(--lime)}
 .fdot.active{width:28px;background:var(--ink)}
-.fdot.active.correct{background:var(--lime)}
 
-/* quiz */
 .quiz{display:flex;flex-direction:column;gap:16px}
 .quiz-item{border:1px solid var(--line-2);border-radius:14px;background:var(--bg-2);padding:18px;box-shadow:var(--shadow-soft)}
 .quiz-q{display:flex;gap:11px;align-items:flex-start;margin-bottom:14px}
@@ -508,22 +591,14 @@ textarea::placeholder{color:var(--dim-2);font-weight:500}
 .quiz-score.done{background:linear-gradient(120deg,var(--lime-soft),var(--coral-soft));border-color:var(--lime-line);color:var(--ink)}
 .quiz-score-msg{flex-basis:100%;text-align:center;font-family:'Plus Jakarta Sans',sans-serif;font-size:14px;font-weight:800;margin-top:6px;color:var(--ink)}
 
-/* walkthrough nav */
 .walk-nav{display:flex;gap:10px;margin-top:20px}
-.walk-nav button{
-  flex:1;padding:14px;border-radius:14px;font-size:14px;font-weight:800;
-  display:inline-flex;align-items:center;justify-content:center;gap:8px;
-}
+.walk-nav button{flex:1;padding:14px;border-radius:14px;font-size:14px;font-weight:800;display:inline-flex;align-items:center;justify-content:center;gap:8px}
 .walk-nav .primary{background:var(--lime);color:#111;border:1px solid var(--lime-deep);box-shadow:0 3px 0 var(--lime-deep)}
 .walk-nav .primary:active{transform:translateY(2px);box-shadow:0 0 0 var(--lime-deep)}
 .walk-nav .ghost{background:var(--bg-2);color:var(--ink);border:1px solid var(--line-2);flex:0 1 auto;padding:14px 18px}
 .walk-nav svg{width:15px;height:15px}
 
-/* completion */
-.complete-screen{
-  display:flex;flex-direction:column;align-items:center;justify-content:center;
-  text-align:center;padding:40px 20px;min-height:60vh;
-}
+.complete-screen{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:40px 20px;min-height:60vh}
 .complete-em{font-size:72px;line-height:1;margin-bottom:20px;animation:completeBounce .8s cubic-bezier(.34,1.56,.64,1)}
 @keyframes completeBounce{0%{transform:scale(.3) rotate(-15deg);opacity:0}60%{transform:scale(1.1) rotate(4deg)}100%{transform:scale(1) rotate(0);opacity:1}}
 .complete-title{font-size:26px;font-weight:900;letter-spacing:-.035em;margin:0 0 8px;color:var(--ink)}
@@ -583,17 +658,14 @@ textarea::placeholder{color:var(--dim-2);font-weight:500}
 .pw-eye{position:absolute;top:50%;right:6px;transform:translateY(-50%);width:38px;height:38px;border-radius:10px;background:var(--bg-4);border:1px solid var(--line);color:var(--ink-2);display:grid;place-items:center;cursor:pointer;z-index:5}
 .pw-eye svg{width:20px;height:20px;display:block}
 
-/* token modal / cooldown */
+/* token modal */
 .token-modal{position:fixed;inset:0;z-index:9800;background:rgba(24,23,22,.55);backdrop-filter:blur(10px);display:none;align-items:center;justify-content:center;padding:20px}
 .token-modal.on{display:flex}
 .token-box{background:var(--bg-2);border:1px solid var(--line-2);border-radius:22px;padding:26px 22px;width:min(400px,100%);text-align:center}
 .token-box .em{font-size:48px;line-height:1;margin-bottom:14px}
 .token-box h3{margin:0 0 8px;font-size:20px;font-weight:800;letter-spacing:-.025em}
 .token-box p{margin:0 0 16px;font-size:13.5px;color:var(--dim);font-weight:500;line-height:1.5}
-.token-countdown{
-  font-family:'JetBrains Mono',monospace;font-size:32px;font-weight:800;
-  color:var(--ink);margin:12px 0 20px;letter-spacing:.02em;
-}
+.token-countdown{font-family:'JetBrains Mono',monospace;font-size:32px;font-weight:800;color:var(--ink);margin:12px 0 20px;letter-spacing:.02em}
 .token-box .cta{display:flex;flex-direction:column;gap:8px}
 .token-box .cta button{padding:13px;border-radius:13px;font-size:14px;font-weight:800;border:0}
 .token-box .cta .up{background:var(--violet);color:#fff}
@@ -603,10 +675,6 @@ textarea::placeholder{color:var(--dim-2);font-weight:500}
 .toast{position:fixed;left:50%;bottom:120px;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 18px;border-radius:20px;font-size:13px;font-weight:700;opacity:0;pointer-events:none;transition:opacity .25s;z-index:11000;max-width:88vw;text-align:center}
 .toast.on{opacity:1}
 #jsErr{position:fixed;top:0;left:0;right:0;background:var(--bad);color:#fff;padding:10px 14px;font:12px/1.5 monospace;z-index:99999;white-space:pre-wrap;word-break:break-word;max-height:45vh;overflow:auto;display:none}
-
-@media(prefers-reduced-motion:reduce){
-  *{animation:none!important;transition:none!important}
-}
 </style>
 </head>
 <body>
@@ -624,7 +692,6 @@ textarea::placeholder{color:var(--dim-2);font-weight:500}
     </div>
 
     <div class="ob-body">
-      <!-- Step 1: Name -->
       <div class="ob-step on" data-step="0">
         <span class="ob-eyebrow">Let's get to know you</span>
         <h1 class="ob-q">What should I <em>call you?</em></h1>
@@ -634,7 +701,6 @@ textarea::placeholder{color:var(--dim-2);font-weight:500}
         <input class="ob-input" id="obDob" type="date">
       </div>
 
-      <!-- Step 2: Subjects -->
       <div class="ob-step" data-step="1">
         <span class="ob-eyebrow">What you study</span>
         <h1 class="ob-q">Pick your <em>subjects</em></h1>
@@ -651,7 +717,6 @@ textarea::placeholder{color:var(--dim-2);font-weight:500}
         </div>
       </div>
 
-      <!-- Step 3: Board (one quick one) -->
       <div class="ob-step" data-step="2">
         <span class="ob-eyebrow">About your studies</span>
         <h1 class="ob-q">Which <em>board?</em></h1>
@@ -665,7 +730,6 @@ textarea::placeholder{color:var(--dim-2);font-weight:500}
         </div>
       </div>
 
-      <!-- Step 4: Signup -->
       <div class="ob-step" data-step="3">
         <span class="ob-eyebrow">Almost there</span>
         <h1 class="ob-q">Save your <em>progress</em></h1>
@@ -704,7 +768,7 @@ textarea::placeholder{color:var(--dim-2);font-weight:500}
   </div>
 </div>
 
-<!-- ============ CHAT TAB ============ -->
+<!-- ============ CHAT ============ -->
 <div class="tab-screen on" data-tab="chat">
   <div class="tab-scroll" id="chatScroll" style="display:flex;flex-direction:column">
     <div class="hero" id="hero">
@@ -730,7 +794,7 @@ textarea::placeholder{color:var(--dim-2);font-weight:500}
   </div>
 </div>
 
-<!-- ============ SUBJECTS TAB ============ -->
+<!-- ============ SUBJECTS ============ -->
 <div class="tab-screen" data-tab="subjects">
   <div class="tab-scroll">
     <div class="tab-title">
@@ -745,7 +809,7 @@ textarea::placeholder{color:var(--dim-2);font-weight:500}
   </div>
 </div>
 
-<!-- ============ ACCOUNT TAB ============ -->
+<!-- ============ ACCOUNT ============ -->
 <div class="tab-screen" data-tab="account">
   <div class="tab-scroll">
     <div class="acct-hero">
@@ -802,7 +866,7 @@ textarea::placeholder{color:var(--dim-2);font-weight:500}
 <input type="file" id="img" hidden multiple accept="image/*">
 <input type="file" id="pdf" hidden accept=".pdf,application/pdf">
 
-<!-- ============ SUBJECT DETAIL PANEL ============ -->
+<!-- ============ SUBJECT PANEL ============ -->
 <div class="panel" id="subjectPanel">
   <div class="panel-head">
     <div class="panel-title">
@@ -822,7 +886,7 @@ textarea::placeholder{color:var(--dim-2);font-weight:500}
   </div>
 </div>
 
-<!-- ============ STUDY SET WALKTHROUGH PANEL ============ -->
+<!-- ============ WALK PANEL ============ -->
 <div class="panel" id="walkPanel">
   <div class="panel-head">
     <div class="panel-title">
@@ -838,25 +902,19 @@ textarea::placeholder{color:var(--dim-2);font-weight:500}
 
 <!-- ============ ADD SOURCE MODAL ============ -->
 <div class="src-modal" id="srcModal">
-  <div class="src-modal-box" id="srcModalBox">
+  <div class="src-modal-box">
     <h3>Add a source</h3>
     <p>Zyro will turn it into notes, flashcards, and a quiz.</p>
 
     <button type="button" class="src-option pdf" id="srcPdfOpt">
       <span class="em">📄</span>
-      <span class="tx">
-        <b>Upload a PDF</b>
-        <span>Chapter, notes, or textbook page · 5k tokens</span>
-      </span>
+      <span class="tx"><b>Upload a PDF</b><span>Chapter, notes, or textbook page · 5k tokens</span></span>
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
     </button>
 
     <button type="button" class="src-option youtube" id="srcYtOpt">
       <span class="em">▶</span>
-      <span class="tx">
-        <b>Paste a YouTube link</b>
-        <span>Any lecture with captions · 8k tokens</span>
-      </span>
+      <span class="tx"><b>Paste a YouTube link</b><span>Any lecture with captions · 8k tokens</span></span>
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
     </button>
 
@@ -897,25 +955,55 @@ textarea::placeholder{color:var(--dim-2);font-weight:500}
   </div>
 </div>
 
-<!-- ============ PROCESSING OVERLAY ============ -->
+<!-- ============ PROCESSING — The Stack ============ -->
 <div class="processing" id="processing">
-  <div class="proc-orb"></div>
-  <h2 class="proc-title" id="procTitle">Building your study set</h2>
-  <p class="proc-sub" id="procSub">This takes about 15–30 seconds.</p>
-  <div class="proc-steps">
-    <div class="proc-step" id="procStep1">
-      <div class="dot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></div>
-      Reading your source
-    </div>
-    <div class="proc-step" id="procStep2">
-      <div class="dot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></div>
-      Writing notes
-    </div>
-    <div class="proc-step" id="procStep3">
-      <div class="dot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></div>
-      Making flashcards and quiz
+  <div class="stack-wrap">
+    <span class="particle p1"></span>
+    <span class="particle p2"></span>
+    <span class="particle p3"></span>
+    <span class="particle p4"></span>
+    <span class="particle p5"></span>
+    <span class="particle p6"></span>
+    <span class="particle p7"></span>
+    <span class="particle p8"></span>
+
+    <div class="card-stack">
+      <div class="stack-card b3"></div>
+      <div class="stack-card b2"></div>
+      <div class="stack-card top" id="topCard">
+        <div class="card-icon pdf" id="cardIcon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+            <path d="M14 2v6h6"/>
+          </svg>
+        </div>
+      </div>
     </div>
   </div>
+
+  <h2 class="proc-headline" id="procHeadline">Building your <em>study set</em></h2>
+  <p class="proc-sub" id="procSub">photosynthesis.pdf</p>
+
+  <ul class="proc-phases">
+    <li class="proc-phase" id="procStep1">
+      <span class="check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>
+      Reading the source
+    </li>
+    <li class="proc-phase" id="procStep2">
+      <span class="check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>
+      Writing notes
+    </li>
+    <li class="proc-phase" id="procStep3">
+      <span class="check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>
+      Building flashcards
+    </li>
+    <li class="proc-phase" id="procStep4">
+      <span class="check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>
+      Writing the quiz
+    </li>
+  </ul>
+
+  <div class="proc-bar"><div class="proc-bar-fill" id="procBarFill"></div></div>
 </div>
 
 <!-- ============ AUTH MODAL ============ -->
@@ -941,7 +1029,7 @@ textarea::placeholder{color:var(--dim-2);font-weight:500}
   </div>
 </div>
 
-<!-- ============ TOKEN MODAL / COOLDOWN ============ -->
+<!-- ============ TOKEN MODAL ============ -->
 <div class="token-modal" id="tokenModal">
   <div class="token-box">
     <div class="em">⚡</div>
@@ -955,9 +1043,8 @@ textarea::placeholder{color:var(--dim-2);font-weight:500}
   </div>
 </div>
 
-<!-- ============ TOAST ============ -->
 <div class="toast" id="toast"></div>
 
-<script defer src="app.js?v=1"></script>
+<script defer src="app.js?v=3"></script>
 </body>
-  </html>
+</html>
