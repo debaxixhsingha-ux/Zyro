@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Zyro OG</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@600&display=swap">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{width:1200px;height:630px;overflow:hidden}
+body{
+  background:#fbf8f1;color:#181716;
+  font:16px/1.5 'Plus Jakarta Sans',system-ui,sans-serif;font-weight:500;
+  display:flex;align-items:center;justify-content:space-between;
+  padding:70px 80px;position:relative;
+  -webkit-font-smoothing:antialiased;
+}
+body::before{
+  content:"";position:absolute;top:-200px;left:-140px;
+  width:600px;height:600px;border-radius:50%;
+  background:radial-gradient(circle,rgba(195,245,60,.35),transparent 62%);
+  filter:blur(60px);pointer-events:none;
+}
+body::after{
+  content:"";position:absolute;bottom:-220px;right:-120px;
+  width:600px;height:600px;border-radius:50%;
+  background:radial-gradient(circle,rgba(255,107,74,.20),transparent 62%);
+  filter:blur(70px);pointer-events:none;
+}
+.left{position:relative;z-index:1;max-width:660px}
+.logo{
+  display:inline-flex;align-items:center;gap:12px;
+  font-weight:800;font-size:22px;letter-spacing:-.04em;
+  margin-bottom:44px;
+}
+.logo-mark{
+  width:40px;height:40px;border-radius:12px;
+  background:linear-gradient(135deg,#c3f53c,#ff6b4a);
+  color:#111;display:grid;place-items:center;
+  font-weight:800;font-size:20px;
+}
+h1{
+  font-weight:800;font-size:64px;line-height:1.02;
+  letter-spacing:-.05em;margin-bottom:26px;
+}
+h1 em{
+  font-style:italic;
+  background:linear-gradient(120deg,#ff6b4a 15%,#7c5cff 85%);
+  -webkit-background-clip:text;background-clip:text;color:transparent;
+}
+.hl{position:relative;display:inline-block;padding:0 10px;z-index:1}
+.hl::after{
+  content:'';position:absolute;left:0;right:0;bottom:8%;
+  height:36%;background:#c3f53c;z-index:-1;border-radius:8px;
+  transform:rotate(-.5deg);
+}
+.sub{
+  font-size:22px;color:#7a7671;line-height:1.45;font-weight:500;
+  max-width:560px;
+}
+.right{position:relative;z-index:1;width:360px;flex:none}
+.mockup{
+  width:100%;aspect-ratio:9/16;
+  border:1px solid rgba(24,23,22,.13);
+  border-radius:32px;
+  background:#fff;
+  box-shadow:0 30px 60px -30px rgba(24,23,22,.25),0 10px 20px -10px rgba(24,23,22,.1);
+  overflow:hidden;padding:22px 18px;
+  display:flex;flex-direction:column;gap:14px;
+  transform:rotate(3deg);
+}
+.mock-header{
+  display:flex;align-items:center;justify-content:space-between;
+  padding-bottom:14px;border-bottom:1px solid rgba(24,23,22,.07);
+}
+.mock-title{font-size:15px;font-weight:800;letter-spacing:-.03em}
+.mock-pill{
+  font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;
+  padding:4px 9px;border-radius:999px;
+  background:rgba(195,245,60,.18);border:1px solid rgba(155,196,30,.35);
+  color:#181716;
+}
+.mock-block{
+  padding:12px 14px;border-radius:14px;
+  border:1px solid rgba(24,23,22,.13);background:#fbf8f1;
+}
+.mock-block-label{
+  font-size:9.5px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;
+  color:#ff6b4a;margin-bottom:6px;
+}
+.mock-line{
+  height:7px;border-radius:3px;
+  background:linear-gradient(90deg,#ece5d2,#f5f0e3);
+  margin-bottom:6px;
+}
+.mock-line.short{width:60%}
+.mock-line.medium{width:85%}
+.mock-cards{display:flex;gap:8px;margin-top:10px}
+.mock-card{
+  flex:1;padding:10px 8px;border-radius:11px;
+  background:linear-gradient(150deg,#1c1c22,#2a2a32);
+  color:#f2f0eb;
+}
+.mock-card-num{
+  font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;
+  color:#c3f53c;margin-bottom:6px;
+}
+.mock-card-body{
+  font-size:11px;font-weight:600;line-height:1.35;letter-spacing:-.01em;
+}
+.mock-quiz{
+  padding:12px 14px;border-radius:14px;
+  border:1px solid rgba(24,23,22,.13);background:#fff;
+  margin-top:auto;
+}
+.mock-q-row{
+  display:flex;align-items:center;gap:8px;margin-bottom:8px;
+}
+.mock-q-num{
+  font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:700;
+  padding:2px 7px;border-radius:5px;
+  background:rgba(124,92,255,.10);border:1px solid rgba(124,92,255,.28);
+  color:#7c5cff;
+}
+.mock-q-text{font-size:11px;font-weight:700;letter-spacing:-.015em}
+.mock-opt{
+  display:flex;align-items:center;gap:8px;
+  padding:7px 10px;border-radius:9px;
+  background:#f5f0e3;border:1px solid rgba(24,23,22,.07);
+  font-size:10.5px;font-weight:600;color:#3d3b38;
+  margin-bottom:5px;
+}
+.mock-opt:last-child{margin-bottom:0}
+.mock-opt.correct{
+  background:rgba(22,163,74,.10);
+  border-color:rgba(22,163,74,.4);
+  color:#181716;
+}
+.mock-opt-lt{
+  font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:800;
+  width:16px;height:16px;border-radius:5px;
+  display:grid;place-items:center;
+  background:rgba(24,23,22,.06);color:#7a7671;
+}
+.mock-opt.correct .mock-opt-lt{
+  background:#16a34a;color:#fff;
+}
+</style>
+</head>
+<body>
+  <div class="left">
+    <div class="logo">
+      <span class="logo-mark">Z</span>
+      Zyro
+    </div>
+    <h1>Turn any chapter into <span class="hl">notes</span>, flashcards, and a quiz — <em>in one tap.</em></h1>
+    <p class="sub">Upload a PDF or YouTube lecture. Get a complete study set in seconds. Built for Indian students.</p>
+  </div>
+  <div class="right">
+    <div class="mockup">
+      <div class="mock-header">
+        <div class="mock-title">Physics · Chapter 5</div>
+        <div class="mock-pill">Ready</div>
+      </div>
+      <div class="mock-block">
+        <div class="mock-block-label">Notes</div>
+        <div class="mock-line"></div>
+        <div class="mock-line medium"></div>
+        <div class="mock-line short"></div>
+      </div>
+      <div class="mock-cards">
+        <div class="mock-card">
+          <div class="mock-card-num">CARD 03</div>
+          <div class="mock-card-body">Where does photosynthesis happen?</div>
+        </div>
+        <div class="mock-card">
+          <div class="mock-card-num">CARD 04</div>
+          <div class="mock-card-body">What splits water?</div>
+        </div>
+      </div>
+      <div class="mock-quiz">
+        <div class="mock-q-row">
+          <span class="mock-q-num">Q1</span>
+          <span class="mock-q-text">Which gas is released?</span>
+        </div>
+        <div class="mock-opt"><span class="mock-opt-lt">A</span>CO₂</div>
+        <div class="mock-opt correct"><span class="mock-opt-lt">B</span>Oxygen ✓</div>
+        <div class="mock-opt"><span class="mock-opt-lt">C</span>Nitrogen</div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
